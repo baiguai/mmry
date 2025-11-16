@@ -850,7 +850,7 @@ impl eframe::App for MyApp {
                             self.selected_bookmark_group_for_clips = Some(group.name.clone());
                             self.selected_bookmark_clip_index = 0;
                             self.bookmark_clip_gg_pressed = false;
-                            self.just_switched_to_clips = true;  // Prevent immediate Enter handling
+                            self.just_switched_to_clips = false;  // Allow immediate Enter handling
                             println!("SWITCHED TO CLIPS: group={}, clips_len={}, selected_index=0", group.name, group.clips.len());
                         } else {
                             // Add mode - add current clipboard item to this group
