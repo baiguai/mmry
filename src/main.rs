@@ -581,76 +581,6 @@ impl eframe::App for MyApp {
                 }
             }
             
-            // Handle Enter key for bookmark groups (before main Enter handler)
-            if self.show_bookmark_groups && !self.show_bookmark_input && i.key_pressed(egui::Key::Enter) && !i.modifiers.ctrl && !i.modifiers.alt && !i.modifiers.shift {
-                // Get the selected bookmark group index in the full list
-                let selected_group_index = if self.show_bookmark_input && !self.new_bookmark_group_name.is_empty() {
-                    let filter_lower = self.new_bookmark_group_name.to_lowercase();
-                    let filtered_indices: Vec<usize> = self.bookmark_groups.iter()
-                        .enumerate()
-                        .filter(|(_, group)| group.name.to_lowercase().contains(&filter_lower))
-                        .map(|(index, _)| index)
-                        .collect();
-                    filtered_indices.get(self.selected_bookmark_group_index).copied()
-                } else {
-                    Some(self.selected_bookmark_group_index)
-                };
-                
-                if let Some(group_index) = selected_group_index {
-                    if let Some(group) = self.bookmark_groups.get(group_index) {
-                        // Check if we're in "access mode" (backtick) or "add mode" (m)
-                        if self.bookmark_access_mode {
-                            // Access mode - show clips in this group (in same dialog)
-                            self.selected_bookmark_group_for_clips = Some(group.name.clone());
-                            self.selected_bookmark_clip_index = 0;
-                            self.bookmark_clip_gg_pressed = false;
-                            self.just_switched_to_clips = true;  // Prevent immediate Enter handling
-                        } else {
-                            // Add mode - add current clipboard item to this group
-                            if let Some(group_mut) = self.bookmark_groups.get_mut(group_index) {
-                                // Get the currently selected clipboard item
-                                let selected_clipboard_item = {
-                                    let items = self.clipboard_items.lock().unwrap();
-                                    
-                                    // Find the actual item to select (works for both filtered and unfiltered)
-                                    if self.filter_active {
-                                        let filter_lower = self.filter_text.to_lowercase();
-                                        let filtered_items: Vec<&ClipboardItem> = items.iter()
-                                            .filter(|item| {
-                                                let content_lower = item.content.to_lowercase();
-                                                content_lower.contains(&filter_lower)
-                                            })
-                                            .collect();
-                                        
-                                        filtered_items.get(self.selected_clipboard_index).map(|&item| item.clone())
-                                    } else {
-                                        items.get(self.selected_clipboard_index).map(|item| item.clone())
-                                    }
-                                };
-                                
-                                if let Some(clipboard_item) = selected_clipboard_item {
-                                    // Check if item already exists in the group
-                                    if !group_mut.clips.iter().any(|clip| clip.id == clipboard_item.id) {
-                                        group_mut.clips.push(clipboard_item);
-                                        
-                                        // Save to file
-                                        if let Err(e) = save_bookmark_groups(&self.bookmark_groups) {
-                                            eprintln!("Failed to save bookmark groups: {}", e);
-                                        }
-                                    }
-                                }
-                            }
-                            
-                            // Close the dialog but not the window (only for add mode)
-                            self.show_bookmark_groups = false;
-                            self.selected_bookmark_group_index = 0;
-                            self.bookmark_gg_pressed = false;
-                        }
-                    }
-                }
-                bookmark_enter_handled = true;
-            }
-            
             if self.is_filtering {
                 // Handle backspace key press
                 if i.key_pressed(egui::Key::Backspace) {
@@ -747,61 +677,71 @@ impl eframe::App for MyApp {
             }
             
             // Vim navigation for bookmark clips (when viewing clips in a group)
-            if self.show_bookmark_groups && self.selected_bookmark_group_for_clips.is_some() && !self.just_switched_to_clips {
-                if let Some(group_name) = &self.selected_bookmark_group_for_clips {
-                    if let Some(group) = self.bookmark_groups.iter().find(|g| g.name == *group_name) {
-                        let clips_len = group.clips.len();
-                        
-                        if clips_len > 0 {
-                            // j - move down
-                            if i.key_pressed(egui::Key::J) && !i.modifiers.ctrl && !i.modifiers.alt && !i.modifiers.shift {
-                                if self.selected_bookmark_clip_index < clips_len - 1 {
-                                    self.selected_bookmark_clip_index += 1;
+            if self.show_bookmark_groups && self.selected_bookmark_group_for_clips.is_some() {
+                // Check if any navigation key is pressed and reset the flag if needed
+                let nav_key_pressed = i.key_pressed(egui::Key::J) || i.key_pressed(egui::Key::K) || 
+                                     i.key_pressed(egui::Key::G) || i.key_pressed(egui::Key::Enter);
+                
+                if nav_key_pressed && self.just_switched_to_clips {
+                    self.just_switched_to_clips = false;
+                }
+                
+                if !self.just_switched_to_clips {
+                    if let Some(group_name) = &self.selected_bookmark_group_for_clips {
+                        if let Some(group) = self.bookmark_groups.iter().find(|g| g.name == *group_name) {
+                            let clips_len = group.clips.len();
+                            
+                            if clips_len > 0 {
+                                // j - move down
+                                if i.key_pressed(egui::Key::J) && !i.modifiers.ctrl && !i.modifiers.alt && !i.modifiers.shift {
+                                    if self.selected_bookmark_clip_index < clips_len - 1 {
+                                        self.selected_bookmark_clip_index += 1;
+                                    }
                                 }
-                            }
-                            
-                            // k - move up
-                            if i.key_pressed(egui::Key::K) && !i.modifiers.ctrl && !i.modifiers.alt && !i.modifiers.shift {
-                                if self.selected_bookmark_clip_index > 0 {
-                                    self.selected_bookmark_clip_index -= 1;
+                                
+                                // k - move up
+                                if i.key_pressed(egui::Key::K) && !i.modifiers.ctrl && !i.modifiers.alt && !i.modifiers.shift {
+                                    if self.selected_bookmark_clip_index > 0 {
+                                        self.selected_bookmark_clip_index -= 1;
+                                    }
                                 }
-                            }
-                            
-                            // G - go to last item (Shift+G)
-                            if i.key_pressed(egui::Key::G) && i.modifiers.shift && !i.modifiers.ctrl && !i.modifiers.alt {
-                                self.selected_bookmark_clip_index = clips_len - 1;
-                            }
-                            
-                            // g - first part of gg
-                            if i.key_pressed(egui::Key::G) && !i.modifiers.shift && !i.modifiers.ctrl && !i.modifiers.alt {
-                                if self.bookmark_clip_gg_pressed {
-                                    // gg - go to first item
-                                    self.selected_bookmark_clip_index = 0;
-                                    self.bookmark_clip_gg_pressed = false;
-                                } else {
-                                    // First g pressed, wait for second g
-                                    self.bookmark_clip_gg_pressed = true;
+                                
+                                // G - go to last item (Shift+G)
+                                if i.key_pressed(egui::Key::G) && i.modifiers.shift && !i.modifiers.ctrl && !i.modifiers.alt {
+                                    self.selected_bookmark_clip_index = clips_len - 1;
                                 }
-                            }
-                            
-                            // Enter - copy selected bookmark clip to clipboard
-                            if i.key_pressed(egui::Key::Enter) && !i.modifiers.ctrl && !i.modifiers.alt && !i.modifiers.shift && !self.just_switched_to_clips {
-                                if let Some(clip) = group.clips.get(self.selected_bookmark_clip_index) {
-                                    if let Ok(mut clipboard) = Clipboard::new() {
-                                        let _ = clipboard.set_text(clip.content.clone());
-                                        
-                                        // Close dialog and window
-                                        self.show_bookmark_groups = false;
-                                        self.selected_bookmark_group_index = 0;
-                                        self.bookmark_gg_pressed = false;
+                                
+                                // g - first part of gg
+                                if i.key_pressed(egui::Key::G) && !i.modifiers.shift && !i.modifiers.ctrl && !i.modifiers.alt {
+                                    if self.bookmark_clip_gg_pressed {
+                                        // gg - go to first item
                                         self.selected_bookmark_clip_index = 0;
                                         self.bookmark_clip_gg_pressed = false;
-                                        self.selected_bookmark_group_for_clips = None;
-                                        self.just_switched_to_clips = false;
-                                        
-                                        // Close window
-                                        let mut vis = self.visible.lock().unwrap();
-                                        *vis = false;
+                                    } else {
+                                        // First g pressed, wait for second g
+                                        self.bookmark_clip_gg_pressed = true;
+                                    }
+                                }
+                                
+                                // Enter - copy selected bookmark clip to clipboard
+                                if i.key_pressed(egui::Key::Enter) && !i.modifiers.ctrl && !i.modifiers.alt && !i.modifiers.shift && !self.just_switched_to_clips {
+                                    if let Some(clip) = group.clips.get(self.selected_bookmark_clip_index) {
+                                        if let Ok(mut clipboard) = Clipboard::new() {
+                                            let _ = clipboard.set_text(clip.content.clone());
+                                            
+                                            // Close dialog and window
+                                            self.show_bookmark_groups = false;
+                                            self.selected_bookmark_group_index = 0;
+                                            self.bookmark_gg_pressed = false;
+                                            self.selected_bookmark_clip_index = 0;
+                                            self.bookmark_clip_gg_pressed = false;
+                                            self.selected_bookmark_group_for_clips = None;
+                                            self.just_switched_to_clips = false;
+                                            
+                                            // Close window
+                                            let mut vis = self.visible.lock().unwrap();
+                                            *vis = false;
+                                        }
                                     }
                                 }
                             }
