@@ -561,6 +561,41 @@ impl eframe::App for MyApp {
                         }
                     }
                     
+                    // D - delete selected bookmark group (Shift+D)
+                    if i.key_pressed(egui::Key::D) && i.modifiers.shift && !i.modifiers.ctrl && !i.modifiers.alt {
+                        if !self.bookmark_groups.is_empty() {
+                            // Get the actual group index to delete (works for both filtered and unfiltered)
+                            let group_index_to_delete = if self.show_bookmark_input && !self.new_bookmark_group_name.is_empty() {
+                                let filter_lower = self.new_bookmark_group_name.to_lowercase();
+                                let filtered_indices: Vec<usize> = self.bookmark_groups.iter()
+                                    .enumerate()
+                                    .filter(|(_, group)| group.name.to_lowercase().contains(&filter_lower))
+                                    .map(|(index, _)| index)
+                                    .collect();
+                                filtered_indices.get(self.selected_bookmark_group_index).copied()
+                            } else {
+                                Some(self.selected_bookmark_group_index)
+                            };
+                            
+                            if let Some(index_to_delete) = group_index_to_delete {
+                                if index_to_delete < self.bookmark_groups.len() {
+                                    self.bookmark_groups.remove(index_to_delete);
+                                    
+                                    // Adjust selection if needed
+                                    if self.bookmark_groups.is_empty() {
+                                        self.selected_bookmark_group_index = 0;
+                                    } else if self.selected_bookmark_group_index >= self.bookmark_groups.len() {
+                                        self.selected_bookmark_group_index = self.bookmark_groups.len() - 1;
+                                    }
+                                    
+                                    // Save to file
+                                    if let Err(e) = save_bookmark_groups(&self.bookmark_groups) {
+                                        eprintln!("Failed to save bookmark groups: {}", e);
+                            }
+                        }
+                    }
+                }
+            }
 
                 }
             }
