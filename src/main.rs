@@ -597,45 +597,57 @@ impl eframe::App for MyApp {
                 };
                 
                 if let Some(group_index) = selected_group_index {
-                    if let Some(group) = self.bookmark_groups.get_mut(group_index) {
-                        // Get the currently selected clipboard item
-                        let selected_clipboard_item = {
-                            let items = self.clipboard_items.lock().unwrap();
-                            
-                            // Find the actual item to select (works for both filtered and unfiltered)
-                            if self.filter_active {
-                                let filter_lower = self.filter_text.to_lowercase();
-                                let filtered_items: Vec<&ClipboardItem> = items.iter()
-                                    .filter(|item| {
-                                        let content_lower = item.content.to_lowercase();
-                                        content_lower.contains(&filter_lower)
-                                    })
-                                    .collect();
+                    if let Some(group) = self.bookmark_groups.get(group_index) {
+                        // Check if we're in "access mode" (backtick) or "add mode" (m)
+                        if self.bookmark_access_mode {
+                            // Access mode - show clips in this group (in same dialog)
+                            self.selected_bookmark_group_for_clips = Some(group.name.clone());
+                            self.selected_bookmark_clip_index = 0;
+                            self.bookmark_clip_gg_pressed = false;
+                            self.just_switched_to_clips = true;  // Prevent immediate Enter handling
+                        } else {
+                            // Add mode - add current clipboard item to this group
+                            if let Some(group_mut) = self.bookmark_groups.get_mut(group_index) {
+                                // Get the currently selected clipboard item
+                                let selected_clipboard_item = {
+                                    let items = self.clipboard_items.lock().unwrap();
+                                    
+                                    // Find the actual item to select (works for both filtered and unfiltered)
+                                    if self.filter_active {
+                                        let filter_lower = self.filter_text.to_lowercase();
+                                        let filtered_items: Vec<&ClipboardItem> = items.iter()
+                                            .filter(|item| {
+                                                let content_lower = item.content.to_lowercase();
+                                                content_lower.contains(&filter_lower)
+                                            })
+                                            .collect();
+                                        
+                                        filtered_items.get(self.selected_clipboard_index).map(|&item| item.clone())
+                                    } else {
+                                        items.get(self.selected_clipboard_index).map(|item| item.clone())
+                                    }
+                                };
                                 
-                                filtered_items.get(self.selected_clipboard_index).map(|&item| item.clone())
-                            } else {
-                                items.get(self.selected_clipboard_index).map(|item| item.clone())
-                            }
-                        };
-                        
-                        if let Some(clipboard_item) = selected_clipboard_item {
-                            // Check if item already exists in the group
-                            if !group.clips.iter().any(|clip| clip.id == clipboard_item.id) {
-                                group.clips.push(clipboard_item);
-                                
-                                // Save to file
-                                if let Err(e) = save_bookmark_groups(&self.bookmark_groups) {
-                                    eprintln!("Failed to save bookmark groups: {}", e);
+                                if let Some(clipboard_item) = selected_clipboard_item {
+                                    // Check if item already exists in the group
+                                    if !group_mut.clips.iter().any(|clip| clip.id == clipboard_item.id) {
+                                        group_mut.clips.push(clipboard_item);
+                                        
+                                        // Save to file
+                                        if let Err(e) = save_bookmark_groups(&self.bookmark_groups) {
+                                            eprintln!("Failed to save bookmark groups: {}", e);
+                                        }
+                                    }
                                 }
                             }
-                        }
-                    }
-                }
-                
+                            
                             // Close the dialog but not the window (only for add mode)
                             self.show_bookmark_groups = false;
                             self.selected_bookmark_group_index = 0;
                             self.bookmark_gg_pressed = false;
+                        }
+                    }
+                }
                 bookmark_enter_handled = true;
             }
             
@@ -773,7 +785,7 @@ impl eframe::App for MyApp {
                             }
                             
                             // Enter - copy selected bookmark clip to clipboard
-                            if i.key_pressed(egui::Key::Enter) && !i.modifiers.ctrl && !i.modifiers.alt && !i.modifiers.shift {
+                            if i.key_pressed(egui::Key::Enter) && !i.modifiers.ctrl && !i.modifiers.alt && !i.modifiers.shift && !self.just_switched_to_clips {
                                 if let Some(clip) = group.clips.get(self.selected_bookmark_clip_index) {
                                     if let Ok(mut clipboard) = Clipboard::new() {
                                         let _ = clipboard.set_text(clip.content.clone());
@@ -899,15 +911,14 @@ impl eframe::App for MyApp {
                 
                 if let Some(group_index) = selected_group_index {
                     if let Some(group) = self.bookmark_groups.get(group_index) {
-                                // Check if we're in "access mode" (backtick) or "add mode" (m)
-                                // If we came from backtick, show clips; if from 'm', add clip
-                                if self.bookmark_access_mode {
-                                    // Access mode - show clips in this group (in same dialog)
-                                    self.selected_bookmark_group_for_clips = Some(group.name.clone());
-                                    self.selected_bookmark_clip_index = 0;
-                                    self.bookmark_clip_gg_pressed = false;
-                                    self.just_switched_to_clips = true;  // Prevent immediate Enter handling
-                                } else {
+                        // Check if we're in "access mode" (backtick) or "add mode" (m)
+                        if self.bookmark_access_mode {
+                            // Access mode - show clips in this group (in same dialog)
+                            self.selected_bookmark_group_for_clips = Some(group.name.clone());
+                            self.selected_bookmark_clip_index = 0;
+                            self.bookmark_clip_gg_pressed = false;
+                            self.just_switched_to_clips = true;  // Prevent immediate Enter handling
+                        } else {
                             // Add mode - add current clipboard item to this group
                             if let Some(group_mut) = self.bookmark_groups.get_mut(group_index) {
                                 // Get the currently selected clipboard item
