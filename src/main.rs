@@ -762,20 +762,32 @@ impl eframe::App for MyApp {
                                 if i.key_pressed(egui::Key::Enter) && !i.modifiers.ctrl && !i.modifiers.alt && !i.modifiers.shift && !self.just_switched_to_clips {
                                     if let Some(clip) = group.clips.get(self.selected_bookmark_clip_index) {
                                         // Copy to clipboard using the same method as main clipboard
-                                        if let Ok(mut clipboard) = Clipboard::new() {
-                                            let content_to_copy = clip.content.clone();
-                                            let _ = clipboard.set_text(content_to_copy);
-                                            self.show_bookmark_groups = false;
-                                            self.selected_bookmark_group_index = 0;
-                                            self.bookmark_gg_pressed = false;
-                                            self.selected_bookmark_clip_index = 0;
-                                            self.bookmark_clip_gg_pressed = false;
-                                            self.selected_bookmark_group_for_clips = None;
-                                            self.just_switched_to_clips = false;
-                                            
-                                            // Close window
-                                            let mut vis = self.visible.lock().unwrap();
-                                            *vis = false;
+                                        match Clipboard::new() {
+                                            Ok(mut clipboard) => {
+                                                let content_to_copy = clip.content.clone();
+                                                match clipboard.set_text(content_to_copy) {
+                                                    Ok(()) => {
+                                                        // Success - close everything
+                                                        self.show_bookmark_groups = false;
+                                                        self.selected_bookmark_group_index = 0;
+                                                        self.bookmark_gg_pressed = false;
+                                                        self.selected_bookmark_clip_index = 0;
+                                                        self.bookmark_clip_gg_pressed = false;
+                                                        self.selected_bookmark_group_for_clips = None;
+                                                        self.just_switched_to_clips = false;
+                                                        
+                                                        // Close window
+                                                        let mut vis = self.visible.lock().unwrap();
+                                                        *vis = false;
+                                                    }
+                                                    Err(e) => {
+                                                        eprintln!("Failed to set clipboard text: {}", e);
+                                                    }
+                                                }
+                                            }
+                                            Err(e) => {
+                                                eprintln!("Failed to initialize clipboard: {}", e);
+                                            }
                                         }
                                     }
                                 }
