@@ -1,0 +1,17 @@
+[package]
+name = "mmry"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+egui = "0.28"
+eframe = { version = "0.28", default-features = false, features = [
+    "default_fonts",
+    "glow",
+] }
+global-hotkey = "0.5"
+arboard = "3.4"
+chrono = { version = "0.4", features = ["serde"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+dirs = "5.0"
