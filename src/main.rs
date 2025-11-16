@@ -757,8 +757,21 @@ ui.add_space(16.0);
                                 ui.separator();
                                 ui.add_space(16.0);
                                 
-                                // Display existing bookmark groups
-                                if self.bookmark_groups.is_empty() {
+                                 // Display existing bookmark groups
+                                let filtered_groups: Vec<&BookmarkGroup> = if self.show_bookmark_input && !self.new_bookmark_group_name.is_empty() {
+                                    let filter_lower = self.new_bookmark_group_name.to_lowercase();
+                                    self.bookmark_groups.iter()
+                                        .filter(|group| group.name.to_lowercase().contains(&filter_lower))
+                                        .collect()
+                                } else {
+                                    self.bookmark_groups.iter().collect()
+                                };
+                                
+                                if filtered_groups.is_empty() && self.show_bookmark_input && !self.new_bookmark_group_name.is_empty() {
+                                    ui.label(egui::RichText::new("No groups match filter...")
+                                        .color(hex_to_color(&self.theme.text_color))
+                                        .family(egui::FontFamily::Monospace));
+                                } else if filtered_groups.is_empty() {
                                     ui.label(egui::RichText::new("No bookmark groups yet...")
                                         .color(hex_to_color(&self.theme.text_color))
                                         .family(egui::FontFamily::Monospace));
@@ -767,7 +780,7 @@ ui.add_space(16.0);
                                         .max_height(300.0)
                                         .show(ui, |ui| {
                                             ui.set_width(ui.available_width());
-                                            for group in &self.bookmark_groups {
+                                            for group in filtered_groups {
                                                 let frame = egui::Frame::none()
                                                     .fill(if group.name.len() % 2 == 0 { 
                                                         hex_to_color(&self.theme.background_color)
