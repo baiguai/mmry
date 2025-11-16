@@ -325,6 +325,8 @@ struct MyApp {
     selected_bookmark_clip_index: usize,
     bookmark_clip_gg_pressed: bool,
     selected_bookmark_group_for_clips: Option<String>,
+    bookmark_access_mode: bool,  // true for access mode (backtick), false for add mode (m)
+    just_switched_to_clips: bool,  // prevent immediate Enter key handling after switching to clips view
     
 }
 
@@ -372,6 +374,8 @@ impl MyApp {
             selected_bookmark_clip_index: 0,
             bookmark_clip_gg_pressed: false,
             selected_bookmark_group_for_clips: None,
+            bookmark_access_mode: false,
+            just_switched_to_clips: false,
             
         }
     }
@@ -440,6 +444,7 @@ impl eframe::App for MyApp {
                     self.selected_bookmark_group_for_clips = None;
                     self.selected_bookmark_clip_index = 0;
                     self.bookmark_clip_gg_pressed = false;
+                    self.just_switched_to_clips = false;
                 } else if self.show_bookmark_groups {
                     // Hide bookmark groups view
                     self.show_bookmark_groups = false;
@@ -447,6 +452,8 @@ impl eframe::App for MyApp {
                     self.new_bookmark_group_name.clear();
                     self.selected_bookmark_group_index = 0;
                     self.bookmark_gg_pressed = false;
+                    self.bookmark_access_mode = false;
+                    self.just_switched_to_clips = false;
                 } else if self.filter_mode != FilterMode::None {
                     // Cancel filter mode - clear filter completely
                     self.filter_mode = FilterMode::None;
@@ -495,6 +502,7 @@ impl eframe::App for MyApp {
                                 self.show_bookmark_groups = true;
                                 self.show_bookmark_input = true;
                                 self.new_bookmark_group_name.clear();
+                                self.bookmark_access_mode = false;  // Set add mode flag
                             } else {
                                 // m (lowercase) - show dialog without input for adding clips
                                 self.show_bookmark_groups = true;
@@ -502,6 +510,7 @@ impl eframe::App for MyApp {
                                 self.new_bookmark_group_name.clear();
                                 self.selected_bookmark_group_index = 0;
                                 self.bookmark_gg_pressed = false;
+                                self.bookmark_access_mode = false;  // Set add mode flag
                             }
                         }
                     }
@@ -566,6 +575,7 @@ impl eframe::App for MyApp {
                             self.new_bookmark_group_name.clear();
                             self.selected_bookmark_group_index = 0;
                             self.bookmark_gg_pressed = false;
+                            self.bookmark_access_mode = true;  // Set access mode flag
                         }
                     }
                 }
@@ -622,10 +632,10 @@ impl eframe::App for MyApp {
                     }
                 }
                 
-                // Close the dialog but not the window
-                self.show_bookmark_groups = false;
-                self.selected_bookmark_group_index = 0;
-                self.bookmark_gg_pressed = false;
+                            // Close the dialog but not the window (only for add mode)
+                            self.show_bookmark_groups = false;
+                            self.selected_bookmark_group_index = 0;
+                            self.bookmark_gg_pressed = false;
                 bookmark_enter_handled = true;
             }
             
@@ -725,7 +735,7 @@ impl eframe::App for MyApp {
             }
             
             // Vim navigation for bookmark clips (when viewing clips in a group)
-            if self.show_bookmark_groups && self.selected_bookmark_group_for_clips.is_some() {
+            if self.show_bookmark_groups && self.selected_bookmark_group_for_clips.is_some() && !self.just_switched_to_clips {
                 if let Some(group_name) = &self.selected_bookmark_group_for_clips {
                     if let Some(group) = self.bookmark_groups.iter().find(|g| g.name == *group_name) {
                         let clips_len = group.clips.len();
@@ -775,6 +785,7 @@ impl eframe::App for MyApp {
                                         self.selected_bookmark_clip_index = 0;
                                         self.bookmark_clip_gg_pressed = false;
                                         self.selected_bookmark_group_for_clips = None;
+                                        self.just_switched_to_clips = false;
                                         
                                         // Close window
                                         let mut vis = self.visible.lock().unwrap();
@@ -890,11 +901,12 @@ impl eframe::App for MyApp {
                     if let Some(group) = self.bookmark_groups.get(group_index) {
                                 // Check if we're in "access mode" (backtick) or "add mode" (m)
                                 // If we came from backtick, show clips; if from 'm', add clip
-                                if self.new_bookmark_group_name.is_empty() && !self.show_bookmark_input {
+                                if self.bookmark_access_mode {
                                     // Access mode - show clips in this group (in same dialog)
                                     self.selected_bookmark_group_for_clips = Some(group.name.clone());
                                     self.selected_bookmark_clip_index = 0;
                                     self.bookmark_clip_gg_pressed = false;
+                                    self.just_switched_to_clips = true;  // Prevent immediate Enter handling
                                 } else {
                             // Add mode - add current clipboard item to this group
                             if let Some(group_mut) = self.bookmark_groups.get_mut(group_index) {
@@ -931,7 +943,7 @@ impl eframe::App for MyApp {
                                 }
                             }
                             
-                            // Close the dialog but not the window
+                            // Close the dialog but not the window (only for add mode)
                             self.show_bookmark_groups = false;
                             self.selected_bookmark_group_index = 0;
                             self.bookmark_gg_pressed = false;
@@ -942,7 +954,7 @@ impl eframe::App for MyApp {
             }
             
             // Handle Enter key (works in both normal and filter mode, but not in bookmark groups dialog)
-            if i.key_pressed(egui::Key::Enter) && !i.modifiers.ctrl && !i.modifiers.alt && !i.modifiers.shift && !self.show_bookmark_groups && !bookmark_enter_handled {
+            if i.key_pressed(egui::Key::Enter) && !i.modifiers.ctrl && !i.modifiers.alt && !i.modifiers.shift && !self.show_bookmark_groups && !bookmark_enter_handled && self.selected_bookmark_group_for_clips.is_none() {
                 if let Ok(mut clipboard) = Clipboard::new() {
                     let selected_item_id = {
                         let items = self.clipboard_items.lock().unwrap();
