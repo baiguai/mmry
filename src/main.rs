@@ -83,6 +83,7 @@ impl Default for Config {
 struct BookmarkGroup {
     name: String,
     created_at: DateTime<Utc>,
+    clips: Vec<ClipboardItem>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -255,8 +256,25 @@ fn load_bookmark_groups() -> Vec<BookmarkGroup> {
     if let Ok(path) = get_bookmarks_data_path() {
         if path.exists() {
             if let Ok(content) = fs::read_to_string(&path) {
+                // Try to parse as new format first
                 if let Ok(groups) = serde_json::from_str::<Vec<BookmarkGroup>>(&content) {
                     return groups;
+                } else {
+                    // Try to parse as old format for backward compatibility
+                    #[derive(Debug, Serialize, Deserialize)]
+                    struct OldBookmarkGroup {
+                        name: String,
+                        created_at: DateTime<Utc>,
+                    }
+                    
+                    if let Ok(old_groups) = serde_json::from_str::<Vec<OldBookmarkGroup>>(&content) {
+                        // Convert old format to new format
+                        return old_groups.into_iter().map(|old_group| BookmarkGroup {
+                            name: old_group.name,
+                            created_at: old_group.created_at,
+                            clips: Vec::new(),
+                        }).collect();
+                    }
                 }
             }
         }
@@ -408,6 +426,7 @@ impl eframe::App for MyApp {
         self.theme = load_theme(&self.config.theme);
         
         // Handle keyboard input
+        let mut bookmark_enter_handled = false;
         ctx.input(|i| {
             if i.key_pressed(egui::Key::Escape) {
                 if self.show_bookmark_groups {
@@ -522,28 +541,66 @@ impl eframe::App for MyApp {
                         }
                     }
                     
-                    // Enter - add selected clipboard item to selected bookmark group
-                    if i.key_pressed(egui::Key::Enter) && !i.modifiers.ctrl && !i.modifiers.alt && !i.modifiers.shift {
-                        // Get the selected bookmark group
-                        let selected_group = if self.show_bookmark_input && !self.new_bookmark_group_name.is_empty() {
-                            let filter_lower = self.new_bookmark_group_name.to_lowercase();
-                            let filtered_groups: Vec<&BookmarkGroup> = self.bookmark_groups.iter()
-                                .filter(|group| group.name.to_lowercase().contains(&filter_lower))
-                                .collect();
-                            filtered_groups.get(self.selected_bookmark_group_index).map(|g| g.name.clone())
-                        } else {
-                            self.bookmark_groups.get(self.selected_bookmark_group_index).map(|g| g.name.clone())
+
+                }
+            }
+            
+            // Handle Enter key for bookmark groups (before main Enter handler)
+            if self.show_bookmark_groups && !self.show_bookmark_input && i.key_pressed(egui::Key::Enter) && !i.modifiers.ctrl && !i.modifiers.alt && !i.modifiers.shift {
+                // Get the selected bookmark group index in the full list
+                let selected_group_index = if self.show_bookmark_input && !self.new_bookmark_group_name.is_empty() {
+                    let filter_lower = self.new_bookmark_group_name.to_lowercase();
+                    let filtered_indices: Vec<usize> = self.bookmark_groups.iter()
+                        .enumerate()
+                        .filter(|(_, group)| group.name.to_lowercase().contains(&filter_lower))
+                        .map(|(index, _)| index)
+                        .collect();
+                    filtered_indices.get(self.selected_bookmark_group_index).copied()
+                } else {
+                    Some(self.selected_bookmark_group_index)
+                };
+                
+                if let Some(group_index) = selected_group_index {
+                    if let Some(group) = self.bookmark_groups.get_mut(group_index) {
+                        // Get the currently selected clipboard item
+                        let selected_clipboard_item = {
+                            let items = self.clipboard_items.lock().unwrap();
+                            
+                            // Find the actual item to select (works for both filtered and unfiltered)
+                            if self.filter_active {
+                                let filter_lower = self.filter_text.to_lowercase();
+                                let filtered_items: Vec<&ClipboardItem> = items.iter()
+                                    .filter(|item| {
+                                        let content_lower = item.content.to_lowercase();
+                                        content_lower.contains(&filter_lower)
+                                    })
+                                    .collect();
+                                
+                                filtered_items.get(self.selected_clipboard_index).map(|&item| item.clone())
+                            } else {
+                                items.get(self.selected_clipboard_index).map(|item| item.clone())
+                            }
                         };
                         
-                        if let Some(_group_name) = selected_group {
-                            // Here you would implement the logic to add the current clipboard item to the selected group
-                            // For now, just close the dialog
-                            self.show_bookmark_groups = false;
-                            self.selected_bookmark_group_index = 0;
-                            self.bookmark_gg_pressed = false;
+                        if let Some(clipboard_item) = selected_clipboard_item {
+                            // Check if item already exists in the group
+                            if !group.clips.iter().any(|clip| clip.id == clipboard_item.id) {
+                                group.clips.push(clipboard_item);
+                                
+                                // Save to file
+                                if let Err(e) = save_bookmark_groups(&self.bookmark_groups) {
+                                    eprintln!("Failed to save bookmark groups: {}", e);
+                                }
+                            }
                         }
                     }
                 }
+                
+                // Close the dialog but not the window
+                self.show_bookmark_groups = false;
+                self.selected_bookmark_group_index = 0;
+                self.bookmark_gg_pressed = false;
+                bookmark_enter_handled = true;
             }
             
             if self.is_filtering {
@@ -642,7 +699,7 @@ impl eframe::App for MyApp {
             }
             
             // Handle Enter key (works in both normal and filter mode, but not in bookmark groups dialog)
-            if i.key_pressed(egui::Key::Enter) && !i.modifiers.ctrl && !i.modifiers.alt && !i.modifiers.shift && !self.show_bookmark_groups {
+            if i.key_pressed(egui::Key::Enter) && !i.modifiers.ctrl && !i.modifiers.alt && !i.modifiers.shift && !self.show_bookmark_groups && !bookmark_enter_handled {
                 if let Ok(mut clipboard) = Clipboard::new() {
                     let selected_item_id = {
                         let items = self.clipboard_items.lock().unwrap();
@@ -812,6 +869,7 @@ impl eframe::App for MyApp {
                                                     let new_group = BookmarkGroup {
                                                         name: group_name.clone(),
                                                         created_at: Utc::now(),
+                                                        clips: Vec::new(),
                                                     };
                                                     self.bookmark_groups.push(new_group);
                                                     
@@ -819,16 +877,12 @@ impl eframe::App for MyApp {
                                                     if let Err(e) = save_bookmark_groups(&self.bookmark_groups) {
                                                         eprintln!("Failed to save bookmark groups: {}", e);
                                                     }
-                                                }
-                                                
-                                                self.new_bookmark_group_name.clear();
-                                                self.show_bookmark_groups = false; // Close dialog but not window
-                                                self.show_bookmark_input = false;
                                             }
                                         }
+                                    }
+                                        
+                                        ui.add_space(16.0);
                                     });
-                                    
-ui.add_space(16.0);
                                 }
                                 ui.separator();
                                 ui.add_space(16.0);
@@ -893,6 +947,14 @@ ui.add_space(16.0);
                                                             .family(egui::FontFamily::Monospace));
                                                         
                                                         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                                                            ui.label(egui::RichText::new(format!("{} clips", group.clips.len()))
+                                                                .color(if is_selected {
+                                                                    hex_to_color(&self.theme.selected_text_color)
+                                                                } else {
+                                                                    hex_to_color(&self.theme.text_color)
+                                                                })
+                                                                .family(egui::FontFamily::Monospace));
+                                                            ui.add_space(10.0);
                                                             ui.label(egui::RichText::new(format!("{}", 
                                                                 group.created_at.format("%Y-%m-%d %H:%M")))
                                                                 .color(if is_selected {
