@@ -437,6 +437,7 @@ impl eframe::App for MyApp {
         
         // Handle keyboard input
         let mut bookmark_enter_handled = false;
+        let mut bookmark_clip_enter_handled = false;
         ctx.input(|i| {
             if i.key_pressed(egui::Key::Escape) {
                 if self.show_bookmark_groups && self.selected_bookmark_group_for_clips.is_some() {
@@ -718,6 +719,7 @@ impl eframe::App for MyApp {
                                      i.key_pressed(egui::Key::G);
                 
                 if nav_key_pressed && self.just_switched_to_clips {
+                    println!("NAV KEY PRESSED - resetting just_switched_to_clips");
                     self.just_switched_to_clips = false;
                 }
                 
@@ -759,14 +761,18 @@ impl eframe::App for MyApp {
                                 }
                                 
                                 // Enter - copy selected bookmark clip to clipboard
-                                if i.key_pressed(egui::Key::Enter) && !i.modifiers.ctrl && !i.modifiers.alt && !i.modifiers.shift && !self.just_switched_to_clips {
+                                if i.key_pressed(egui::Key::Enter) && !i.modifiers.ctrl && !i.modifiers.alt && !i.modifiers.shift {
+                                    println!("BOOKMARK CLIP ENTER: clip_index={}, just_switched={}", self.selected_bookmark_clip_index, self.just_switched_to_clips);
                                     if let Some(clip) = group.clips.get(self.selected_bookmark_clip_index) {
+                                        println!("BOOKMARK CLIP FOUND: {}", clip.content);
                                         // Copy to clipboard using the same method as main clipboard
                                         match Clipboard::new() {
                                             Ok(mut clipboard) => {
                                                 let content_to_copy = clip.content.clone();
                                                 match clipboard.set_text(content_to_copy) {
                                                     Ok(()) => {
+                                                        println!("BOOKMARK CLIP COPIED SUCCESSFULLY");
+                                                        bookmark_clip_enter_handled = true;
                                                         // Success - close everything
                                                         self.show_bookmark_groups = false;
                                                         self.selected_bookmark_group_index = 0;
@@ -789,6 +795,8 @@ impl eframe::App for MyApp {
                                                 eprintln!("Failed to initialize clipboard: {}", e);
                                             }
                                         }
+                                    } else {
+                                        println!("NO BOOKMARK CLIP FOUND AT INDEX {}", self.selected_bookmark_clip_index);
                                     }
                                 }
                             }
@@ -797,69 +805,7 @@ impl eframe::App for MyApp {
                 }
             }
             
-            // Handle Enter key (works in both normal and filter mode, but not in bookmark groups dialog)
-            if i.key_pressed(egui::Key::Enter) && !i.modifiers.ctrl && !i.modifiers.alt && !i.modifiers.shift && !self.show_bookmark_groups && !bookmark_enter_handled {
-                if let Ok(mut clipboard) = Clipboard::new() {
-                    let selected_item_id = {
-                        let items = self.clipboard_items.lock().unwrap();
-                        
-                        // Find the actual item to select (works for both filtered and unfiltered)
-                        if self.filter_active {
-                            let filter_lower = self.filter_text.to_lowercase();
-                            let filtered_items: Vec<&ClipboardItem> = items.iter()
-                                .filter(|item| {
-                                    let content_lower = item.content.to_lowercase();
-                                    content_lower.contains(&filter_lower)
-                                })
-                                .collect();
-                            
-                            filtered_items.get(self.selected_clipboard_index).map(|item| item.id)
-                        } else {
-                            items.get(self.selected_clipboard_index).map(|item| item.id)
-                        }
-                    };
-                    
-                    if let Some(selected_item_id) = selected_item_id {
-                        // Now get the items again for modification
-                        let mut items_vec = self.clipboard_items.lock().unwrap();
-                        
-                        // Find the item in the full list and get its content
-                        let item_content = if let Some(pos) = items_vec.iter().position(|item| item.id == selected_item_id) {
-                            let content = items_vec[pos].content.clone();
-                            
-                            // Move selected item to top and update timestamp
-                            let mut item = items_vec.remove(pos);
-                            item.timestamp = Utc::now();
-                            items_vec.insert(0, item);
-                            
-                            Some(content)
-                        } else {
-                            None
-                        };
-                        
-                        // Set clipboard content
-                        if let Some(content) = item_content {
-                            let _ = clipboard.set_text(content);
-                        }
-                        
-                        self.selected_clipboard_index = 0;
-                        
-                        // Save to file
-                        if let Err(e) = save_clipboard_items(&items_vec) {
-                            eprintln!("Failed to save clipboard items: {}", e);
-                        }
-                        
-                        // Clear filter when closing window after copying
-                        self.filter_active = false;
-                        self.is_filtering = false;
-                        self.filter_text.clear();
-                        
-                        // Close window
-                        let mut vis = self.visible.lock().unwrap();
-                        *vis = false;
-                    }
-                }
-            }
+
             
             // D - delete selected item (Shift+D)
             if i.key_pressed(egui::Key::D) && i.modifiers.shift && !i.modifiers.ctrl && !i.modifiers.alt {
@@ -882,7 +828,7 @@ impl eframe::App for MyApp {
             }
             
             // Handle Enter key for bookmark groups (before main Enter handler)
-            if self.show_bookmark_groups && !self.show_bookmark_input && i.key_pressed(egui::Key::Enter) && !i.modifiers.ctrl && !i.modifiers.alt && !i.modifiers.shift {
+            if self.show_bookmark_groups && !self.show_bookmark_input && self.selected_bookmark_group_for_clips.is_none() && i.key_pressed(egui::Key::Enter) && !i.modifiers.ctrl && !i.modifiers.alt && !i.modifiers.shift {
                 // Get the selected bookmark group index in the full list
                 let selected_group_index = if self.show_bookmark_input && !self.new_bookmark_group_name.is_empty() {
                     let filter_lower = self.new_bookmark_group_name.to_lowercase();
@@ -905,6 +851,7 @@ impl eframe::App for MyApp {
                             self.selected_bookmark_clip_index = 0;
                             self.bookmark_clip_gg_pressed = false;
                             self.just_switched_to_clips = true;  // Prevent immediate Enter handling
+                            println!("SWITCHED TO CLIPS: group={}, clips_len={}, selected_index=0", group.name, group.clips.len());
                         } else {
                             // Add mode - add current clipboard item to this group
                             if let Some(group_mut) = self.bookmark_groups.get_mut(group_index) {
@@ -952,7 +899,9 @@ impl eframe::App for MyApp {
             }
             
             // Handle Enter key (works in both normal and filter mode, but not in bookmark groups dialog)
-            if i.key_pressed(egui::Key::Enter) && !i.modifiers.ctrl && !i.modifiers.alt && !i.modifiers.shift && !self.show_bookmark_groups && !bookmark_enter_handled && self.selected_bookmark_group_for_clips.is_none() {
+            if i.key_pressed(egui::Key::Enter) && !i.modifiers.ctrl && !i.modifiers.alt && !i.modifiers.shift && !self.show_bookmark_groups && !bookmark_enter_handled && !bookmark_clip_enter_handled && self.selected_bookmark_group_for_clips.is_none() {
+                println!("MAIN ENTER HANDLER: show_bookmark_groups={}, bookmark_enter_handled={}, bookmark_clip_enter_handled={}, selected_bookmark_group_for_clips={:?}", 
+                    self.show_bookmark_groups, bookmark_enter_handled, bookmark_clip_enter_handled, self.selected_bookmark_group_for_clips);
                 if let Ok(mut clipboard) = Clipboard::new() {
                     let selected_item_id = {
                         let items = self.clipboard_items.lock().unwrap();
