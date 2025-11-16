@@ -300,6 +300,7 @@ struct MyApp {
     original_selected_index: usize,
     bookmark_groups: Vec<BookmarkGroup>,
     show_bookmark_groups: bool,
+    show_bookmark_input: bool,  // Whether to show text input for creating groups
     new_bookmark_group_name: String,
     
 }
@@ -341,6 +342,7 @@ impl MyApp {
             original_selected_index: 0,
             bookmark_groups,
             show_bookmark_groups: false,
+            show_bookmark_input: false,
             new_bookmark_group_name: String::new(),
             
         }
@@ -407,6 +409,7 @@ impl eframe::App for MyApp {
                 if self.show_bookmark_groups {
                     // Hide bookmark groups view
                     self.show_bookmark_groups = false;
+                    self.show_bookmark_input = false;
                     self.new_bookmark_group_name.clear();
                 } else if self.filter_mode != FilterMode::None {
                     // Cancel filter mode - clear filter completely
@@ -446,13 +449,22 @@ impl eframe::App for MyApp {
                 }
             }
             
-            // M - show bookmark groups - check for Shift+M (uppercase M)
+            // M/m - show bookmark groups dialog
             if !self.show_bookmark_groups {
                 for event in &i.events {
                     if let egui::Event::Key { key, pressed: true, .. } = event {
-                        if *key == egui::Key::M && i.modifiers.shift && !i.modifiers.ctrl && !i.modifiers.alt {
-                            self.show_bookmark_groups = true;
-                            self.new_bookmark_group_name.clear();
+                        if *key == egui::Key::M && !i.modifiers.ctrl && !i.modifiers.alt {
+if i.modifiers.shift {
+                                // Shift+M - show dialog with input for creating groups
+                                self.show_bookmark_groups = true;
+                                self.show_bookmark_input = true;
+                                self.new_bookmark_group_name.clear();
+                            } else {
+                                // m (lowercase) - show dialog without input for adding clips
+                                self.show_bookmark_groups = true;
+                                self.show_bookmark_input = false;
+                                self.new_bookmark_group_name.clear();
+                            }
                         }
                     }
                 }
@@ -688,57 +700,60 @@ impl eframe::App for MyApp {
                                 ui.style_mut().visuals.panel_fill = hex_to_color(&self.theme.background_color);
                                 ui.style_mut().visuals.window_fill = hex_to_color(&self.theme.background_color);
                                 
-                                // Dialog title
+// Dialog title
                                 ui.heading(egui::RichText::new("Bookmark Groups")
                                     .color(hex_to_color(&self.theme.text_color))
                                     .family(egui::FontFamily::Monospace));
                                 ui.add_space(16.0);
                                 
-                                // Text input for new bookmark group name
-                                ui.horizontal(|ui| {
-                                    ui.label(egui::RichText::new("New group:")
-                                        .color(hex_to_color(&self.theme.text_color))
-                                        .family(egui::FontFamily::Monospace));
-                                    
-                                    let response = ui.add(
-                                        egui::TextEdit::singleline(&mut self.new_bookmark_group_name)
-                                            .desired_width(ui.available_width() - 80.0)
-                                            .text_color(hex_to_color(&self.theme.text_color))
-                                            .font(egui::FontId::monospace(14.0))
-                                            .hint_text(egui::RichText::new("Enter group name...")
-                                                .color(hex_to_color(&self.theme.text_color))
-                                                .family(egui::FontFamily::Monospace))
-                                    );
-                                    
-                                    // Request focus for the text input
-                                    response.request_focus();
-                                    
-                                    // Handle Enter key to create new group and close dialog
-                                    if ui.input(|i| i.key_pressed(egui::Key::Enter)) {
-                                        if !self.new_bookmark_group_name.trim().is_empty() {
-                                            let group_name = self.new_bookmark_group_name.trim().to_string();
-                                            
-                                            // Check if group already exists
-                                            if !self.bookmark_groups.iter().any(|g| g.name == group_name) {
-                                                let new_group = BookmarkGroup {
-                                                    name: group_name.clone(),
-                                                    created_at: Utc::now(),
-                                                };
-                                                self.bookmark_groups.push(new_group);
+                                // Text input for new bookmark group name (only when creating groups)
+                                if self.show_bookmark_input {
+                                    ui.horizontal(|ui| {
+                                        ui.label(egui::RichText::new("New group:")
+                                            .color(hex_to_color(&self.theme.text_color))
+                                            .family(egui::FontFamily::Monospace));
+                                        
+                                        let response = ui.add(
+                                            egui::TextEdit::singleline(&mut self.new_bookmark_group_name)
+                                                .desired_width(ui.available_width() - 80.0)
+                                                .text_color(hex_to_color(&self.theme.text_color))
+                                                .font(egui::FontId::monospace(14.0))
+                                                .hint_text(egui::RichText::new("Enter group name...")
+                                                    .color(hex_to_color(&self.theme.text_color))
+                                                    .family(egui::FontFamily::Monospace))
+                                        );
+                                        
+                                        // Request focus for the text input
+                                        response.request_focus();
+                                        
+                                        // Handle Enter key to create new group
+                                        if ui.input(|i| i.key_pressed(egui::Key::Enter)) {
+                                            if !self.new_bookmark_group_name.trim().is_empty() {
+                                                let group_name = self.new_bookmark_group_name.trim().to_string();
                                                 
-                                                // Save to file
-                                                if let Err(e) = save_bookmark_groups(&self.bookmark_groups) {
-                                                    eprintln!("Failed to save bookmark groups: {}", e);
+                                                // Check if group already exists
+                                                if !self.bookmark_groups.iter().any(|g| g.name == group_name) {
+                                                    let new_group = BookmarkGroup {
+                                                        name: group_name.clone(),
+                                                        created_at: Utc::now(),
+                                                    };
+                                                    self.bookmark_groups.push(new_group);
+                                                    
+                                                    // Save to file
+                                                    if let Err(e) = save_bookmark_groups(&self.bookmark_groups) {
+                                                        eprintln!("Failed to save bookmark groups: {}", e);
+                                                    }
                                                 }
+                                                
+                                                self.new_bookmark_group_name.clear();
+                                                self.show_bookmark_groups = false; // Close dialog but not window
+                                                self.show_bookmark_input = false;
                                             }
-                                            
-                                            self.new_bookmark_group_name.clear();
-                                            self.show_bookmark_groups = false; // Close dialog but not window
                                         }
-                                    }
-                                });
-                                
-                                ui.add_space(16.0);
+                                    });
+                                    
+ui.add_space(16.0);
+                                }
                                 ui.separator();
                                 ui.add_space(16.0);
                                 
@@ -789,7 +804,12 @@ impl eframe::App for MyApp {
                                 ui.add_space(8.0);
                                 
                                 // Instructions
-                                ui.label(egui::RichText::new("Press Escape to close")
+                                let instruction = if self.show_bookmark_input {
+                                    "Press Escape to close • Enter to create group"
+                                } else {
+                                    "Press Escape to close"
+                                };
+                                ui.label(egui::RichText::new(instruction)
                                     .color(hex_to_color(&self.theme.text_color))
                                     .family(egui::FontFamily::Monospace)
                                     .size(12.0));
