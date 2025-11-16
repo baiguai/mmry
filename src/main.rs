@@ -680,7 +680,7 @@ impl eframe::App for MyApp {
             if self.show_bookmark_groups && self.selected_bookmark_group_for_clips.is_some() {
                 // Check if any navigation key is pressed and reset the flag if needed
                 let nav_key_pressed = i.key_pressed(egui::Key::J) || i.key_pressed(egui::Key::K) || 
-                                     i.key_pressed(egui::Key::G) || i.key_pressed(egui::Key::Enter);
+                                     i.key_pressed(egui::Key::G);
                 
                 if nav_key_pressed && self.just_switched_to_clips {
                     self.just_switched_to_clips = false;
@@ -726,10 +726,10 @@ impl eframe::App for MyApp {
                                 // Enter - copy selected bookmark clip to clipboard
                                 if i.key_pressed(egui::Key::Enter) && !i.modifiers.ctrl && !i.modifiers.alt && !i.modifiers.shift && !self.just_switched_to_clips {
                                     if let Some(clip) = group.clips.get(self.selected_bookmark_clip_index) {
+                                        // Copy to clipboard using the same method as main clipboard
                                         if let Ok(mut clipboard) = Clipboard::new() {
-                                            let _ = clipboard.set_text(clip.content.clone());
-                                            
-                                            // Close dialog and window
+                                            let content_to_copy = clip.content.clone();
+                                            let _ = clipboard.set_text(content_to_copy);
                                             self.show_bookmark_groups = false;
                                             self.selected_bookmark_group_index = 0;
                                             self.bookmark_gg_pressed = false;
