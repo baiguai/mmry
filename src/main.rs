@@ -13,6 +13,7 @@ use aes_gcm::aead::{Aead, OsRng};
 use base64::{Engine as _, engine::general_purpose};
 use rand::RngCore;
 use sha2::{Sha256, Digest};
+use auto_launch;
 
 fn main() -> Result<(), eframe::Error> {
     // Load config first to get hotkey settings
@@ -114,6 +115,7 @@ struct Config {
     hotkey: HotkeyConfig,
     encryption_enabled: bool,
     encryption_key: Option<String>,
+    autostart_enabled: bool,
 }
 
 impl Default for Config {
@@ -125,6 +127,7 @@ impl Default for Config {
             hotkey: HotkeyConfig::default(),
             encryption_enabled: true,
             encryption_key: None,
+            autostart_enabled: false,
         }
     }
 }
@@ -326,6 +329,38 @@ fn save_config(config: &Config) -> Result<(), Box<dyn std::error::Error>> {
     let json = serde_json::to_string_pretty(config)?;
     fs::write(path, json)?;
     Ok(())
+}
+
+fn enable_autostart() -> Result<(), Box<dyn std::error::Error>> {
+    let exe_path = std::env::current_exe()?;
+    let auto = auto_launch::AutoLaunchBuilder::new()
+        .set_app_name("mmry")
+        .set_app_path(&exe_path.to_string_lossy())
+        .build()?;
+    
+    auto.enable()?;
+    Ok(())
+}
+
+fn disable_autostart() -> Result<(), Box<dyn std::error::Error>> {
+    let exe_path = std::env::current_exe()?;
+    let auto = auto_launch::AutoLaunchBuilder::new()
+        .set_app_name("mmry")
+        .set_app_path(&exe_path.to_string_lossy())
+        .build()?;
+    
+    auto.disable()?;
+    Ok(())
+}
+
+fn is_autostart_enabled() -> Result<bool, Box<dyn std::error::Error>> {
+    let exe_path = std::env::current_exe()?;
+    let auto = auto_launch::AutoLaunchBuilder::new()
+        .set_app_name("mmry")
+        .set_app_path(&exe_path.to_string_lossy())
+        .build()?;
+    
+    Ok(auto.is_enabled()?)
 }
 
 fn hex_to_color(hex: &str) -> egui::Color32 {
@@ -582,6 +617,7 @@ struct MyApp {
     selected_bookmark_group_for_clips: Option<String>,
     bookmark_access_mode: bool,  // true for access mode (backtick), false for add mode (m)
     just_switched_to_clips: bool,  // prevent immediate Enter key handling after switching to clips view
+    show_settings: bool,  // Whether to show settings dialog
     
 }
 
@@ -647,6 +683,7 @@ impl MyApp {
             selected_bookmark_group_for_clips: None,
             bookmark_access_mode: false,
             just_switched_to_clips: false,
+            show_settings: false,
             
         }
     }
@@ -711,7 +748,9 @@ impl eframe::App for MyApp {
         let mut bookmark_clip_enter_handled = false;
         ctx.input(|i| {
             if i.key_pressed(egui::Key::Escape) {
-                if self.show_bookmark_groups && self.selected_bookmark_group_for_clips.is_some() {
+                if self.show_settings {
+                    self.show_settings = false;
+                } else if self.show_bookmark_groups && self.selected_bookmark_group_for_clips.is_some() {
                     // Go back from clips view to groups view
                     self.selected_bookmark_group_for_clips = None;
                     self.selected_bookmark_clip_index = 0;
@@ -749,6 +788,10 @@ impl eframe::App for MyApp {
             
             if i.modifiers.ctrl && i.key_pressed(egui::Key::Q) {
                 self.should_quit = true;
+            }
+            
+            if i.modifiers.ctrl && i.key_pressed(egui::Key::S) {
+                self.show_settings = !self.show_settings;
             }
             
             // Filter keybindings
@@ -1669,6 +1712,70 @@ impl eframe::App for MyApp {
                                 }
                             });
                         }
+                    }
+                });
+        }
+        
+        // Settings dialog
+        if self.show_settings {
+            egui::Window::new("Settings")
+                .collapsible(false)
+                .resizable(false)
+                .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
+                .show(ctx, |ui| {
+                    ui.style_mut().visuals.override_text_color = Some(hex_to_color(&self.theme.text_color));
+                    ui.style_mut().visuals.panel_fill = hex_to_color(&self.theme.background_color);
+                    
+                    ui.heading("Application Settings");
+                    ui.add_space(10.0);
+                    
+                    // Autostart setting
+                    let mut autostart_enabled = self.config.autostart_enabled;
+                    if ui.checkbox(&mut autostart_enabled, "Launch at startup").changed() {
+                        self.config.autostart_enabled = autostart_enabled;
+                        
+                        if autostart_enabled {
+                            if let Err(e) = enable_autostart() {
+                                eprintln!("Failed to enable autostart: {}", e);
+                            }
+                        } else {
+                            if let Err(e) = disable_autostart() {
+                                eprintln!("Failed to disable autostart: {}", e);
+                            }
+                        }
+                        
+                        // Save config
+                        if let Err(e) = save_config(&self.config) {
+                            eprintln!("Failed to save config: {}", e);
+                        }
+                    }
+                    
+                    ui.add_space(10.0);
+                    ui.separator();
+                    ui.add_space(10.0);
+                    
+                    // Current status
+                    ui.label("Current Status:");
+                    ui.horizontal(|ui| {
+                        ui.label("• Autostart:");
+                        if let Ok(enabled) = is_autostart_enabled() {
+                            ui.label(if enabled { "Enabled" } else { "Disabled" });
+                        } else {
+                            ui.label("Unknown");
+                        }
+                    });
+                    
+                    ui.add_space(10.0);
+                    ui.separator();
+                    ui.add_space(10.0);
+                    
+                    // Instructions
+                    ui.label("Press Ctrl+S to toggle settings dialog");
+                    
+                    ui.add_space(10.0);
+                    
+                    if ui.button("Close").clicked() {
+                        self.show_settings = false;
                     }
                 });
         }
