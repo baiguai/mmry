@@ -621,8 +621,8 @@ impl eframe::App for MyApp {
                 }
             }
             
-            // M/m - show bookmark groups dialog
-            if !self.show_bookmark_groups {
+            // M/m - show bookmark groups dialog (only when not filtering)
+            if !self.show_bookmark_groups && !self.is_filtering {
                 for event in &i.events {
                     if let egui::Event::Key { key, pressed: true, .. } = event {
                         if *key == egui::Key::M && !i.modifiers.ctrl && !i.modifiers.alt {
@@ -729,8 +729,8 @@ impl eframe::App for MyApp {
                 }
             }
             
-            // Backtick - show bookmark groups for accessing clips
-            if !self.show_bookmark_groups {
+            // Backtick - show bookmark groups for accessing clips (only when not filtering)
+            if !self.show_bookmark_groups && !self.is_filtering {
                 for event in &i.events {
                     if let egui::Event::Key { key, pressed: true, .. } = event {
                         if *key == egui::Key::Backtick && !i.modifiers.ctrl && !i.modifiers.alt && !i.modifiers.shift {
