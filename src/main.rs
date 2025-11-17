@@ -13,6 +13,7 @@ use aes_gcm::aead::{Aead, OsRng};
 use base64::{Engine as _, engine::general_purpose};
 use rand::RngCore;
 use sha2::{Sha256, Digest};
+use auto_launch;
 
 fn main() -> Result<(), eframe::Error> {
     // Load config first to get hotkey settings
@@ -114,6 +115,7 @@ struct Config {
     hotkey: HotkeyConfig,
     encryption_enabled: bool,
     encryption_key: Option<String>,
+    autostart_enabled: bool,
 }
 
 impl Default for Config {
@@ -125,6 +127,7 @@ impl Default for Config {
             hotkey: HotkeyConfig::default(),
             encryption_enabled: true,
             encryption_key: None,
+            autostart_enabled: false,
         }
     }
 }
@@ -326,6 +329,38 @@ fn save_config(config: &Config) -> Result<(), Box<dyn std::error::Error>> {
     let json = serde_json::to_string_pretty(config)?;
     fs::write(path, json)?;
     Ok(())
+}
+
+fn enable_autostart() -> Result<(), Box<dyn std::error::Error>> {
+    let exe_path = std::env::current_exe()?;
+    let auto = auto_launch::AutoLaunchBuilder::new()
+        .set_app_name("mmry")
+        .set_app_path(&exe_path.to_string_lossy())
+        .build()?;
+    
+    auto.enable()?;
+    Ok(())
+}
+
+fn disable_autostart() -> Result<(), Box<dyn std::error::Error>> {
+    let exe_path = std::env::current_exe()?;
+    let auto = auto_launch::AutoLaunchBuilder::new()
+        .set_app_name("mmry")
+        .set_app_path(&exe_path.to_string_lossy())
+        .build()?;
+    
+    auto.disable()?;
+    Ok(())
+}
+
+fn is_autostart_enabled() -> Result<bool, Box<dyn std::error::Error>> {
+    let exe_path = std::env::current_exe()?;
+    let auto = auto_launch::AutoLaunchBuilder::new()
+        .set_app_name("mmry")
+        .set_app_path(&exe_path.to_string_lossy())
+        .build()?;
+    
+    Ok(auto.is_enabled()?)
 }
 
 fn hex_to_color(hex: &str) -> egui::Color32 {
@@ -582,6 +617,8 @@ struct MyApp {
     selected_bookmark_group_for_clips: Option<String>,
     bookmark_access_mode: bool,  // true for access mode (backtick), false for add mode (m)
     just_switched_to_clips: bool,  // prevent immediate Enter key handling after switching to clips view
+    show_settings: bool,  // Whether to show settings dialog
+    just_started_filtering: bool,  // prevent initial / from being added to filter text
     
 }
 
@@ -647,6 +684,8 @@ impl MyApp {
             selected_bookmark_group_for_clips: None,
             bookmark_access_mode: false,
             just_switched_to_clips: false,
+            show_settings: false,
+            just_started_filtering: false,
             
         }
     }
@@ -683,7 +722,7 @@ impl MyApp {
                         }
                         
                         // Keep only last max_items items
-                        let max_items = 500; // Default, will be updated from config in future
+                        let max_items = config.max_items;
                         if items_vec.len() > max_items {
                             items_vec.truncate(max_items);
                         }
@@ -695,7 +734,7 @@ impl MyApp {
                     }
                 }
                 
-                thread::sleep(Duration::from_millis(500));
+                thread::sleep(Duration::from_millis(1000));  // Reduced polling frequency from 500ms to 1000ms
             }
         });
     }
@@ -703,15 +742,16 @@ impl MyApp {
 
 impl eframe::App for MyApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
-        // Reload theme on each update to allow testing
-        self.theme = load_theme(&self.config.theme);
+        // Theme is now only loaded at startup for better performance
         
         // Handle keyboard input
         let mut bookmark_enter_handled = false;
         let mut bookmark_clip_enter_handled = false;
         ctx.input(|i| {
             if i.key_pressed(egui::Key::Escape) {
-                if self.show_bookmark_groups && self.selected_bookmark_group_for_clips.is_some() {
+                if self.show_settings {
+                    self.show_settings = false;
+                } else if self.show_bookmark_groups && self.selected_bookmark_group_for_clips.is_some() {
                     // Go back from clips view to groups view
                     self.selected_bookmark_group_for_clips = None;
                     self.selected_bookmark_clip_index = 0;
@@ -751,6 +791,10 @@ impl eframe::App for MyApp {
                 self.should_quit = true;
             }
             
+            if i.modifiers.ctrl && i.key_pressed(egui::Key::S) {
+                self.show_settings = !self.show_settings;
+            }
+            
             // Filter keybindings
             if self.filter_mode == FilterMode::None && !self.show_bookmark_groups {
                 // / - start generous filter
@@ -761,6 +805,7 @@ impl eframe::App for MyApp {
                     self.filter_text.clear();
                     self.original_selected_index = self.selected_clipboard_index;
                     self.selected_clipboard_index = 0;
+                    self.just_started_filtering = true;  // Flag to prevent initial / from being added
                 }
             }
             
@@ -898,8 +943,14 @@ impl eframe::App for MyApp {
                 for event in &i.events {
                     if let egui::Event::Text(text) = event {
                         if !text.chars().any(|c| c.is_control()) {
+                            // Skip the initial / that triggered filter mode
+                            if self.just_started_filtering && text == "/" {
+                                self.just_started_filtering = false;
+                                continue;
+                            }
                             // Regular text input
                             self.filter_text.push_str(text);
+                            self.just_started_filtering = false;  // Reset flag after any other input
                         }
                     }
                 }
@@ -995,43 +1046,69 @@ impl eframe::App for MyApp {
                 
                 if !self.just_switched_to_clips {
                     if let Some(group_name) = &self.selected_bookmark_group_for_clips {
-                        if let Some(group) = self.bookmark_groups.iter().find(|g| g.name == *group_name) {
-                            let clips_len = group.clips.len();
+                        // Get clips length for navigation bounds checking
+                        let clips_len = if let Some(group) = self.bookmark_groups.iter().find(|g| g.name == *group_name) {
+                            group.clips.len()
+                        } else {
+                            0
+                        };
+                        
+                        if clips_len > 0 {
+                            // j - move down
+                            if i.key_pressed(egui::Key::J) && !i.modifiers.ctrl && !i.modifiers.alt && !i.modifiers.shift {
+                                if self.selected_bookmark_clip_index < clips_len - 1 {
+                                    self.selected_bookmark_clip_index += 1;
+                                }
+                            }
                             
-                            if clips_len > 0 {
-                                // j - move down
-                                if i.key_pressed(egui::Key::J) && !i.modifiers.ctrl && !i.modifiers.alt && !i.modifiers.shift {
-                                    if self.selected_bookmark_clip_index < clips_len - 1 {
-                                        self.selected_bookmark_clip_index += 1;
+                            // k - move up
+                            if i.key_pressed(egui::Key::K) && !i.modifiers.ctrl && !i.modifiers.alt && !i.modifiers.shift {
+                                if self.selected_bookmark_clip_index > 0 {
+                                    self.selected_bookmark_clip_index -= 1;
+                                }
+                            }
+                            
+                            // G - go to last item (Shift+G)
+                            if i.key_pressed(egui::Key::G) && i.modifiers.shift && !i.modifiers.ctrl && !i.modifiers.alt {
+                                self.selected_bookmark_clip_index = clips_len - 1;
+                            }
+                            
+                            // g - first part of gg
+                            if i.key_pressed(egui::Key::G) && !i.modifiers.shift && !i.modifiers.ctrl && !i.modifiers.alt {
+                                if self.bookmark_clip_gg_pressed {
+                                    // gg - go to first item
+                                    self.selected_bookmark_clip_index = 0;
+                                    self.bookmark_clip_gg_pressed = false;
+                                } else {
+                                    // First g pressed, wait for second g
+                                    self.bookmark_clip_gg_pressed = true;
+                                }
+                            }
+                            
+                            // d - remove selected clip from bookmark group
+                            if i.key_pressed(egui::Key::D) && !i.modifiers.shift && !i.modifiers.ctrl && !i.modifiers.alt {
+                                if let Some(group) = self.bookmark_groups.iter_mut().find(|g| g.name == *group_name) {
+                                    if self.selected_bookmark_clip_index < group.clips.len() {
+                                        group.clips.remove(self.selected_bookmark_clip_index);
+                                        
+                                        // Adjust selection if needed
+                                        if group.clips.is_empty() {
+                                            self.selected_bookmark_clip_index = 0;
+                                        } else if self.selected_bookmark_clip_index >= group.clips.len() {
+                                            self.selected_bookmark_clip_index = group.clips.len() - 1;
+                                        }
+                                        
+                                        // Save to file
+                                        if let Err(e) = save_bookmark_groups(&self.bookmark_groups, &self.config) {
+                                            eprintln!("Failed to save bookmark groups: {}", e);
+                                        }
                                     }
                                 }
-                                
-                                // k - move up
-                                if i.key_pressed(egui::Key::K) && !i.modifiers.ctrl && !i.modifiers.alt && !i.modifiers.shift {
-                                    if self.selected_bookmark_clip_index > 0 {
-                                        self.selected_bookmark_clip_index -= 1;
-                                    }
-                                }
-                                
-                                // G - go to last item (Shift+G)
-                                if i.key_pressed(egui::Key::G) && i.modifiers.shift && !i.modifiers.ctrl && !i.modifiers.alt {
-                                    self.selected_bookmark_clip_index = clips_len - 1;
-                                }
-                                
-                                // g - first part of gg
-                                if i.key_pressed(egui::Key::G) && !i.modifiers.shift && !i.modifiers.ctrl && !i.modifiers.alt {
-                                    if self.bookmark_clip_gg_pressed {
-                                        // gg - go to first item
-                                        self.selected_bookmark_clip_index = 0;
-                                        self.bookmark_clip_gg_pressed = false;
-                                    } else {
-                                        // First g pressed, wait for second g
-                                        self.bookmark_clip_gg_pressed = true;
-                                    }
-                                }
-                                
-                                // Enter - copy selected bookmark clip to clipboard
-                                if i.key_pressed(egui::Key::Enter) && !i.modifiers.ctrl && !i.modifiers.alt && !i.modifiers.shift {
+                            }
+                            
+                            // Enter - copy selected bookmark clip to clipboard
+                            if i.key_pressed(egui::Key::Enter) && !i.modifiers.ctrl && !i.modifiers.alt && !i.modifiers.shift {
+                                if let Some(group) = self.bookmark_groups.iter().find(|g| g.name == *group_name) {
                                     if let Some(clip) = group.clips.get(self.selected_bookmark_clip_index) {
                                         // Copy to clipboard using the same method as main clipboard
                                         match Clipboard::new() {
@@ -1237,6 +1314,8 @@ impl eframe::App for MyApp {
         
         if !is_visible {
             ctx.send_viewport_cmd(egui::ViewportCommand::Visible(false));
+            // Request slower repaint when window is hidden to save CPU
+            ctx.request_repaint_after(std::time::Duration::from_millis(500));
             return;
         }
         
@@ -1512,7 +1591,7 @@ impl eframe::App for MyApp {
                                 let instruction = if self.show_bookmark_input {
                                     "Press Escape to close • Enter to create group"
                                 } else if self.selected_bookmark_group_for_clips.is_some() {
-                                    "Press Escape to go back • j/k to navigate • Enter to copy clip"
+                                    "Press Escape to go back • j/k to navigate • d to remove clip • Enter to copy clip"
                                 } else {
                                     "Press Escape to close • j/k to navigate • Enter to view clips"
                                 };
@@ -1669,6 +1748,70 @@ impl eframe::App for MyApp {
                                 }
                             });
                         }
+                    }
+                });
+        }
+        
+        // Settings dialog
+        if self.show_settings {
+            egui::Window::new("Settings")
+                .collapsible(false)
+                .resizable(false)
+                .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
+                .show(ctx, |ui| {
+                    ui.style_mut().visuals.override_text_color = Some(hex_to_color(&self.theme.text_color));
+                    ui.style_mut().visuals.panel_fill = hex_to_color(&self.theme.background_color);
+                    
+                    ui.heading("Application Settings");
+                    ui.add_space(10.0);
+                    
+                    // Autostart setting
+                    let mut autostart_enabled = self.config.autostart_enabled;
+                    if ui.checkbox(&mut autostart_enabled, "Launch at startup").changed() {
+                        self.config.autostart_enabled = autostart_enabled;
+                        
+                        if autostart_enabled {
+                            if let Err(e) = enable_autostart() {
+                                eprintln!("Failed to enable autostart: {}", e);
+                            }
+                        } else {
+                            if let Err(e) = disable_autostart() {
+                                eprintln!("Failed to disable autostart: {}", e);
+                            }
+                        }
+                        
+                        // Save config
+                        if let Err(e) = save_config(&self.config) {
+                            eprintln!("Failed to save config: {}", e);
+                        }
+                    }
+                    
+                    ui.add_space(10.0);
+                    ui.separator();
+                    ui.add_space(10.0);
+                    
+                    // Current status
+                    ui.label("Current Status:");
+                    ui.horizontal(|ui| {
+                        ui.label("• Autostart:");
+                        if let Ok(enabled) = is_autostart_enabled() {
+                            ui.label(if enabled { "Enabled" } else { "Disabled" });
+                        } else {
+                            ui.label("Unknown");
+                        }
+                    });
+                    
+                    ui.add_space(10.0);
+                    ui.separator();
+                    ui.add_space(10.0);
+                    
+                    // Instructions
+                    ui.label("Press Ctrl+S to toggle settings dialog");
+                    
+                    ui.add_space(10.0);
+                    
+                    if ui.button("Close").clicked() {
+                        self.show_settings = false;
                     }
                 });
         }
