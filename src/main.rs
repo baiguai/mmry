@@ -201,11 +201,12 @@ fn main() -> Result<(), eframe::Error> {
             Ok(hotkey) => {
                 if let Err(e) = hotkey_manager.register(hotkey) {
                     eprintln!("Failed to register global hotkey: {}", e);
-                    // Fallback to default Ctrl+Alt+C
+                    // Fallback to F1 (less likely to conflict)
                     let fallback_hotkey = global_hotkey::hotkey::HotKey::new(
-                        Some(global_hotkey::hotkey::Modifiers::CONTROL | global_hotkey::hotkey::Modifiers::ALT),
-                        global_hotkey::hotkey::Code::KeyC,
+                        None,
+                        global_hotkey::hotkey::Code::F1,
                     );
+
                     let _ = hotkey_manager.register(fallback_hotkey);
                 }
             }
@@ -213,9 +214,10 @@ fn main() -> Result<(), eframe::Error> {
                 eprintln!("Failed to parse hotkey config: {}", e);
                 // Fallback to default Ctrl+Alt+C
                 let fallback_hotkey = global_hotkey::hotkey::HotKey::new(
-                    Some(global_hotkey::hotkey::Modifiers::CONTROL | global_hotkey::hotkey::Modifiers::ALT),
-                    global_hotkey::hotkey::Code::KeyC,
+                    None,
+                    global_hotkey::hotkey::Code::F1,
                 );
+                println!("Registering fallback hotkey: F1");
                 let _ = hotkey_manager.register(fallback_hotkey);
             }
         }
@@ -996,12 +998,15 @@ impl eframe::App for MyApp {
         let is_visible = *self.visible.lock().unwrap();
         
         if !is_visible {
-            // Show minimal window when hidden
+            // Hide window by making it transparent and minimal
             ctx.send_viewport_cmd(egui::ViewportCommand::InnerSize(egui::vec2(1.0, 1.0)));
+            ctx.send_viewport_cmd(egui::ViewportCommand::OuterPosition(egui::pos2(-2000.0, -2000.0)));
+            
+            // Show empty content when hidden
             egui::CentralPanel::default()
                 .frame(egui::Frame::none())
                 .show(ctx, |_ui| {
-                    // Empty content when hidden
+                    // Empty content
                 });
             
             // Request very slow repaint when window is hidden to save CPU
@@ -1009,7 +1014,11 @@ impl eframe::App for MyApp {
             return;
         }
         
-
+        // Show window when visible - restore size and position
+        ctx.send_viewport_cmd(egui::ViewportCommand::InnerSize(egui::vec2(600.0, 400.0)));
+        if let Some(center_cmd) = egui::ViewportCommand::center_on_screen(ctx) {
+            ctx.send_viewport_cmd(center_cmd);
+        }
         
         // Check if window is focused to optimize input processing
         let is_focused = ctx.input(|i| i.viewport().focused.unwrap_or(false));
@@ -1081,9 +1090,9 @@ impl eframe::App for MyApp {
                     self.is_filtering = false;
                     self.selected_clipboard_index = 0;
                 } else {
-                    // Close window
+                    // Close window - toggle visibility
                     let mut vis = self.visible.lock().unwrap();
-                    *vis = false;
+                    *vis = !*vis;
                 }
             }
             
