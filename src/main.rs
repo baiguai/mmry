@@ -10,6 +10,9 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
 fn main() -> Result<(), eframe::Error> {
+    // Load config first to get hotkey settings
+    let config = load_config();
+    
     let options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
             .with_inner_size([600.0, 400.0])
@@ -25,16 +28,33 @@ fn main() -> Result<(), eframe::Error> {
     let visible_clone = visible.clone();
 
     // Set up global hotkey
+    let hotkey_config = config.hotkey.clone();
     thread::spawn(move || {
         let hotkey_manager = GlobalHotKeyManager::new().unwrap();
         
-        // Register Ctrl+Alt+C
-        let hotkey = global_hotkey::hotkey::HotKey::new(
-            Some(global_hotkey::hotkey::Modifiers::CONTROL | global_hotkey::hotkey::Modifiers::ALT),
-            global_hotkey::hotkey::Code::KeyC,
-        );
-        
-        hotkey_manager.register(hotkey).unwrap();
+        // Parse and register hotkey from config
+        match parse_hotkey_config(&hotkey_config) {
+            Ok(hotkey) => {
+                if let Err(e) = hotkey_manager.register(hotkey) {
+                    eprintln!("Failed to register global hotkey: {}", e);
+                    // Fallback to default Ctrl+Alt+C
+                    let fallback_hotkey = global_hotkey::hotkey::HotKey::new(
+                        Some(global_hotkey::hotkey::Modifiers::CONTROL | global_hotkey::hotkey::Modifiers::ALT),
+                        global_hotkey::hotkey::Code::KeyC,
+                    );
+                    let _ = hotkey_manager.register(fallback_hotkey);
+                }
+            }
+            Err(e) => {
+                eprintln!("Failed to parse hotkey config: {}", e);
+                // Fallback to default Ctrl+Alt+C
+                let fallback_hotkey = global_hotkey::hotkey::HotKey::new(
+                    Some(global_hotkey::hotkey::Modifiers::CONTROL | global_hotkey::hotkey::Modifiers::ALT),
+                    global_hotkey::hotkey::Code::KeyC,
+                );
+                let _ = hotkey_manager.register(fallback_hotkey);
+            }
+        }
         
         let rx = GlobalHotKeyEvent::receiver();
         while let Ok(event) = rx.recv() {
@@ -50,7 +70,7 @@ fn main() -> Result<(), eframe::Error> {
         options,
         Box::new(|cc| {
             setup_custom_fonts(&cc.egui_ctx);
-            Ok(Box::new(MyApp::new(visible)))
+            Ok(Box::new(MyApp::new(visible, config)))
         }),
     )
 }
@@ -62,11 +82,31 @@ struct ClipboardItem {
     id: usize,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct HotkeyConfig {
+    ctrl: bool,
+    alt: bool,
+    shift: bool,
+    key: String,
+}
+
+impl Default for HotkeyConfig {
+    fn default() -> Self {
+        Self {
+            ctrl: true,
+            alt: true,
+            shift: false,
+            key: "c".to_string(),
+        }
+    }
+}
+
 #[derive(Debug, Serialize, Deserialize)]
 struct Config {
     verbose: bool,
     theme: String,
     max_items: usize,
+    hotkey: HotkeyConfig,
 }
 
 impl Default for Config {
@@ -75,8 +115,16 @@ impl Default for Config {
             verbose: false,
             theme: "dark".to_string(),
             max_items: 500,
+            hotkey: HotkeyConfig::default(),
         }
     }
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct BookmarkGroup {
+    name: String,
+    created_at: DateTime<Utc>,
+    clips: Vec<ClipboardItem>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -174,6 +222,14 @@ fn get_theme_path(theme_name: &str) -> Result<PathBuf, Box<dyn std::error::Error
     Ok(path)
 }
 
+fn get_bookmarks_data_path() -> Result<PathBuf, Box<dyn std::error::Error>> {
+    let mut path = dirs::config_dir().ok_or("No config directory found")?;
+    path.push("mmry");
+    fs::create_dir_all(&path)?;
+    path.push("bookmarks.json");
+    Ok(path)
+}
+
 fn load_theme(theme_name: &str) -> Theme {
     if let Ok(theme_path) = get_theme_path(theme_name) {
         if theme_path.exists() {
@@ -230,6 +286,132 @@ fn load_clipboard_items() -> Vec<ClipboardItem> {
     Vec::new()
 }
 
+fn save_bookmark_groups(groups: &[BookmarkGroup]) -> Result<(), Box<dyn std::error::Error>> {
+    let path = get_bookmarks_data_path()?;
+    let json = serde_json::to_string_pretty(groups)?;
+    fs::write(path, json)?;
+    Ok(())
+}
+
+fn load_bookmark_groups() -> Vec<BookmarkGroup> {
+    if let Ok(path) = get_bookmarks_data_path() {
+        if path.exists() {
+            if let Ok(content) = fs::read_to_string(&path) {
+                // Try to parse as new format first
+                if let Ok(groups) = serde_json::from_str::<Vec<BookmarkGroup>>(&content) {
+                    return groups;
+                } else {
+                    // Try to parse as old format for backward compatibility
+                    #[derive(Debug, Serialize, Deserialize)]
+                    struct OldBookmarkGroup {
+                        name: String,
+                        created_at: DateTime<Utc>,
+                    }
+                    
+                    if let Ok(old_groups) = serde_json::from_str::<Vec<OldBookmarkGroup>>(&content) {
+                        // Convert old format to new format
+                        return old_groups.into_iter().map(|old_group| BookmarkGroup {
+                            name: old_group.name,
+                            created_at: old_group.created_at,
+                            clips: Vec::new(),
+                        }).collect();
+                    }
+                }
+            }
+        }
+    }
+    Vec::new()
+}
+
+fn parse_hotkey_config(config: &HotkeyConfig) -> Result<global_hotkey::hotkey::HotKey, Box<dyn std::error::Error>> {
+    let mut modifiers = global_hotkey::hotkey::Modifiers::empty();
+    
+    if config.ctrl {
+        modifiers |= global_hotkey::hotkey::Modifiers::CONTROL;
+    }
+    if config.alt {
+        modifiers |= global_hotkey::hotkey::Modifiers::ALT;
+    }
+    if config.shift {
+        modifiers |= global_hotkey::hotkey::Modifiers::SHIFT;
+    }
+    
+    let code = match config.key.to_lowercase().as_str() {
+        "a" => global_hotkey::hotkey::Code::KeyA,
+        "b" => global_hotkey::hotkey::Code::KeyB,
+        "c" => global_hotkey::hotkey::Code::KeyC,
+        "d" => global_hotkey::hotkey::Code::KeyD,
+        "e" => global_hotkey::hotkey::Code::KeyE,
+        "f" => global_hotkey::hotkey::Code::KeyF,
+        "g" => global_hotkey::hotkey::Code::KeyG,
+        "h" => global_hotkey::hotkey::Code::KeyH,
+        "i" => global_hotkey::hotkey::Code::KeyI,
+        "j" => global_hotkey::hotkey::Code::KeyJ,
+        "k" => global_hotkey::hotkey::Code::KeyK,
+        "l" => global_hotkey::hotkey::Code::KeyL,
+        "m" => global_hotkey::hotkey::Code::KeyM,
+        "n" => global_hotkey::hotkey::Code::KeyN,
+        "o" => global_hotkey::hotkey::Code::KeyO,
+        "p" => global_hotkey::hotkey::Code::KeyP,
+        "q" => global_hotkey::hotkey::Code::KeyQ,
+        "r" => global_hotkey::hotkey::Code::KeyR,
+        "s" => global_hotkey::hotkey::Code::KeyS,
+        "t" => global_hotkey::hotkey::Code::KeyT,
+        "u" => global_hotkey::hotkey::Code::KeyU,
+        "v" => global_hotkey::hotkey::Code::KeyV,
+        "w" => global_hotkey::hotkey::Code::KeyW,
+        "x" => global_hotkey::hotkey::Code::KeyX,
+        "y" => global_hotkey::hotkey::Code::KeyY,
+        "z" => global_hotkey::hotkey::Code::KeyZ,
+        "0" => global_hotkey::hotkey::Code::Digit0,
+        "1" => global_hotkey::hotkey::Code::Digit1,
+        "2" => global_hotkey::hotkey::Code::Digit2,
+        "3" => global_hotkey::hotkey::Code::Digit3,
+        "4" => global_hotkey::hotkey::Code::Digit4,
+        "5" => global_hotkey::hotkey::Code::Digit5,
+        "6" => global_hotkey::hotkey::Code::Digit6,
+        "7" => global_hotkey::hotkey::Code::Digit7,
+        "8" => global_hotkey::hotkey::Code::Digit8,
+        "9" => global_hotkey::hotkey::Code::Digit9,
+        "space" => global_hotkey::hotkey::Code::Space,
+        "enter" => global_hotkey::hotkey::Code::Enter,
+        "escape" => global_hotkey::hotkey::Code::Escape,
+        "tab" => global_hotkey::hotkey::Code::Tab,
+        "backspace" => global_hotkey::hotkey::Code::Backspace,
+        "delete" => global_hotkey::hotkey::Code::Delete,
+        "insert" => global_hotkey::hotkey::Code::Insert,
+        "home" => global_hotkey::hotkey::Code::Home,
+        "end" => global_hotkey::hotkey::Code::End,
+        "pageup" => global_hotkey::hotkey::Code::PageUp,
+        "pagedown" => global_hotkey::hotkey::Code::PageDown,
+        "arrowup" => global_hotkey::hotkey::Code::ArrowUp,
+        "arrowdown" => global_hotkey::hotkey::Code::ArrowDown,
+        "arrowleft" => global_hotkey::hotkey::Code::ArrowLeft,
+        "arrowright" => global_hotkey::hotkey::Code::ArrowRight,
+        "f1" => global_hotkey::hotkey::Code::F1,
+        "f2" => global_hotkey::hotkey::Code::F2,
+        "f3" => global_hotkey::hotkey::Code::F3,
+        "f4" => global_hotkey::hotkey::Code::F4,
+        "f5" => global_hotkey::hotkey::Code::F5,
+        "f6" => global_hotkey::hotkey::Code::F6,
+        "f7" => global_hotkey::hotkey::Code::F7,
+        "f8" => global_hotkey::hotkey::Code::F8,
+        "f9" => global_hotkey::hotkey::Code::F9,
+        "f10" => global_hotkey::hotkey::Code::F10,
+        "f11" => global_hotkey::hotkey::Code::F11,
+        "f12" => global_hotkey::hotkey::Code::F12,
+        _ => return Err(format!("Unsupported key: {}", config.key).into()),
+    };
+    
+    let hotkey = if modifiers.is_empty() {
+        global_hotkey::hotkey::HotKey::new(None, code)
+    } else {
+        global_hotkey::hotkey::HotKey::new(Some(modifiers), code)
+    };
+    
+    Ok(hotkey)
+}
+
 fn setup_custom_fonts(ctx: &egui::Context) {
     // Use default fonts with monospace family
     let mut fonts = egui::FontDefinitions::default();
@@ -264,14 +446,26 @@ struct MyApp {
     show_filter_input: bool,  // Whether to show TextEdit widget
     is_filtering: bool,  // Whether we're currently in filter mode (editing or applied)
     original_selected_index: usize,
+    bookmark_groups: Vec<BookmarkGroup>,
+    show_bookmark_groups: bool,
+    show_bookmark_input: bool,  // Whether to show text input for creating groups
+    new_bookmark_group_name: String,
+    selected_bookmark_group_index: usize,
+    bookmark_gg_pressed: bool,
+    selected_bookmark_clip_index: usize,
+    bookmark_clip_gg_pressed: bool,
+    selected_bookmark_group_for_clips: Option<String>,
+    bookmark_access_mode: bool,  // true for access mode (backtick), false for add mode (m)
+    just_switched_to_clips: bool,  // prevent immediate Enter key handling after switching to clips view
+    
 }
 
 impl MyApp {
-    fn new(visible: Arc<Mutex<bool>>) -> Self {
-        let config = load_config();
+    fn new(visible: Arc<Mutex<bool>>, config: Config) -> Self {
         let theme = load_theme(&config.theme);
         let loaded_items = load_clipboard_items();
         let next_id = loaded_items.iter().map(|item| item.id).max().unwrap_or(0) + 1;
+        let bookmark_groups = load_bookmark_groups();
         
         let clipboard_items = Arc::new(Mutex::new(loaded_items));
         let last_clipboard_content = Arc::new(Mutex::new(None));
@@ -300,6 +494,18 @@ impl MyApp {
             show_filter_input: false,
             is_filtering: false,
             original_selected_index: 0,
+            bookmark_groups,
+            show_bookmark_groups: false,
+            show_bookmark_input: false,
+            new_bookmark_group_name: String::new(),
+            selected_bookmark_group_index: 0,
+            bookmark_gg_pressed: false,
+            selected_bookmark_clip_index: 0,
+            bookmark_clip_gg_pressed: false,
+            selected_bookmark_group_for_clips: None,
+            bookmark_access_mode: false,
+            just_switched_to_clips: false,
+            
         }
     }
     
@@ -354,14 +560,30 @@ impl MyApp {
 
 impl eframe::App for MyApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
-        // Reload config and theme on each update to allow testing
-        self.config = load_config();
+        // Reload theme on each update to allow testing
         self.theme = load_theme(&self.config.theme);
         
         // Handle keyboard input
+        let mut bookmark_enter_handled = false;
+        let mut bookmark_clip_enter_handled = false;
         ctx.input(|i| {
             if i.key_pressed(egui::Key::Escape) {
-                if self.filter_mode != FilterMode::None {
+                if self.show_bookmark_groups && self.selected_bookmark_group_for_clips.is_some() {
+                    // Go back from clips view to groups view
+                    self.selected_bookmark_group_for_clips = None;
+                    self.selected_bookmark_clip_index = 0;
+                    self.bookmark_clip_gg_pressed = false;
+                    self.just_switched_to_clips = false;
+                } else if self.show_bookmark_groups {
+                    // Hide bookmark groups view
+                    self.show_bookmark_groups = false;
+                    self.show_bookmark_input = false;
+                    self.new_bookmark_group_name.clear();
+                    self.selected_bookmark_group_index = 0;
+                    self.bookmark_gg_pressed = false;
+                    self.bookmark_access_mode = false;
+                    self.just_switched_to_clips = false;
+                } else if self.filter_mode != FilterMode::None {
                     // Cancel filter mode - clear filter completely
                     self.filter_mode = FilterMode::None;
                     self.show_filter_input = false;
@@ -387,7 +609,7 @@ impl eframe::App for MyApp {
             }
             
             // Filter keybindings
-            if self.filter_mode == FilterMode::None {
+            if self.filter_mode == FilterMode::None && !self.show_bookmark_groups {
                 // / - start generous filter
                 if i.key_pressed(egui::Key::Slash) && !i.modifiers.ctrl && !i.modifiers.alt && !i.modifiers.shift {
                     self.filter_mode = FilterMode::Generous;
@@ -397,9 +619,133 @@ impl eframe::App for MyApp {
                     self.original_selected_index = self.selected_clipboard_index;
                     self.selected_clipboard_index = 0;
                 }
+            }
+            
+            // M/m - show bookmark groups dialog (only when not filtering)
+            if !self.show_bookmark_groups && !self.is_filtering {
+                for event in &i.events {
+                    if let egui::Event::Key { key, pressed: true, .. } = event {
+                        if *key == egui::Key::M && !i.modifiers.ctrl && !i.modifiers.alt {
+                            if i.modifiers.shift {
+                                // Shift+M - show dialog with input for creating groups
+                                self.show_bookmark_groups = true;
+                                self.show_bookmark_input = true;
+                                self.new_bookmark_group_name.clear();
+                                self.bookmark_access_mode = false;  // Set add mode flag
+                            } else {
+                                // m (lowercase) - show dialog without input for adding clips
+                                self.show_bookmark_groups = true;
+                                self.show_bookmark_input = false;
+                                self.new_bookmark_group_name.clear();
+                                self.selected_bookmark_group_index = 0;
+                                self.bookmark_gg_pressed = false;
+                                self.bookmark_access_mode = false;  // Set add mode flag
+                            }
+                        }
+                    }
+                }
+            }
+            
+            // Vim navigation for bookmark groups (when in bookmark dialog and not creating groups)
+            if self.show_bookmark_groups && !self.show_bookmark_input {
+                // Get the effective list length (filtered or all groups)
+                let effective_bookmark_len = if self.show_bookmark_input && !self.new_bookmark_group_name.is_empty() {
+                    let filter_lower = self.new_bookmark_group_name.to_lowercase();
+                    self.bookmark_groups.iter()
+                        .filter(|group| group.name.to_lowercase().contains(&filter_lower))
+                        .count()
+                } else {
+                    self.bookmark_groups.len()
+                };
                 
+                if effective_bookmark_len > 0 {
+                    // j - move down
+                    if i.key_pressed(egui::Key::J) && !i.modifiers.ctrl && !i.modifiers.alt && !i.modifiers.shift {
+                        if self.selected_bookmark_group_index < effective_bookmark_len - 1 {
+                            self.selected_bookmark_group_index += 1;
+                        }
+                    }
+                    
+                    // k - move up
+                    if i.key_pressed(egui::Key::K) && !i.modifiers.ctrl && !i.modifiers.alt && !i.modifiers.shift {
+                        if self.selected_bookmark_group_index > 0 {
+                            self.selected_bookmark_group_index -= 1;
+                        }
+                    }
+                    
+                    // G - go to last item (Shift+G)
+                    if i.key_pressed(egui::Key::G) && i.modifiers.shift && !i.modifiers.ctrl && !i.modifiers.alt {
+                        self.selected_bookmark_group_index = effective_bookmark_len - 1;
+                    }
+                    
+                    // g - first part of gg
+                    if i.key_pressed(egui::Key::G) && !i.modifiers.shift && !i.modifiers.ctrl && !i.modifiers.alt {
+                        if self.bookmark_gg_pressed {
+                            // gg - go to first item
+                            self.selected_bookmark_group_index = 0;
+                            self.bookmark_gg_pressed = false;
+                        } else {
+                            // First g pressed, wait for second g
+                            self.bookmark_gg_pressed = true;
+                        }
+                    }
+                    
+                    // D - delete selected bookmark group (Shift+D)
+                    if i.key_pressed(egui::Key::D) && i.modifiers.shift && !i.modifiers.ctrl && !i.modifiers.alt {
+                        if !self.bookmark_groups.is_empty() {
+                            // Get the actual group index to delete (works for both filtered and unfiltered)
+                            let group_index_to_delete = if self.show_bookmark_input && !self.new_bookmark_group_name.is_empty() {
+                                let filter_lower = self.new_bookmark_group_name.to_lowercase();
+                                let filtered_indices: Vec<usize> = self.bookmark_groups.iter()
+                                    .enumerate()
+                                    .filter(|(_, group)| group.name.to_lowercase().contains(&filter_lower))
+                                    .map(|(index, _)| index)
+                                    .collect();
+                                filtered_indices.get(self.selected_bookmark_group_index).copied()
+                            } else {
+                                Some(self.selected_bookmark_group_index)
+                            };
+                            
+                            if let Some(index_to_delete) = group_index_to_delete {
+                                if index_to_delete < self.bookmark_groups.len() {
+                                    self.bookmark_groups.remove(index_to_delete);
+                                    
+                                    // Adjust selection if needed
+                                    if self.bookmark_groups.is_empty() {
+                                        self.selected_bookmark_group_index = 0;
+                                    } else if self.selected_bookmark_group_index >= self.bookmark_groups.len() {
+                                        self.selected_bookmark_group_index = self.bookmark_groups.len() - 1;
+                                    }
+                                    
+                                    // Save to file
+                                    if let Err(e) = save_bookmark_groups(&self.bookmark_groups) {
+                                        eprintln!("Failed to save bookmark groups: {}", e);
+                            }
+                        }
+                    }
+                }
+            }
 
-            } else if self.is_filtering {
+                }
+            }
+            
+            // Backtick - show bookmark groups for accessing clips (only when not filtering)
+            if !self.show_bookmark_groups && !self.is_filtering {
+                for event in &i.events {
+                    if let egui::Event::Key { key, pressed: true, .. } = event {
+                        if *key == egui::Key::Backtick && !i.modifiers.ctrl && !i.modifiers.alt && !i.modifiers.shift {
+                            self.show_bookmark_groups = true;
+                            self.show_bookmark_input = false;
+                            self.new_bookmark_group_name.clear();
+                            self.selected_bookmark_group_index = 0;
+                            self.bookmark_gg_pressed = false;
+                            self.bookmark_access_mode = true;  // Set access mode flag
+                        }
+                    }
+                }
+            }
+            
+            if self.is_filtering {
                 // Handle backspace key press
                 if i.key_pressed(egui::Key::Backspace) {
                     self.filter_text.pop();
@@ -494,8 +840,187 @@ impl eframe::App for MyApp {
                 }
             }
             
-            // Handle Enter key (works in both normal and filter mode)
-            if i.key_pressed(egui::Key::Enter) && !i.modifiers.ctrl && !i.modifiers.alt && !i.modifiers.shift {
+            // Vim navigation for bookmark clips (when viewing clips in a group)
+            if self.show_bookmark_groups && self.selected_bookmark_group_for_clips.is_some() {
+                // Check if any navigation key is pressed and reset the flag if needed
+                let nav_key_pressed = i.key_pressed(egui::Key::J) || i.key_pressed(egui::Key::K) || 
+                                     i.key_pressed(egui::Key::G);
+                
+                if nav_key_pressed && self.just_switched_to_clips {
+                    self.just_switched_to_clips = false;
+                }
+                
+                if !self.just_switched_to_clips {
+                    if let Some(group_name) = &self.selected_bookmark_group_for_clips {
+                        if let Some(group) = self.bookmark_groups.iter().find(|g| g.name == *group_name) {
+                            let clips_len = group.clips.len();
+                            
+                            if clips_len > 0 {
+                                // j - move down
+                                if i.key_pressed(egui::Key::J) && !i.modifiers.ctrl && !i.modifiers.alt && !i.modifiers.shift {
+                                    if self.selected_bookmark_clip_index < clips_len - 1 {
+                                        self.selected_bookmark_clip_index += 1;
+                                    }
+                                }
+                                
+                                // k - move up
+                                if i.key_pressed(egui::Key::K) && !i.modifiers.ctrl && !i.modifiers.alt && !i.modifiers.shift {
+                                    if self.selected_bookmark_clip_index > 0 {
+                                        self.selected_bookmark_clip_index -= 1;
+                                    }
+                                }
+                                
+                                // G - go to last item (Shift+G)
+                                if i.key_pressed(egui::Key::G) && i.modifiers.shift && !i.modifiers.ctrl && !i.modifiers.alt {
+                                    self.selected_bookmark_clip_index = clips_len - 1;
+                                }
+                                
+                                // g - first part of gg
+                                if i.key_pressed(egui::Key::G) && !i.modifiers.shift && !i.modifiers.ctrl && !i.modifiers.alt {
+                                    if self.bookmark_clip_gg_pressed {
+                                        // gg - go to first item
+                                        self.selected_bookmark_clip_index = 0;
+                                        self.bookmark_clip_gg_pressed = false;
+                                    } else {
+                                        // First g pressed, wait for second g
+                                        self.bookmark_clip_gg_pressed = true;
+                                    }
+                                }
+                                
+                                // Enter - copy selected bookmark clip to clipboard
+                                if i.key_pressed(egui::Key::Enter) && !i.modifiers.ctrl && !i.modifiers.alt && !i.modifiers.shift {
+                                    if let Some(clip) = group.clips.get(self.selected_bookmark_clip_index) {
+                                        // Copy to clipboard using the same method as main clipboard
+                                        match Clipboard::new() {
+                                            Ok(mut clipboard) => {
+                                                let content_to_copy = clip.content.clone();
+                                                match clipboard.set_text(content_to_copy) {
+                                                    Ok(()) => {
+                                                        bookmark_clip_enter_handled = true;
+                                                        // Success - close everything
+                                                        self.show_bookmark_groups = false;
+                                                        self.selected_bookmark_group_index = 0;
+                                                        self.bookmark_gg_pressed = false;
+                                                        self.selected_bookmark_clip_index = 0;
+                                                        self.bookmark_clip_gg_pressed = false;
+                                                        self.selected_bookmark_group_for_clips = None;
+                                                        self.just_switched_to_clips = false;
+                                                        
+                                                        // Close window
+                                                        let mut vis = self.visible.lock().unwrap();
+                                                        *vis = false;
+                                                    }
+                                                    Err(e) => {
+                                                        eprintln!("Failed to set clipboard text: {}", e);
+                                                    }
+                                                }
+                                            }
+                                            Err(e) => {
+                                                eprintln!("Failed to initialize clipboard: {}", e);
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            
+
+            
+            // D - delete selected item (Shift+D)
+            if i.key_pressed(egui::Key::D) && i.modifiers.shift && !i.modifiers.ctrl && !i.modifiers.alt {
+                let mut items_vec = self.clipboard_items.lock().unwrap();
+                if !items_vec.is_empty() && self.selected_clipboard_index < items_vec.len() {
+                    items_vec.remove(self.selected_clipboard_index);
+                    
+                    // Adjust selection if needed
+                    if items_vec.is_empty() {
+                        self.selected_clipboard_index = 0;
+                    } else if self.selected_clipboard_index >= items_vec.len() {
+                        self.selected_clipboard_index = items_vec.len() - 1;
+                    }
+                    
+                    // Save to file
+                    if let Err(e) = save_clipboard_items(&items_vec) {
+                        eprintln!("Failed to save clipboard items: {}", e);
+                    }
+                }
+            }
+            
+            // Handle Enter key for bookmark groups (before main Enter handler)
+            if self.show_bookmark_groups && !self.show_bookmark_input && self.selected_bookmark_group_for_clips.is_none() && i.key_pressed(egui::Key::Enter) && !i.modifiers.ctrl && !i.modifiers.alt && !i.modifiers.shift {
+                // Get the selected bookmark group index in the full list
+                let selected_group_index = if self.show_bookmark_input && !self.new_bookmark_group_name.is_empty() {
+                    let filter_lower = self.new_bookmark_group_name.to_lowercase();
+                    let filtered_indices: Vec<usize> = self.bookmark_groups.iter()
+                        .enumerate()
+                        .filter(|(_, group)| group.name.to_lowercase().contains(&filter_lower))
+                        .map(|(index, _)| index)
+                        .collect();
+                    filtered_indices.get(self.selected_bookmark_group_index).copied()
+                } else {
+                    Some(self.selected_bookmark_group_index)
+                };
+                
+                if let Some(group_index) = selected_group_index {
+                    if let Some(group) = self.bookmark_groups.get(group_index) {
+                        // Check if we're in "access mode" (backtick) or "add mode" (m)
+                        if self.bookmark_access_mode {
+                            // Access mode - show clips in this group (in same dialog)
+                            self.selected_bookmark_group_for_clips = Some(group.name.clone());
+                            self.selected_bookmark_clip_index = 0;
+                            self.bookmark_clip_gg_pressed = false;
+                            self.just_switched_to_clips = false;  // Allow immediate Enter handling
+                        } else {
+                            // Add mode - add current clipboard item to this group
+                            if let Some(group_mut) = self.bookmark_groups.get_mut(group_index) {
+                                // Get the currently selected clipboard item
+                                let selected_clipboard_item = {
+                                    let items = self.clipboard_items.lock().unwrap();
+                                    
+                                    // Find the actual item to select (works for both filtered and unfiltered)
+                                    if self.filter_active {
+                                        let filter_lower = self.filter_text.to_lowercase();
+                                        let filtered_items: Vec<&ClipboardItem> = items.iter()
+                                            .filter(|item| {
+                                                let content_lower = item.content.to_lowercase();
+                                                content_lower.contains(&filter_lower)
+                                            })
+                                            .collect();
+                                        
+                                        filtered_items.get(self.selected_clipboard_index).map(|&item| item.clone())
+                                    } else {
+                                        items.get(self.selected_clipboard_index).map(|item| item.clone())
+                                    }
+                                };
+                                
+                                if let Some(clipboard_item) = selected_clipboard_item {
+                                    // Check if item already exists in the group
+                                    if !group_mut.clips.iter().any(|clip| clip.id == clipboard_item.id) {
+                                        group_mut.clips.push(clipboard_item);
+                                        
+                                        // Save to file
+                                        if let Err(e) = save_bookmark_groups(&self.bookmark_groups) {
+                                            eprintln!("Failed to save bookmark groups: {}", e);
+                                        }
+                                    }
+                                }
+                            }
+                            
+                            // Close the dialog but not the window (only for add mode)
+                            self.show_bookmark_groups = false;
+                            self.selected_bookmark_group_index = 0;
+                            self.bookmark_gg_pressed = false;
+                        }
+                    }
+                }
+                bookmark_enter_handled = true;
+            }
+            
+            // Handle Enter key (works in both normal and filter mode, but not in bookmark groups dialog)
+            if i.key_pressed(egui::Key::Enter) && !i.modifiers.ctrl && !i.modifiers.alt && !i.modifiers.shift && !self.show_bookmark_groups && !bookmark_enter_handled && !bookmark_clip_enter_handled && self.selected_bookmark_group_for_clips.is_none() {
                 if let Ok(mut clipboard) = Clipboard::new() {
                     let selected_item_id = {
                         let items = self.clipboard_items.lock().unwrap();
@@ -557,26 +1082,6 @@ impl eframe::App for MyApp {
                     }
                 }
             }
-            
-            // D - delete selected item (Shift+D)
-            if i.key_pressed(egui::Key::D) && i.modifiers.shift && !i.modifiers.ctrl && !i.modifiers.alt {
-                let mut items_vec = self.clipboard_items.lock().unwrap();
-                if !items_vec.is_empty() && self.selected_clipboard_index < items_vec.len() {
-                    items_vec.remove(self.selected_clipboard_index);
-                    
-                    // Adjust selection if needed
-                    if items_vec.is_empty() {
-                        self.selected_clipboard_index = 0;
-                    } else if self.selected_clipboard_index >= items_vec.len() {
-                        self.selected_clipboard_index = items_vec.len() - 1;
-                    }
-                    
-                    // Save to file
-                    if let Err(e) = save_clipboard_items(&items_vec) {
-                        eprintln!("Failed to save clipboard items: {}", e);
-                    }
-                }
-            }
         });
         
         // Check if we should quit
@@ -594,153 +1099,435 @@ impl eframe::App for MyApp {
         
         ctx.send_viewport_cmd(egui::ViewportCommand::Visible(true));
         
-        egui::CentralPanel::default()
-            .frame(
-                egui::Frame::none()
-                    .fill(hex_to_color(&self.theme.background_color))
-                    .stroke(egui::Stroke::new(1.0, hex_to_color(&self.theme.border_color)))
-                    .inner_margin(8.0)
-            )
-            .show(ctx, |ui| {
-                ui.style_mut().visuals.override_text_color = Some(hex_to_color(&self.theme.text_color));
-                ui.style_mut().visuals.panel_fill = hex_to_color(&self.theme.background_color);
-                ui.style_mut().visuals.window_fill = hex_to_color(&self.theme.background_color);
-                
-
-                
-                // Filter input UI (only show when editing)
-                if self.show_filter_input {
-                    let filter_prefix = match self.filter_mode {
-                        FilterMode::Generous => "/",
-                        FilterMode::None => "",
-                    };
+        if self.show_bookmark_groups {
+            // Show bookmark groups as a centered dialog
+            egui::CentralPanel::default()
+                .frame(
+                    egui::Frame::none()
+                        .fill(hex_to_color(&self.theme.background_color))
+                        .stroke(egui::Stroke::new(1.0, hex_to_color(&self.theme.border_color)))
+                        .inner_margin(8.0)
+                )
+                .show(ctx, |ui| {
+                    ui.style_mut().visuals.override_text_color = Some(hex_to_color(&self.theme.text_color));
+                    ui.style_mut().visuals.panel_fill = hex_to_color(&self.theme.background_color);
+                    ui.style_mut().visuals.window_fill = hex_to_color(&self.theme.background_color);
                     
-                    ui.horizontal(|ui| {
-                        ui.label(egui::RichText::new(filter_prefix)
-                            .color(hex_to_color(&self.theme.selected_text_color))
-                            .family(egui::FontFamily::Monospace));
-                        
-                        // Editable filter input
-                        ui.add(
-                            egui::TextEdit::singleline(&mut self.filter_text)
-                                .desired_width(ui.available_width() - 20.0)
-                                .text_color(hex_to_color(&self.theme.text_color))
-                                .font(egui::FontId::monospace(14.0))
-                        );
-                    });
-                    ui.add_space(10.0);
-                } else if self.filter_active {
-                    // Show active filter indicator (read-only)
-                    ui.horizontal(|ui| {
-                        ui.label(egui::RichText::new("/")
-                            .color(hex_to_color(&self.theme.selected_text_color))
-                            .family(egui::FontFamily::Monospace));
-                        ui.label(egui::RichText::new(&self.filter_text)
-                            .color(hex_to_color(&self.theme.text_color))
-                            .family(egui::FontFamily::Monospace));
-                    });
-                    ui.add_space(10.0);
-                }
-                
-                ui.separator();
-                ui.add_space(10.0);
-                
-                // Display clipboard items
-                let items = self.clipboard_items.lock().unwrap();
-                if items.is_empty() {
-                    ui.label(egui::RichText::new("No clipboard items yet...").color(hex_to_color(&self.theme.text_color)).family(egui::FontFamily::Monospace));
-                } else {
-                    // Filter items if filter is active or being edited
-                    let filtered_items: Vec<(usize, &ClipboardItem)> = if self.filter_active || self.filter_mode != FilterMode::None {
-                        let filter_lower = self.filter_text.to_lowercase();
-                        items.iter().enumerate().filter(|(_, item)| {
-                            let content_lower = item.content.to_lowercase();
-                            match self.filter_mode {
-                                FilterMode::Generous => content_lower.contains(&filter_lower),
-                                FilterMode::None => true,
-                            }
-                        }).collect()
-                    } else {
-                        items.iter().enumerate().collect()
-                    };
+                    // Create a centered dialog
+                    let dialog_width = 400.0;
+                    let dialog_height = 500.0;
                     
-                    if filtered_items.is_empty() && (self.filter_active || self.filter_mode != FilterMode::None) {
-                        ui.label(egui::RichText::new("No items match filter").color(hex_to_color(&self.theme.text_color)).family(egui::FontFamily::Monospace));
-                    } else {
-                        if self.config.verbose {
-                            ui.heading(egui::RichText::new("Recent Clipboard Items:").color(hex_to_color(&self.theme.text_color)).family(egui::FontFamily::Monospace));
-                        }
-                        ui.add_space(10.0);
-                        
-                        egui::ScrollArea::vertical()
-                            .max_height(ui.available_height())
-                            .show(ui, |ui| {
-                                ui.set_width(ui.available_width());
-                                for (filter_index, (original_index, item)) in filtered_items.iter().enumerate() {
-                                    let is_selected = filter_index == self.selected_clipboard_index;
-                                    
-                                    // Scroll to selected item
-                                    if is_selected {
-                                        let rect = ui.available_rect_before_wrap();
-                                        ui.scroll_to_rect(rect, Some(egui::Align::Center));
-                                    }
-                                let is_selected = filter_index == self.selected_clipboard_index;
-                                let frame = egui::Frame::none()
-                                    .fill(if is_selected {
-                                        hex_to_color(&self.theme.selected_background_color)
-                                    } else if original_index % 2 == 0 { 
-                                        hex_to_color(&self.theme.background_color)
-                                    } else { 
-                                        hex_to_color(&self.theme.alternate_row_color)
-                                    })
-                                    .stroke(if is_selected {
-                                        egui::Stroke::new(2.0, hex_to_color(&self.theme.selected_border_color))
-                                    } else {
-                                        egui::Stroke::new(1.0, hex_to_color(&self.theme.border_color))
-                                    });
+                    egui::Area::new(egui::Id::new("bookmark_groups_dialog"))
+                        .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
+                        .show(ctx, |ui| {
+                            ui.set_width(dialog_width);
+                            ui.set_min_height(dialog_height);
+                            
+                            let frame = egui::Frame::none()
+                                .fill(hex_to_color(&self.theme.background_color))
+                                .stroke(egui::Stroke::new(2.0, hex_to_color(&self.theme.selected_border_color)))
+                                .inner_margin(16.0)
+                                .rounding(8.0);
+                            
+                            frame.show(ui, |ui| {
+                                ui.style_mut().visuals.override_text_color = Some(hex_to_color(&self.theme.text_color));
+                                ui.style_mut().visuals.panel_fill = hex_to_color(&self.theme.background_color);
+                                ui.style_mut().visuals.window_fill = hex_to_color(&self.theme.background_color);
                                 
-                                frame.show(ui, |ui| {
-                                    ui.set_width(ui.available_width());
-                                    ui.add_space(5.0);
-                                    
-                                    if self.config.verbose {
-                                        // Item number and timestamp
-                                        ui.horizontal(|ui| {
-                                            ui.label(egui::RichText::new(format!("#{}", items.len() - original_index))
-                                                .color(hex_to_color(&self.theme.text_color))
-                                                .family(egui::FontFamily::Monospace));
-                                            
-                                            ui.label(egui::RichText::new(format!("{}", 
-                                                item.timestamp.format("%H:%M:%S")))
-                                                .color(hex_to_color(&self.theme.text_color))
-                                                .family(egui::FontFamily::Monospace));
-                                        });
-                                    }
-                                    
-                                    // Content preview
-                                    ui.label(egui::RichText::new(item.preview())
-                                        .color(if is_selected {
-                                            hex_to_color(&self.theme.selected_text_color)
-                                        } else {
-                                            hex_to_color(&self.theme.text_color)
-                                        })
+                                // Dialog title
+                                if let Some(group_name) = &self.selected_bookmark_group_for_clips {
+                                    ui.heading(egui::RichText::new(format!("Clips in '{}'", group_name))
+                                        .color(hex_to_color(&self.theme.text_color))
                                         .family(egui::FontFamily::Monospace));
-                                    
-                                    // Show line count for multiline content
-                                    if item.content.lines().count() > 1 {
-                                        ui.label(egui::RichText::new(format!("({} lines)", item.content.lines().count()))
+                                } else {
+                                    ui.heading(egui::RichText::new("Bookmark Groups")
+                                        .color(hex_to_color(&self.theme.text_color))
+                                        .family(egui::FontFamily::Monospace));
+                                }
+                                ui.add_space(16.0);
+                                
+                                // Text input for new bookmark group name (only when creating groups)
+                                if self.show_bookmark_input {
+                                    ui.horizontal(|ui| {
+                                        ui.label(egui::RichText::new("New group:")
                                             .color(hex_to_color(&self.theme.text_color))
                                             .family(egui::FontFamily::Monospace));
-                                    }
-                                    
-                                    ui.add_space(5.0);
-                                });
-                                
-                                ui.add_space(2.0);
-                            }
-                        });
+                                        
+                                        let response = ui.add(
+                                            egui::TextEdit::singleline(&mut self.new_bookmark_group_name)
+                                                .desired_width(ui.available_width() - 80.0)
+                                                .text_color(hex_to_color(&self.theme.text_color))
+                                                .font(egui::FontId::monospace(14.0))
+                                                .hint_text(egui::RichText::new("Enter group name...")
+                                                    .color(hex_to_color(&self.theme.text_color))
+                                                    .family(egui::FontFamily::Monospace))
+                                        );
+                                        
+                                        // Request focus for the text input
+                                        response.request_focus();
+                                        
+                                        // Handle Enter key to create new group
+                                        if ui.input(|i| i.key_pressed(egui::Key::Enter)) {
+                                            if !self.new_bookmark_group_name.trim().is_empty() {
+                                                let group_name = self.new_bookmark_group_name.trim().to_string();
+                                                
+                                                // Check if group already exists
+                                                if !self.bookmark_groups.iter().any(|g| g.name == group_name) {
+                                                    let new_group = BookmarkGroup {
+                                                        name: group_name.clone(),
+                                                        created_at: Utc::now(),
+                                                        clips: Vec::new(),
+                                                    };
+                                                    self.bookmark_groups.push(new_group);
+                                                    
+                                                    // Save to file
+                                                    if let Err(e) = save_bookmark_groups(&self.bookmark_groups) {
+                                                        eprintln!("Failed to save bookmark groups: {}", e);
+                                                    }
                     }
+                    
                 }
-            });
+            }
+                                        ui.add_space(16.0);
+                                    });
+                                }
+                                ui.separator();
+                                ui.add_space(16.0);
+                                
+                                 // Display content based on whether we're viewing groups or clips
+                                if let Some(group_name) = &self.selected_bookmark_group_for_clips {
+                                    // Show clips in selected group
+                                    if let Some(group) = self.bookmark_groups.iter().find(|g| g.name == *group_name) {
+                                        if group.clips.is_empty() {
+                                            ui.label(egui::RichText::new("No clips in this group...")
+                                                .color(hex_to_color(&self.theme.text_color))
+                                                .family(egui::FontFamily::Monospace));
+                                        } else {
+                                            egui::ScrollArea::vertical()
+                                                .max_height(300.0)
+                                                .show(ui, |ui| {
+                                                    ui.set_width(ui.available_width());
+                                                    for (clip_index, clip) in group.clips.iter().enumerate() {
+                                                        let is_selected = clip_index == self.selected_bookmark_clip_index;
+                                                        
+                                                        // Scroll to selected item
+                                                        if is_selected {
+                                                            let rect = ui.available_rect_before_wrap();
+                                                            ui.scroll_to_rect(rect, Some(egui::Align::Center));
+                                                        }
+                                                        
+                                                        let frame = egui::Frame::none()
+                                                            .fill(if is_selected {
+                                                                hex_to_color(&self.theme.selected_background_color)
+                                                            } else if clip_index % 2 == 0 { 
+                                                                hex_to_color(&self.theme.background_color)
+                                                            } else { 
+                                                                hex_to_color(&self.theme.alternate_row_color)
+                                                            })
+                                                            .stroke(if is_selected {
+                                                                egui::Stroke::new(2.0, hex_to_color(&self.theme.selected_border_color))
+                                                            } else {
+                                                                egui::Stroke::new(1.0, hex_to_color(&self.theme.border_color))
+                                                            })
+                                                            .inner_margin(8.0);
+                                                        
+                                                        frame.show(ui, |ui| {
+                                                            ui.set_width(ui.available_width());
+                                                            ui.add_space(5.0);
+                                                            
+                                                            // Timestamp and content preview
+                                                            ui.horizontal(|ui| {
+                                                                ui.label(egui::RichText::new(format!("{}", 
+                                                                    clip.timestamp.format("%Y-%m-%d %H:%M:%S")))
+                                                                    .color(if is_selected {
+                                                                        hex_to_color(&self.theme.selected_text_color)
+                                                                    } else {
+                                                                        hex_to_color(&self.theme.text_color)
+                                                                    })
+                                                                    .family(egui::FontFamily::Monospace));
+                                                            });
+                                                            
+                                                            ui.label(egui::RichText::new(clip.preview())
+                                                                .color(if is_selected {
+                                                                    hex_to_color(&self.theme.selected_text_color)
+                                                                } else {
+                                                                    hex_to_color(&self.theme.text_color)
+                                                                })
+                                                                .family(egui::FontFamily::Monospace));
+                                                            
+                                                            // Show line count for multiline content
+                                                            if clip.content.lines().count() > 1 {
+                                                                ui.label(egui::RichText::new(format!("({} lines)", clip.content.lines().count()))
+                                                                    .color(if is_selected {
+                                                                        hex_to_color(&self.theme.selected_text_color)
+                                                                    } else {
+                                                                        hex_to_color(&self.theme.text_color)
+                                                                    })
+                                                                    .family(egui::FontFamily::Monospace));
+                                                            }
+                                                            
+                                                            ui.add_space(5.0);
+                                                        });
+                                                        
+                                                        ui.add_space(4.0);
+                                                    }
+                                                });
+                                        }
+                                    }
+                                } else {
+                                    // Show bookmark groups
+                                    let filtered_groups: Vec<&BookmarkGroup> = if self.show_bookmark_input && !self.new_bookmark_group_name.is_empty() {
+                                        let filter_lower = self.new_bookmark_group_name.to_lowercase();
+                                        self.bookmark_groups.iter()
+                                            .filter(|group| group.name.to_lowercase().contains(&filter_lower))
+                                            .collect()
+                                    } else {
+                                        self.bookmark_groups.iter().collect()
+                                    };
+                                    
+                                    if filtered_groups.is_empty() && self.show_bookmark_input && !self.new_bookmark_group_name.is_empty() {
+                                        ui.label(egui::RichText::new("No groups match filter...")
+                                            .color(hex_to_color(&self.theme.text_color))
+                                            .family(egui::FontFamily::Monospace));
+                                    } else if filtered_groups.is_empty() {
+                                        ui.label(egui::RichText::new("No bookmark groups yet...")
+                                            .color(hex_to_color(&self.theme.text_color))
+                                            .family(egui::FontFamily::Monospace));
+                                    } else {
+                                        egui::ScrollArea::vertical()
+                                            .max_height(300.0)
+                                            .show(ui, |ui| {
+                                                ui.set_width(ui.available_width());
+                                                for (filter_index, group) in filtered_groups.iter().enumerate() {
+                                                    let is_selected = filter_index == self.selected_bookmark_group_index;
+                                                    
+                                                    // Scroll to selected item
+                                                    if is_selected {
+                                                        let rect = ui.available_rect_before_wrap();
+                                                        ui.scroll_to_rect(rect, Some(egui::Align::Center));
+                                                    }
+                                                    
+                                                    let frame = egui::Frame::none()
+                                                        .fill(if is_selected {
+                                                            hex_to_color(&self.theme.selected_background_color)
+                                                        } else if group.name.len() % 2 == 0 { 
+                                                            hex_to_color(&self.theme.background_color)
+                                                        } else { 
+                                                            hex_to_color(&self.theme.alternate_row_color)
+                                                        })
+                                                        .stroke(if is_selected {
+                                                            egui::Stroke::new(2.0, hex_to_color(&self.theme.selected_border_color))
+                                                        } else {
+                                                            egui::Stroke::new(1.0, hex_to_color(&self.theme.border_color))
+                                                        })
+                                                        .inner_margin(8.0);
+                                                    
+                                                    frame.show(ui, |ui| {
+                                                        ui.set_width(ui.available_width());
+                                                        
+                                                        ui.horizontal(|ui| {
+                                                            ui.label(egui::RichText::new(&group.name)
+                                                                .color(if is_selected {
+                                                                    hex_to_color(&self.theme.selected_text_color)
+                                                                } else {
+                                                                    hex_to_color(&self.theme.text_color)
+                                                                })
+                                                                .family(egui::FontFamily::Monospace));
+                                                            
+                                                            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                                                                ui.label(egui::RichText::new(format!("{} clips", group.clips.len()))
+                                                                    .color(if is_selected {
+                                                                        hex_to_color(&self.theme.selected_text_color)
+                                                                    } else {
+                                                                        hex_to_color(&self.theme.text_color)
+                                                                    })
+                                                                    .family(egui::FontFamily::Monospace));
+                                                                ui.add_space(10.0);
+                                                                ui.label(egui::RichText::new(format!("{}", 
+                                                                    group.created_at.format("%Y-%m-%d %H:%M")))
+                                                                    .color(if is_selected {
+                                                                        hex_to_color(&self.theme.selected_text_color)
+                                                                    } else {
+                                                                        hex_to_color(&self.theme.text_color)
+                                                                    })
+                                                                    .family(egui::FontFamily::Monospace));
+                                                                });
+                                                        });
+                                                    });
+                                                    
+                                                    ui.add_space(4.0);
+                                                }
+                                            });
+                                    }
+                                }
+                                
+                                ui.add_space(16.0);
+                                ui.separator();
+                                ui.add_space(8.0);
+                                
+                                // Instructions
+                                let instruction = if self.show_bookmark_input {
+                                    "Press Escape to close • Enter to create group"
+                                } else if self.selected_bookmark_group_for_clips.is_some() {
+                                    "Press Escape to go back • j/k to navigate • Enter to copy clip"
+                                } else {
+                                    "Press Escape to close • j/k to navigate • Enter to view clips"
+                                };
+                                ui.label(egui::RichText::new(instruction)
+                                    .color(hex_to_color(&self.theme.text_color))
+                                    .family(egui::FontFamily::Monospace)
+                                    .size(12.0));
+                            });
+                        });
+                });
+        } else {
+            // Normal clipboard view
+            egui::CentralPanel::default()
+                .frame(
+                    egui::Frame::none()
+                        .fill(hex_to_color(&self.theme.background_color))
+                        .stroke(egui::Stroke::new(1.0, hex_to_color(&self.theme.border_color)))
+                        .inner_margin(8.0)
+                )
+                .show(ctx, |ui| {
+                    ui.style_mut().visuals.override_text_color = Some(hex_to_color(&self.theme.text_color));
+                    ui.style_mut().visuals.panel_fill = hex_to_color(&self.theme.background_color);
+                    ui.style_mut().visuals.window_fill = hex_to_color(&self.theme.background_color);
+                    
+                    // Filter input UI (only show when editing)
+                    if self.show_filter_input {
+                        let filter_prefix = match self.filter_mode {
+                            FilterMode::Generous => "/",
+                            FilterMode::None => "",
+                        };
+                        
+                        ui.horizontal(|ui| {
+                            ui.label(egui::RichText::new(filter_prefix)
+                                .color(hex_to_color(&self.theme.selected_text_color))
+                                .family(egui::FontFamily::Monospace));
+                            
+                            // Editable filter input
+                            ui.add(
+                                egui::TextEdit::singleline(&mut self.filter_text)
+                                    .desired_width(ui.available_width() - 20.0)
+                                    .text_color(hex_to_color(&self.theme.text_color))
+                                    .font(egui::FontId::monospace(14.0))
+                            );
+                        });
+                        ui.add_space(10.0);
+                    } else if self.filter_active {
+                        // Show active filter indicator (read-only)
+                        ui.horizontal(|ui| {
+                            ui.label(egui::RichText::new("/")
+                                .color(hex_to_color(&self.theme.selected_text_color))
+                                .family(egui::FontFamily::Monospace));
+                            ui.label(egui::RichText::new(&self.filter_text)
+                                .color(hex_to_color(&self.theme.text_color))
+                                .family(egui::FontFamily::Monospace));
+                        });
+                        ui.add_space(10.0);
+                    }
+                    
+                    ui.separator();
+                    ui.add_space(10.0);
+                    
+                    // Display clipboard items
+                    let items = self.clipboard_items.lock().unwrap();
+                    if items.is_empty() {
+                        ui.label(egui::RichText::new("No clipboard items yet...").color(hex_to_color(&self.theme.text_color)).family(egui::FontFamily::Monospace));
+                    } else {
+                        // Filter items if filter is active or being edited
+                        let filtered_items: Vec<(usize, &ClipboardItem)> = if self.filter_active || self.filter_mode != FilterMode::None {
+                            let filter_lower = self.filter_text.to_lowercase();
+                            items.iter().enumerate().filter(|(_, item)| {
+                                let content_lower = item.content.to_lowercase();
+                                match self.filter_mode {
+                                    FilterMode::Generous => content_lower.contains(&filter_lower),
+                                    FilterMode::None => true,
+                                }
+                            }).collect()
+                        } else {
+                            items.iter().enumerate().collect()
+                        };
+                        
+                        if filtered_items.is_empty() && (self.filter_active || self.filter_mode != FilterMode::None) {
+                            ui.label(egui::RichText::new("No items match filter").color(hex_to_color(&self.theme.text_color)).family(egui::FontFamily::Monospace));
+                        } else {
+                            if self.config.verbose {
+                                ui.heading(egui::RichText::new("Recent Clipboard Items:").color(hex_to_color(&self.theme.text_color)).family(egui::FontFamily::Monospace));
+                            }
+                            ui.add_space(10.0);
+                            
+                            egui::ScrollArea::vertical()
+                                .max_height(ui.available_height())
+                                .show(ui, |ui| {
+                                    ui.set_width(ui.available_width());
+                                    for (filter_index, (original_index, item)) in filtered_items.iter().enumerate() {
+                                        let is_selected = filter_index == self.selected_clipboard_index;
+                                        
+                                        // Scroll to selected item
+                                        if is_selected {
+                                            let rect = ui.available_rect_before_wrap();
+                                            ui.scroll_to_rect(rect, Some(egui::Align::Center));
+                                        }
+                                    let is_selected = filter_index == self.selected_clipboard_index;
+                                    let frame = egui::Frame::none()
+                                        .fill(if is_selected {
+                                            hex_to_color(&self.theme.selected_background_color)
+                                        } else if original_index % 2 == 0 { 
+                                            hex_to_color(&self.theme.background_color)
+                                        } else { 
+                                            hex_to_color(&self.theme.alternate_row_color)
+                                        })
+                                        .stroke(if is_selected {
+                                            egui::Stroke::new(2.0, hex_to_color(&self.theme.selected_border_color))
+                                        } else {
+                                            egui::Stroke::new(1.0, hex_to_color(&self.theme.border_color))
+                                        });
+                                    
+                                    frame.show(ui, |ui| {
+                                        ui.set_width(ui.available_width());
+                                        ui.add_space(5.0);
+                                        
+                                        if self.config.verbose {
+                                            // Item number and timestamp
+                                            ui.horizontal(|ui| {
+                                                ui.label(egui::RichText::new(format!("#{}", items.len() - original_index))
+                                                    .color(hex_to_color(&self.theme.text_color))
+                                                    .family(egui::FontFamily::Monospace));
+                                                
+                                                ui.label(egui::RichText::new(format!("{}", 
+                                                    item.timestamp.format("%H:%M:%S")))
+                                                    .color(hex_to_color(&self.theme.text_color))
+                                                    .family(egui::FontFamily::Monospace));
+                                            });
+                                        }
+                                        
+                                        // Content preview
+                                        ui.label(egui::RichText::new(item.preview())
+                                            .color(if is_selected {
+                                                hex_to_color(&self.theme.selected_text_color)
+                                            } else {
+                                                hex_to_color(&self.theme.text_color)
+                                            })
+                                            .family(egui::FontFamily::Monospace));
+                                        
+                                        // Show line count for multiline content
+                                        if item.content.lines().count() > 1 {
+                                            ui.label(egui::RichText::new(format!("({} lines)", item.content.lines().count()))
+                                                .color(hex_to_color(&self.theme.text_color))
+                                                .family(egui::FontFamily::Monospace));
+                                        }
+                                        
+                                        ui.add_space(5.0);
+                                    });
+                                    
+                                    ui.add_space(2.0);
+                                }
+                            });
+                        }
+                    }
+                });
+        }
     }
 }
