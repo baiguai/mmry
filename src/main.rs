@@ -618,6 +618,7 @@ struct MyApp {
     bookmark_access_mode: bool,  // true for access mode (backtick), false for add mode (m)
     just_switched_to_clips: bool,  // prevent immediate Enter key handling after switching to clips view
     show_settings: bool,  // Whether to show settings dialog
+    just_started_filtering: bool,  // prevent initial / from being added to filter text
     
 }
 
@@ -684,6 +685,7 @@ impl MyApp {
             bookmark_access_mode: false,
             just_switched_to_clips: false,
             show_settings: false,
+            just_started_filtering: false,
             
         }
     }
@@ -804,6 +806,7 @@ impl eframe::App for MyApp {
                     self.filter_text.clear();
                     self.original_selected_index = self.selected_clipboard_index;
                     self.selected_clipboard_index = 0;
+                    self.just_started_filtering = true;  // Flag to prevent initial / from being added
                 }
             }
             
@@ -941,8 +944,14 @@ impl eframe::App for MyApp {
                 for event in &i.events {
                     if let egui::Event::Text(text) = event {
                         if !text.chars().any(|c| c.is_control()) {
+                            // Skip the initial / that triggered filter mode
+                            if self.just_started_filtering && text == "/" {
+                                self.just_started_filtering = false;
+                                continue;
+                            }
                             // Regular text input
                             self.filter_text.push_str(text);
+                            self.just_started_filtering = false;  // Reset flag after any other input
                         }
                     }
                 }
