@@ -722,7 +722,7 @@ impl MyApp {
                         }
                         
                         // Keep only last max_items items
-                        let max_items = 500; // Default, will be updated from config in future
+                        let max_items = config.max_items;
                         if items_vec.len() > max_items {
                             items_vec.truncate(max_items);
                         }
@@ -734,7 +734,7 @@ impl MyApp {
                     }
                 }
                 
-                thread::sleep(Duration::from_millis(500));
+                thread::sleep(Duration::from_millis(1000));  // Reduced polling frequency from 500ms to 1000ms
             }
         });
     }
@@ -742,8 +742,7 @@ impl MyApp {
 
 impl eframe::App for MyApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
-        // Reload theme on each update to allow testing
-        self.theme = load_theme(&self.config.theme);
+        // Theme is now only loaded at startup for better performance
         
         // Handle keyboard input
         let mut bookmark_enter_handled = false;
@@ -1315,6 +1314,8 @@ impl eframe::App for MyApp {
         
         if !is_visible {
             ctx.send_viewport_cmd(egui::ViewportCommand::Visible(false));
+            // Request slower repaint when window is hidden to save CPU
+            ctx.request_repaint_after(std::time::Duration::from_millis(500));
             return;
         }
         
