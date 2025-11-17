@@ -179,16 +179,15 @@ fn main() -> Result<(), eframe::Error> {
     
     let options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
-            .with_inner_size([600.0, 400.0]) // Start with normal size
+            .with_inner_size([600.0, 400.0])
             .with_min_inner_size([400.0, 200.0])
             .with_always_on_top()
             .with_decorations(false)
-            .with_transparent(true)
-            .with_visible(true), // Start visible
+            .with_transparent(true),
         ..Default::default()
     };
 
-    let visible = Arc::new(Mutex::new(true)); // Start visible so we can see the UI
+    let visible = Arc::new(Mutex::new(false));
     let visible_clone = visible.clone();
 
     // Set up global hotkey
@@ -201,12 +200,11 @@ fn main() -> Result<(), eframe::Error> {
             Ok(hotkey) => {
                 if let Err(e) = hotkey_manager.register(hotkey) {
                     eprintln!("Failed to register global hotkey: {}", e);
-                    // Fallback to F1 (less likely to conflict)
+                    // Fallback to default Ctrl+Alt+C
                     let fallback_hotkey = global_hotkey::hotkey::HotKey::new(
-                        None,
-                        global_hotkey::hotkey::Code::F1,
+                        Some(global_hotkey::hotkey::Modifiers::CONTROL | global_hotkey::hotkey::Modifiers::ALT),
+                        global_hotkey::hotkey::Code::KeyC,
                     );
-
                     let _ = hotkey_manager.register(fallback_hotkey);
                 }
             }
@@ -214,10 +212,9 @@ fn main() -> Result<(), eframe::Error> {
                 eprintln!("Failed to parse hotkey config: {}", e);
                 // Fallback to default Ctrl+Alt+C
                 let fallback_hotkey = global_hotkey::hotkey::HotKey::new(
-                    None,
-                    global_hotkey::hotkey::Code::F1,
+                    Some(global_hotkey::hotkey::Modifiers::CONTROL | global_hotkey::hotkey::Modifiers::ALT),
+                    global_hotkey::hotkey::Code::KeyC,
                 );
-                println!("Registering fallback hotkey: F1");
                 let _ = hotkey_manager.register(fallback_hotkey);
             }
         }
@@ -998,27 +995,19 @@ impl eframe::App for MyApp {
         let is_visible = *self.visible.lock().unwrap();
         
         if !is_visible {
-            // Hide window by making it transparent and minimal
+            // Hide window using Visible(false) for hotkey compatibility
+            ctx.send_viewport_cmd(egui::ViewportCommand::Visible(false));
+            // But also minimize CPU usage with size reduction
             ctx.send_viewport_cmd(egui::ViewportCommand::InnerSize(egui::vec2(1.0, 1.0)));
-            ctx.send_viewport_cmd(egui::ViewportCommand::OuterPosition(egui::pos2(-2000.0, -2000.0)));
-            
-            // Show empty content when hidden
-            egui::CentralPanel::default()
-                .frame(egui::Frame::none())
-                .show(ctx, |_ui| {
-                    // Empty content
-                });
             
             // Request very slow repaint when window is hidden to save CPU
             ctx.request_repaint_after(std::time::Duration::from_secs(60));
             return;
         }
         
-        // Show window when visible - restore size and position
+        // Show window when visible - restore visibility and size
+        ctx.send_viewport_cmd(egui::ViewportCommand::Visible(true));
         ctx.send_viewport_cmd(egui::ViewportCommand::InnerSize(egui::vec2(600.0, 400.0)));
-        if let Some(center_cmd) = egui::ViewportCommand::center_on_screen(ctx) {
-            ctx.send_viewport_cmd(center_cmd);
-        }
         
         // Check if window is focused to optimize input processing
         let is_focused = ctx.input(|i| i.viewport().focused.unwrap_or(false));
@@ -1050,7 +1039,7 @@ impl eframe::App for MyApp {
                     *vis = false;
                 }
             });
-            return;
+            // Don't return - let UI render but skip heavy processing
         }
         let mut bookmark_enter_handled = false;
         let mut bookmark_clip_enter_handled = false;
@@ -1090,9 +1079,9 @@ impl eframe::App for MyApp {
                     self.is_filtering = false;
                     self.selected_clipboard_index = 0;
                 } else {
-                    // Close window - toggle visibility
+                    // Close window
                     let mut vis = self.visible.lock().unwrap();
-                    *vis = !*vis;
+                    *vis = false;
                 }
             }
             
