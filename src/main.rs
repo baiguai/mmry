@@ -1038,43 +1038,69 @@ impl eframe::App for MyApp {
                 
                 if !self.just_switched_to_clips {
                     if let Some(group_name) = &self.selected_bookmark_group_for_clips {
-                        if let Some(group) = self.bookmark_groups.iter().find(|g| g.name == *group_name) {
-                            let clips_len = group.clips.len();
+                        // Get clips length for navigation bounds checking
+                        let clips_len = if let Some(group) = self.bookmark_groups.iter().find(|g| g.name == *group_name) {
+                            group.clips.len()
+                        } else {
+                            0
+                        };
+                        
+                        if clips_len > 0 {
+                            // j - move down
+                            if i.key_pressed(egui::Key::J) && !i.modifiers.ctrl && !i.modifiers.alt && !i.modifiers.shift {
+                                if self.selected_bookmark_clip_index < clips_len - 1 {
+                                    self.selected_bookmark_clip_index += 1;
+                                }
+                            }
                             
-                            if clips_len > 0 {
-                                // j - move down
-                                if i.key_pressed(egui::Key::J) && !i.modifiers.ctrl && !i.modifiers.alt && !i.modifiers.shift {
-                                    if self.selected_bookmark_clip_index < clips_len - 1 {
-                                        self.selected_bookmark_clip_index += 1;
+                            // k - move up
+                            if i.key_pressed(egui::Key::K) && !i.modifiers.ctrl && !i.modifiers.alt && !i.modifiers.shift {
+                                if self.selected_bookmark_clip_index > 0 {
+                                    self.selected_bookmark_clip_index -= 1;
+                                }
+                            }
+                            
+                            // G - go to last item (Shift+G)
+                            if i.key_pressed(egui::Key::G) && i.modifiers.shift && !i.modifiers.ctrl && !i.modifiers.alt {
+                                self.selected_bookmark_clip_index = clips_len - 1;
+                            }
+                            
+                            // g - first part of gg
+                            if i.key_pressed(egui::Key::G) && !i.modifiers.shift && !i.modifiers.ctrl && !i.modifiers.alt {
+                                if self.bookmark_clip_gg_pressed {
+                                    // gg - go to first item
+                                    self.selected_bookmark_clip_index = 0;
+                                    self.bookmark_clip_gg_pressed = false;
+                                } else {
+                                    // First g pressed, wait for second g
+                                    self.bookmark_clip_gg_pressed = true;
+                                }
+                            }
+                            
+                            // d - remove selected clip from bookmark group
+                            if i.key_pressed(egui::Key::D) && !i.modifiers.shift && !i.modifiers.ctrl && !i.modifiers.alt {
+                                if let Some(group) = self.bookmark_groups.iter_mut().find(|g| g.name == *group_name) {
+                                    if self.selected_bookmark_clip_index < group.clips.len() {
+                                        group.clips.remove(self.selected_bookmark_clip_index);
+                                        
+                                        // Adjust selection if needed
+                                        if group.clips.is_empty() {
+                                            self.selected_bookmark_clip_index = 0;
+                                        } else if self.selected_bookmark_clip_index >= group.clips.len() {
+                                            self.selected_bookmark_clip_index = group.clips.len() - 1;
+                                        }
+                                        
+                                        // Save to file
+                                        if let Err(e) = save_bookmark_groups(&self.bookmark_groups, &self.config) {
+                                            eprintln!("Failed to save bookmark groups: {}", e);
+                                        }
                                     }
                                 }
-                                
-                                // k - move up
-                                if i.key_pressed(egui::Key::K) && !i.modifiers.ctrl && !i.modifiers.alt && !i.modifiers.shift {
-                                    if self.selected_bookmark_clip_index > 0 {
-                                        self.selected_bookmark_clip_index -= 1;
-                                    }
-                                }
-                                
-                                // G - go to last item (Shift+G)
-                                if i.key_pressed(egui::Key::G) && i.modifiers.shift && !i.modifiers.ctrl && !i.modifiers.alt {
-                                    self.selected_bookmark_clip_index = clips_len - 1;
-                                }
-                                
-                                // g - first part of gg
-                                if i.key_pressed(egui::Key::G) && !i.modifiers.shift && !i.modifiers.ctrl && !i.modifiers.alt {
-                                    if self.bookmark_clip_gg_pressed {
-                                        // gg - go to first item
-                                        self.selected_bookmark_clip_index = 0;
-                                        self.bookmark_clip_gg_pressed = false;
-                                    } else {
-                                        // First g pressed, wait for second g
-                                        self.bookmark_clip_gg_pressed = true;
-                                    }
-                                }
-                                
-                                // Enter - copy selected bookmark clip to clipboard
-                                if i.key_pressed(egui::Key::Enter) && !i.modifiers.ctrl && !i.modifiers.alt && !i.modifiers.shift {
+                            }
+                            
+                            // Enter - copy selected bookmark clip to clipboard
+                            if i.key_pressed(egui::Key::Enter) && !i.modifiers.ctrl && !i.modifiers.alt && !i.modifiers.shift {
+                                if let Some(group) = self.bookmark_groups.iter().find(|g| g.name == *group_name) {
                                     if let Some(clip) = group.clips.get(self.selected_bookmark_clip_index) {
                                         // Copy to clipboard using the same method as main clipboard
                                         match Clipboard::new() {
@@ -1555,7 +1581,7 @@ impl eframe::App for MyApp {
                                 let instruction = if self.show_bookmark_input {
                                     "Press Escape to close • Enter to create group"
                                 } else if self.selected_bookmark_group_for_clips.is_some() {
-                                    "Press Escape to go back • j/k to navigate • Enter to copy clip"
+                                    "Press Escape to go back • j/k to navigate • d to remove clip • Enter to copy clip"
                                 } else {
                                     "Press Escape to close • j/k to navigate • Enter to view clips"
                                 };
