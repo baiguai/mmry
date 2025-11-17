@@ -10,6 +10,9 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
 fn main() -> Result<(), eframe::Error> {
+    // Load config first to get hotkey settings
+    let config = load_config();
+    
     let options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
             .with_inner_size([600.0, 400.0])
@@ -25,16 +28,33 @@ fn main() -> Result<(), eframe::Error> {
     let visible_clone = visible.clone();
 
     // Set up global hotkey
+    let hotkey_config = config.hotkey.clone();
     thread::spawn(move || {
         let hotkey_manager = GlobalHotKeyManager::new().unwrap();
         
-        // Register Ctrl+Alt+C
-        let hotkey = global_hotkey::hotkey::HotKey::new(
-            Some(global_hotkey::hotkey::Modifiers::CONTROL | global_hotkey::hotkey::Modifiers::ALT),
-            global_hotkey::hotkey::Code::KeyC,
-        );
-        
-        hotkey_manager.register(hotkey).unwrap();
+        // Parse and register hotkey from config
+        match parse_hotkey_config(&hotkey_config) {
+            Ok(hotkey) => {
+                if let Err(e) = hotkey_manager.register(hotkey) {
+                    eprintln!("Failed to register global hotkey: {}", e);
+                    // Fallback to default Ctrl+Alt+C
+                    let fallback_hotkey = global_hotkey::hotkey::HotKey::new(
+                        Some(global_hotkey::hotkey::Modifiers::CONTROL | global_hotkey::hotkey::Modifiers::ALT),
+                        global_hotkey::hotkey::Code::KeyC,
+                    );
+                    let _ = hotkey_manager.register(fallback_hotkey);
+                }
+            }
+            Err(e) => {
+                eprintln!("Failed to parse hotkey config: {}", e);
+                // Fallback to default Ctrl+Alt+C
+                let fallback_hotkey = global_hotkey::hotkey::HotKey::new(
+                    Some(global_hotkey::hotkey::Modifiers::CONTROL | global_hotkey::hotkey::Modifiers::ALT),
+                    global_hotkey::hotkey::Code::KeyC,
+                );
+                let _ = hotkey_manager.register(fallback_hotkey);
+            }
+        }
         
         let rx = GlobalHotKeyEvent::receiver();
         while let Ok(event) = rx.recv() {
@@ -50,7 +70,7 @@ fn main() -> Result<(), eframe::Error> {
         options,
         Box::new(|cc| {
             setup_custom_fonts(&cc.egui_ctx);
-            Ok(Box::new(MyApp::new(visible)))
+            Ok(Box::new(MyApp::new(visible, config)))
         }),
     )
 }
@@ -62,11 +82,31 @@ struct ClipboardItem {
     id: usize,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct HotkeyConfig {
+    ctrl: bool,
+    alt: bool,
+    shift: bool,
+    key: String,
+}
+
+impl Default for HotkeyConfig {
+    fn default() -> Self {
+        Self {
+            ctrl: true,
+            alt: true,
+            shift: false,
+            key: "c".to_string(),
+        }
+    }
+}
+
 #[derive(Debug, Serialize, Deserialize)]
 struct Config {
     verbose: bool,
     theme: String,
     max_items: usize,
+    hotkey: HotkeyConfig,
 }
 
 impl Default for Config {
@@ -75,6 +115,7 @@ impl Default for Config {
             verbose: false,
             theme: "dark".to_string(),
             max_items: 500,
+            hotkey: HotkeyConfig::default(),
         }
     }
 }
@@ -282,6 +323,95 @@ fn load_bookmark_groups() -> Vec<BookmarkGroup> {
     Vec::new()
 }
 
+fn parse_hotkey_config(config: &HotkeyConfig) -> Result<global_hotkey::hotkey::HotKey, Box<dyn std::error::Error>> {
+    let mut modifiers = global_hotkey::hotkey::Modifiers::empty();
+    
+    if config.ctrl {
+        modifiers |= global_hotkey::hotkey::Modifiers::CONTROL;
+    }
+    if config.alt {
+        modifiers |= global_hotkey::hotkey::Modifiers::ALT;
+    }
+    if config.shift {
+        modifiers |= global_hotkey::hotkey::Modifiers::SHIFT;
+    }
+    
+    let code = match config.key.to_lowercase().as_str() {
+        "a" => global_hotkey::hotkey::Code::KeyA,
+        "b" => global_hotkey::hotkey::Code::KeyB,
+        "c" => global_hotkey::hotkey::Code::KeyC,
+        "d" => global_hotkey::hotkey::Code::KeyD,
+        "e" => global_hotkey::hotkey::Code::KeyE,
+        "f" => global_hotkey::hotkey::Code::KeyF,
+        "g" => global_hotkey::hotkey::Code::KeyG,
+        "h" => global_hotkey::hotkey::Code::KeyH,
+        "i" => global_hotkey::hotkey::Code::KeyI,
+        "j" => global_hotkey::hotkey::Code::KeyJ,
+        "k" => global_hotkey::hotkey::Code::KeyK,
+        "l" => global_hotkey::hotkey::Code::KeyL,
+        "m" => global_hotkey::hotkey::Code::KeyM,
+        "n" => global_hotkey::hotkey::Code::KeyN,
+        "o" => global_hotkey::hotkey::Code::KeyO,
+        "p" => global_hotkey::hotkey::Code::KeyP,
+        "q" => global_hotkey::hotkey::Code::KeyQ,
+        "r" => global_hotkey::hotkey::Code::KeyR,
+        "s" => global_hotkey::hotkey::Code::KeyS,
+        "t" => global_hotkey::hotkey::Code::KeyT,
+        "u" => global_hotkey::hotkey::Code::KeyU,
+        "v" => global_hotkey::hotkey::Code::KeyV,
+        "w" => global_hotkey::hotkey::Code::KeyW,
+        "x" => global_hotkey::hotkey::Code::KeyX,
+        "y" => global_hotkey::hotkey::Code::KeyY,
+        "z" => global_hotkey::hotkey::Code::KeyZ,
+        "0" => global_hotkey::hotkey::Code::Digit0,
+        "1" => global_hotkey::hotkey::Code::Digit1,
+        "2" => global_hotkey::hotkey::Code::Digit2,
+        "3" => global_hotkey::hotkey::Code::Digit3,
+        "4" => global_hotkey::hotkey::Code::Digit4,
+        "5" => global_hotkey::hotkey::Code::Digit5,
+        "6" => global_hotkey::hotkey::Code::Digit6,
+        "7" => global_hotkey::hotkey::Code::Digit7,
+        "8" => global_hotkey::hotkey::Code::Digit8,
+        "9" => global_hotkey::hotkey::Code::Digit9,
+        "space" => global_hotkey::hotkey::Code::Space,
+        "enter" => global_hotkey::hotkey::Code::Enter,
+        "escape" => global_hotkey::hotkey::Code::Escape,
+        "tab" => global_hotkey::hotkey::Code::Tab,
+        "backspace" => global_hotkey::hotkey::Code::Backspace,
+        "delete" => global_hotkey::hotkey::Code::Delete,
+        "insert" => global_hotkey::hotkey::Code::Insert,
+        "home" => global_hotkey::hotkey::Code::Home,
+        "end" => global_hotkey::hotkey::Code::End,
+        "pageup" => global_hotkey::hotkey::Code::PageUp,
+        "pagedown" => global_hotkey::hotkey::Code::PageDown,
+        "arrowup" => global_hotkey::hotkey::Code::ArrowUp,
+        "arrowdown" => global_hotkey::hotkey::Code::ArrowDown,
+        "arrowleft" => global_hotkey::hotkey::Code::ArrowLeft,
+        "arrowright" => global_hotkey::hotkey::Code::ArrowRight,
+        "f1" => global_hotkey::hotkey::Code::F1,
+        "f2" => global_hotkey::hotkey::Code::F2,
+        "f3" => global_hotkey::hotkey::Code::F3,
+        "f4" => global_hotkey::hotkey::Code::F4,
+        "f5" => global_hotkey::hotkey::Code::F5,
+        "f6" => global_hotkey::hotkey::Code::F6,
+        "f7" => global_hotkey::hotkey::Code::F7,
+        "f8" => global_hotkey::hotkey::Code::F8,
+        "f9" => global_hotkey::hotkey::Code::F9,
+        "f10" => global_hotkey::hotkey::Code::F10,
+        "f11" => global_hotkey::hotkey::Code::F11,
+        "f12" => global_hotkey::hotkey::Code::F12,
+        _ => return Err(format!("Unsupported key: {}", config.key).into()),
+    };
+    
+    let hotkey = if modifiers.is_empty() {
+        global_hotkey::hotkey::HotKey::new(None, code)
+    } else {
+        global_hotkey::hotkey::HotKey::new(Some(modifiers), code)
+    };
+    
+    Ok(hotkey)
+}
+
 fn setup_custom_fonts(ctx: &egui::Context) {
     // Use default fonts with monospace family
     let mut fonts = egui::FontDefinitions::default();
@@ -331,8 +461,7 @@ struct MyApp {
 }
 
 impl MyApp {
-    fn new(visible: Arc<Mutex<bool>>) -> Self {
-        let config = load_config();
+    fn new(visible: Arc<Mutex<bool>>, config: Config) -> Self {
         let theme = load_theme(&config.theme);
         let loaded_items = load_clipboard_items();
         let next_id = loaded_items.iter().map(|item| item.id).max().unwrap_or(0) + 1;
@@ -431,8 +560,7 @@ impl MyApp {
 
 impl eframe::App for MyApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
-        // Reload config and theme on each update to allow testing
-        self.config = load_config();
+        // Reload theme on each update to allow testing
         self.theme = load_theme(&self.config.theme);
         
         // Handle keyboard input
@@ -719,7 +847,6 @@ impl eframe::App for MyApp {
                                      i.key_pressed(egui::Key::G);
                 
                 if nav_key_pressed && self.just_switched_to_clips {
-                    println!("NAV KEY PRESSED - resetting just_switched_to_clips");
                     self.just_switched_to_clips = false;
                 }
                 
@@ -762,16 +889,13 @@ impl eframe::App for MyApp {
                                 
                                 // Enter - copy selected bookmark clip to clipboard
                                 if i.key_pressed(egui::Key::Enter) && !i.modifiers.ctrl && !i.modifiers.alt && !i.modifiers.shift {
-                                    println!("BOOKMARK CLIP ENTER: clip_index={}, just_switched={}", self.selected_bookmark_clip_index, self.just_switched_to_clips);
                                     if let Some(clip) = group.clips.get(self.selected_bookmark_clip_index) {
-                                        println!("BOOKMARK CLIP FOUND: {}", clip.content);
                                         // Copy to clipboard using the same method as main clipboard
                                         match Clipboard::new() {
                                             Ok(mut clipboard) => {
                                                 let content_to_copy = clip.content.clone();
                                                 match clipboard.set_text(content_to_copy) {
                                                     Ok(()) => {
-                                                        println!("BOOKMARK CLIP COPIED SUCCESSFULLY");
                                                         bookmark_clip_enter_handled = true;
                                                         // Success - close everything
                                                         self.show_bookmark_groups = false;
@@ -795,8 +919,6 @@ impl eframe::App for MyApp {
                                                 eprintln!("Failed to initialize clipboard: {}", e);
                                             }
                                         }
-                                    } else {
-                                        println!("NO BOOKMARK CLIP FOUND AT INDEX {}", self.selected_bookmark_clip_index);
                                     }
                                 }
                             }
@@ -851,7 +973,6 @@ impl eframe::App for MyApp {
                             self.selected_bookmark_clip_index = 0;
                             self.bookmark_clip_gg_pressed = false;
                             self.just_switched_to_clips = false;  // Allow immediate Enter handling
-                            println!("SWITCHED TO CLIPS: group={}, clips_len={}, selected_index=0", group.name, group.clips.len());
                         } else {
                             // Add mode - add current clipboard item to this group
                             if let Some(group_mut) = self.bookmark_groups.get_mut(group_index) {
@@ -900,8 +1021,6 @@ impl eframe::App for MyApp {
             
             // Handle Enter key (works in both normal and filter mode, but not in bookmark groups dialog)
             if i.key_pressed(egui::Key::Enter) && !i.modifiers.ctrl && !i.modifiers.alt && !i.modifiers.shift && !self.show_bookmark_groups && !bookmark_enter_handled && !bookmark_clip_enter_handled && self.selected_bookmark_group_for_clips.is_none() {
-                println!("MAIN ENTER HANDLER: show_bookmark_groups={}, bookmark_enter_handled={}, bookmark_clip_enter_handled={}, selected_bookmark_group_for_clips={:?}", 
-                    self.show_bookmark_groups, bookmark_enter_handled, bookmark_clip_enter_handled, self.selected_bookmark_group_for_clips);
                 if let Ok(mut clipboard) = Clipboard::new() {
                     let selected_item_id = {
                         let items = self.clipboard_items.lock().unwrap();
