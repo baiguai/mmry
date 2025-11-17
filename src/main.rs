@@ -684,6 +684,7 @@ impl MyApp {
             last_clipboard_content.clone(),
             next_id.clone(),
             config_with_key,
+            visible.clone(),
         );
         
         Self { 
@@ -726,11 +727,22 @@ impl MyApp {
         last_content: Arc<Mutex<Option<String>>>,
         next_id: Arc<Mutex<usize>>,
         config: Config,
+        visible: Arc<Mutex<bool>>,
     ) {
         thread::spawn(move || {
             let mut clipboard = Clipboard::new().expect("Failed to initialize clipboard");
             
             loop {
+                // Check visibility to adjust polling frequency
+                let is_visible = *visible.lock().unwrap();
+                
+                // Adaptive polling based on visibility
+                let sleep_duration = if is_visible {
+                    Duration::from_millis(1000)  // Normal when visible
+                } else {
+                    Duration::from_millis(10000) // Very slow when hidden (10 seconds)
+                };
+                
                 if let Ok(content) = clipboard.get_text() {
                     let mut last = last_content.lock().unwrap();
                     
@@ -765,7 +777,7 @@ impl MyApp {
                     }
                 }
                 
-                thread::sleep(Duration::from_millis(1000));  // Reduced polling frequency from 500ms to 1000ms
+                thread::sleep(sleep_duration);
             }
         });
     }
@@ -773,6 +785,33 @@ impl MyApp {
 
 impl eframe::App for MyApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+        // Check visibility and adjust behavior
+        let is_visible = *self.visible.lock().unwrap();
+        if !is_visible {
+            ctx.send_viewport_cmd(egui::ViewportCommand::Visible(false));
+            // Request very slow repaint when window is hidden to save CPU
+            ctx.request_repaint_after(std::time::Duration::from_millis(10000));
+            // Skip all UI processing when hidden
+            return;
+        }
+        
+        ctx.send_viewport_cmd(egui::ViewportCommand::Visible(true));
+        
+        // Optimize repaint frequency based on focus and interaction state
+        let has_interaction = ctx.input(|i| {
+            i.pointer.any_click() || 
+            i.pointer.any_pressed() || 
+            !i.events.is_empty() ||
+            i.key_pressed(egui::Key::Escape) ||
+            i.modifiers.ctrl || i.modifiers.alt || i.modifiers.shift
+        });
+        
+        if !ctx.input(|i| i.viewport().focused.unwrap_or(false)) {
+            ctx.request_repaint_after(std::time::Duration::from_millis(500));
+        } else if !has_interaction {
+            ctx.request_repaint_after(std::time::Duration::from_millis(100));
+        }
+        
         // Theme is now only loaded at startup for better performance
         
         // Handle keyboard input
@@ -1372,16 +1411,7 @@ impl eframe::App for MyApp {
             return;
         }
         
-        let is_visible = *self.visible.lock().unwrap();
-        
-        if !is_visible {
-            ctx.send_viewport_cmd(egui::ViewportCommand::Visible(false));
-            // Request slower repaint when window is hidden to save CPU
-            ctx.request_repaint_after(std::time::Duration::from_millis(500));
-            return;
-        }
-        
-        ctx.send_viewport_cmd(egui::ViewportCommand::Visible(true));
+
         
         if self.show_bookmark_groups {
             // Show bookmark groups as a centered dialog
