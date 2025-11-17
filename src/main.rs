@@ -731,16 +731,29 @@ impl MyApp {
     ) {
         thread::spawn(move || {
             let mut clipboard = Clipboard::new().expect("Failed to initialize clipboard");
+            let mut hidden_since: Option<std::time::Instant> = None;
             
             loop {
                 // Check visibility to adjust polling frequency
                 let is_visible = *visible.lock().unwrap();
                 
-                // Adaptive polling based on visibility
+                // Track hidden duration for advanced optimization
+                if is_visible {
+                    hidden_since = None;
+                } else if hidden_since.is_none() {
+                    hidden_since = Some(std::time::Instant::now());
+                }
+                
+                // Advanced adaptive polling based on visibility and hidden duration
                 let sleep_duration = if is_visible {
-                    Duration::from_millis(1000)  // Normal when visible
+                    Duration::from_millis(2000)  // 2 seconds when visible
                 } else {
-                    Duration::from_millis(10000) // Very slow when hidden (10 seconds)
+                    let hidden_duration = hidden_since.unwrap_or(std::time::Instant::now()).elapsed();
+                    if hidden_duration > std::time::Duration::from_secs(300) { // 5 minutes
+                        Duration::from_millis(30000) // 30 seconds after 5 minutes hidden
+                    } else {
+                        Duration::from_millis(15000) // 15 seconds when recently hidden
+                    }
                 };
                 
                 if let Ok(content) = clipboard.get_text() {
@@ -790,12 +803,15 @@ impl eframe::App for MyApp {
         if !is_visible {
             ctx.send_viewport_cmd(egui::ViewportCommand::Visible(false));
             // Request very slow repaint when window is hidden to save CPU
-            ctx.request_repaint_after(std::time::Duration::from_millis(10000));
+            ctx.request_repaint_after(std::time::Duration::from_millis(30000)); // Increased to 30 seconds
             // Skip all UI processing when hidden
             return;
         }
         
         ctx.send_viewport_cmd(egui::ViewportCommand::Visible(true));
+        
+        // Check if window is focused to optimize input processing
+        let is_focused = ctx.input(|i| i.viewport().focused.unwrap_or(false));
         
         // Optimize repaint frequency based on focus and interaction state
         let has_interaction = ctx.input(|i| {
@@ -806,15 +822,25 @@ impl eframe::App for MyApp {
             i.modifiers.ctrl || i.modifiers.alt || i.modifiers.shift
         });
         
-        if !ctx.input(|i| i.viewport().focused.unwrap_or(false)) {
-            ctx.request_repaint_after(std::time::Duration::from_millis(500));
+        if !is_focused {
+            ctx.request_repaint_after(std::time::Duration::from_millis(1000)); // 1 second when unfocused
         } else if !has_interaction {
-            ctx.request_repaint_after(std::time::Duration::from_millis(100));
+            ctx.request_repaint_after(std::time::Duration::from_millis(200)); // 200ms when idle but focused
         }
         
         // Theme is now only loaded at startup for better performance
         
-        // Handle keyboard input
+        // Handle keyboard input (skip most processing when unfocused)
+        if !is_focused {
+            // Only handle essential keys when unfocused
+            ctx.input(|i| {
+                if i.key_pressed(egui::Key::Escape) {
+                    let mut vis = self.visible.lock().unwrap();
+                    *vis = false;
+                }
+            });
+            return;
+        }
         let mut bookmark_enter_handled = false;
         let mut bookmark_clip_enter_handled = false;
         ctx.input(|i| {
