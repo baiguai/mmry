@@ -1400,14 +1400,18 @@ dependencies = [
  "auto-launch",
  "base64",
  "chrono",
+ "cocoa",
  "dirs 5.0.1",
  "eframe",
  "egui",
  "global-hotkey",
+ "objc",
  "rand",
  "serde",
  "serde_json",
  "sha2",
+ "winapi",
+ "x11rb",
 ]
 
 [[package]]
