@@ -179,16 +179,16 @@ fn main() -> Result<(), eframe::Error> {
     
     let options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
-            .with_inner_size([600.0, 400.0])
+            .with_inner_size([600.0, 400.0]) // Start with normal size
             .with_min_inner_size([400.0, 200.0])
             .with_always_on_top()
             .with_decorations(false)
             .with_transparent(true)
-            .with_visible(false), // Start hidden
+            .with_visible(true), // Start visible
         ..Default::default()
     };
 
-    let visible = Arc::new(Mutex::new(false));
+    let visible = Arc::new(Mutex::new(true)); // Start visible so we can see the UI
     let visible_clone = visible.clone();
 
     // Set up global hotkey
@@ -994,15 +994,22 @@ impl eframe::App for MyApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         // Check visibility and adjust behavior
         let is_visible = *self.visible.lock().unwrap();
+        
         if !is_visible {
-            ctx.send_viewport_cmd(egui::ViewportCommand::Visible(false));
+            // Show minimal window when hidden
+            ctx.send_viewport_cmd(egui::ViewportCommand::InnerSize(egui::vec2(1.0, 1.0)));
+            egui::CentralPanel::default()
+                .frame(egui::Frame::none())
+                .show(ctx, |_ui| {
+                    // Empty content when hidden
+                });
+            
             // Request very slow repaint when window is hidden to save CPU
-            ctx.request_repaint_after(std::time::Duration::from_secs(60)); // 60 seconds when hidden
-            // Skip all UI processing when hidden
+            ctx.request_repaint_after(std::time::Duration::from_secs(60));
             return;
         }
         
-        ctx.send_viewport_cmd(egui::ViewportCommand::Visible(true));
+
         
         // Check if window is focused to optimize input processing
         let is_focused = ctx.input(|i| i.viewport().focused.unwrap_or(false));
