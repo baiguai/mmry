@@ -8,6 +8,11 @@ use std::path::PathBuf;
 use arboard::Clipboard;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
+use aes_gcm::{Aes256Gcm, Key, Nonce, KeyInit};
+use aes_gcm::aead::{Aead, OsRng};
+use base64::{Engine as _, engine::general_purpose};
+use rand::RngCore;
+use sha2::{Sha256, Digest};
 
 fn main() -> Result<(), eframe::Error> {
     // Load config first to get hotkey settings
@@ -101,12 +106,14 @@ impl Default for HotkeyConfig {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 struct Config {
     verbose: bool,
     theme: String,
     max_items: usize,
     hotkey: HotkeyConfig,
+    encryption_enabled: bool,
+    encryption_key: Option<String>,
 }
 
 impl Default for Config {
@@ -116,6 +123,8 @@ impl Default for Config {
             theme: "dark".to_string(),
             max_items: 500,
             hotkey: HotkeyConfig::default(),
+            encryption_enabled: true,
+            encryption_key: None,
         }
     }
 }
@@ -244,6 +253,8 @@ fn load_theme(theme_name: &str) -> Theme {
     // Create default dark theme if it doesn't exist
     let default_theme = Theme::default();
     if theme_name == "dark" {
+        // Ensure themes directory exists
+        let _ = get_themes_dir();
         if let Ok(theme_path) = get_theme_path("dark") {
             if let Ok(theme_json) = serde_json::to_string_pretty(&default_theme) {
                 let _ = fs::write(theme_path, theme_json);
@@ -252,6 +263,69 @@ fn load_theme(theme_name: &str) -> Theme {
     }
     
     default_theme
+}
+
+fn get_or_create_encryption_key(config: &Config) -> Result<[u8; 32], Box<dyn std::error::Error>> {
+    if let Some(key_str) = &config.encryption_key {
+        // Use provided key (hash it to ensure 32 bytes)
+        let mut hasher = Sha256::new();
+        hasher.update(key_str.as_bytes());
+        let hash = hasher.finalize();
+        let mut key = [0u8; 32];
+        key.copy_from_slice(&hash);
+        Ok(key)
+    } else {
+        // Generate a new random key and save it to config
+        let mut key = [0u8; 32];
+        OsRng.fill_bytes(&mut key);
+        let key_b64 = general_purpose::STANDARD.encode(&key);
+        
+        // Update config with new key
+        let mut updated_config = config.clone();
+        updated_config.encryption_key = Some(key_b64);
+        save_config(&updated_config)?;
+        
+        Ok(key)
+    }
+}
+
+fn encrypt_data(data: &str, key: &[u8; 32]) -> Result<String, Box<dyn std::error::Error>> {
+    let cipher = Aes256Gcm::new(Key::<Aes256Gcm>::from_slice(key));
+    let mut nonce_bytes = [0u8; 12];
+    OsRng.fill_bytes(&mut nonce_bytes);
+    let nonce = Nonce::from_slice(&nonce_bytes);
+    
+    let ciphertext = cipher.encrypt(nonce, data.as_bytes())
+        .map_err(|e| format!("Encryption failed: {:?}", e))?;
+    
+    // Combine nonce and ciphertext, then encode as base64
+    let mut combined = nonce_bytes.to_vec();
+    combined.extend_from_slice(&ciphertext);
+    Ok(general_purpose::STANDARD.encode(&combined))
+}
+
+fn decrypt_data(encrypted_data: &str, key: &[u8; 32]) -> Result<String, Box<dyn std::error::Error>> {
+    let combined = general_purpose::STANDARD.decode(encrypted_data)?;
+    
+    if combined.len() < 12 {
+        return Err("Invalid encrypted data".into());
+    }
+    
+    let (nonce_bytes, ciphertext) = combined.split_at(12);
+    let nonce = Nonce::from_slice(nonce_bytes);
+    
+    let cipher = Aes256Gcm::new(Key::<Aes256Gcm>::from_slice(key));
+    let plaintext = cipher.decrypt(nonce, ciphertext)
+        .map_err(|e| format!("Decryption failed: {:?}", e))?;
+    
+    Ok(String::from_utf8(plaintext)?)
+}
+
+fn save_config(config: &Config) -> Result<(), Box<dyn std::error::Error>> {
+    let path = get_config_path()?;
+    let json = serde_json::to_string_pretty(config)?;
+    fs::write(path, json)?;
+    Ok(())
 }
 
 fn hex_to_color(hex: &str) -> egui::Color32 {
@@ -266,19 +340,38 @@ fn hex_to_color(hex: &str) -> egui::Color32 {
     }
 }
 
-fn save_clipboard_items(items: &[ClipboardItem]) -> Result<(), Box<dyn std::error::Error>> {
+fn save_clipboard_items(items: &[ClipboardItem], config: &Config) -> Result<(), Box<dyn std::error::Error>> {
     let path = get_clipboard_data_path()?;
     let json = serde_json::to_string_pretty(items)?;
-    fs::write(path, json)?;
+    
+    if config.encryption_enabled {
+        let key = get_or_create_encryption_key(config)?;
+        let encrypted = encrypt_data(&json, &key)?;
+        fs::write(&path, encrypted)?;
+    } else {
+        fs::write(&path, json)?;
+    }
     Ok(())
 }
 
-fn load_clipboard_items() -> Vec<ClipboardItem> {
+fn load_clipboard_items(config: &Config) -> Vec<ClipboardItem> {
     if let Ok(path) = get_clipboard_data_path() {
         if path.exists() {
             if let Ok(content) = fs::read_to_string(&path) {
+                // Try to parse as JSON first
                 if let Ok(items) = serde_json::from_str::<Vec<ClipboardItem>>(&content) {
                     return items;
+                }
+                
+                // If parsing fails and encryption is enabled, try to decrypt
+                if config.encryption_enabled {
+                    if let Ok(key) = get_or_create_encryption_key(config) {
+                        if let Ok(decrypted) = decrypt_data(&content, &key) {
+                            if let Ok(items) = serde_json::from_str::<Vec<ClipboardItem>>(&decrypted) {
+                                return items;
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -286,14 +379,21 @@ fn load_clipboard_items() -> Vec<ClipboardItem> {
     Vec::new()
 }
 
-fn save_bookmark_groups(groups: &[BookmarkGroup]) -> Result<(), Box<dyn std::error::Error>> {
+fn save_bookmark_groups(groups: &[BookmarkGroup], config: &Config) -> Result<(), Box<dyn std::error::Error>> {
     let path = get_bookmarks_data_path()?;
     let json = serde_json::to_string_pretty(groups)?;
-    fs::write(path, json)?;
+    
+    if config.encryption_enabled {
+        let key = get_or_create_encryption_key(config)?;
+        let encrypted = encrypt_data(&json, &key)?;
+        fs::write(path, encrypted)?;
+    } else {
+        fs::write(path, json)?;
+    }
     Ok(())
 }
 
-fn load_bookmark_groups() -> Vec<BookmarkGroup> {
+fn load_bookmark_groups(config: &Config) -> Vec<BookmarkGroup> {
     if let Ok(path) = get_bookmarks_data_path() {
         if path.exists() {
             if let Ok(content) = fs::read_to_string(&path) {
@@ -302,25 +402,50 @@ fn load_bookmark_groups() -> Vec<BookmarkGroup> {
                     return groups;
                 } else {
                     // Try to parse as old format for backward compatibility
-                    #[derive(Debug, Serialize, Deserialize)]
-                    struct OldBookmarkGroup {
-                        name: String,
-                        created_at: DateTime<Utc>,
+                    if let Ok(groups) = parse_old_bookmark_format(&content) {
+                        return groups;
                     }
-                    
-                    if let Ok(old_groups) = serde_json::from_str::<Vec<OldBookmarkGroup>>(&content) {
-                        // Convert old format to new format
-                        return old_groups.into_iter().map(|old_group| BookmarkGroup {
-                            name: old_group.name,
-                            created_at: old_group.created_at,
-                            clips: Vec::new(),
-                        }).collect();
+                }
+                
+                // If parsing fails and encryption is enabled, try to decrypt
+                if config.encryption_enabled {
+                    if let Ok(key) = get_or_create_encryption_key(config) {
+                        if let Ok(decrypted) = decrypt_data(&content, &key) {
+                            // Try to parse decrypted content
+                            if let Ok(groups) = serde_json::from_str::<Vec<BookmarkGroup>>(&decrypted) {
+                                return groups;
+                            } else {
+                                // Try to parse as old format for backward compatibility
+                                if let Ok(groups) = parse_old_bookmark_format(&decrypted) {
+                                    return groups;
+                                }
+                            }
+                        }
                     }
                 }
             }
         }
     }
     Vec::new()
+}
+
+fn parse_old_bookmark_format(content: &str) -> Result<Vec<BookmarkGroup>, Box<dyn std::error::Error>> {
+    #[derive(Debug, Serialize, Deserialize)]
+    struct OldBookmarkGroup {
+        name: String,
+        created_at: DateTime<Utc>,
+    }
+    
+    if let Ok(old_groups) = serde_json::from_str::<Vec<OldBookmarkGroup>>(content) {
+        // Convert old format to new format
+        Ok(old_groups.into_iter().map(|old_group| BookmarkGroup {
+            name: old_group.name,
+            created_at: old_group.created_at,
+            clips: Vec::new(),
+        }).collect())
+    } else {
+        Err("Failed to parse old bookmark format".into())
+    }
 }
 
 fn parse_hotkey_config(config: &HotkeyConfig) -> Result<global_hotkey::hotkey::HotKey, Box<dyn std::error::Error>> {
@@ -463,19 +588,36 @@ struct MyApp {
 impl MyApp {
     fn new(visible: Arc<Mutex<bool>>, config: Config) -> Self {
         let theme = load_theme(&config.theme);
-        let loaded_items = load_clipboard_items();
+        let loaded_items = load_clipboard_items(&config);
         let next_id = loaded_items.iter().map(|item| item.id).max().unwrap_or(0) + 1;
-        let bookmark_groups = load_bookmark_groups();
+        let bookmark_groups = load_bookmark_groups(&config);
         
         let clipboard_items = Arc::new(Mutex::new(loaded_items));
         let last_clipboard_content = Arc::new(Mutex::new(None));
         let next_id = Arc::new(Mutex::new(next_id));
         
+        // Ensure encryption key exists before starting monitoring thread
+        let config_with_key = if config.encryption_enabled {
+            match get_or_create_encryption_key(&config) {
+                Ok(_) => config.clone(), // Key exists or was created successfully
+                Err(e) => {
+                    eprintln!("Failed to initialize encryption: {}", e);
+                    // Disable encryption if key creation fails
+                    let mut fallback_config = config.clone();
+                    fallback_config.encryption_enabled = false;
+                    fallback_config
+                }
+            }
+        } else {
+            config.clone()
+        };
+
         // Start clipboard monitoring thread
         Self::start_clipboard_monitoring(
             clipboard_items.clone(),
             last_clipboard_content.clone(),
             next_id.clone(),
+            config_with_key,
         );
         
         Self { 
@@ -513,6 +655,7 @@ impl MyApp {
         items: Arc<Mutex<Vec<ClipboardItem>>>,
         last_content: Arc<Mutex<Option<String>>>,
         next_id: Arc<Mutex<usize>>,
+        config: Config,
     ) {
         thread::spawn(move || {
             let mut clipboard = Clipboard::new().expect("Failed to initialize clipboard");
@@ -546,7 +689,7 @@ impl MyApp {
                         }
                         
                         // Save to file
-                        if let Err(e) = save_clipboard_items(&items_vec) {
+                        if let Err(e) = save_clipboard_items(&items_vec, &config) {
                             eprintln!("Failed to save clipboard items: {}", e);
                         }
                     }
@@ -718,9 +861,9 @@ impl eframe::App for MyApp {
                                     }
                                     
                                     // Save to file
-                                    if let Err(e) = save_bookmark_groups(&self.bookmark_groups) {
+                                    if let Err(e) = save_bookmark_groups(&self.bookmark_groups, &self.config) {
                                         eprintln!("Failed to save bookmark groups: {}", e);
-                            }
+                                    }
                         }
                     }
                 }
@@ -942,10 +1085,10 @@ impl eframe::App for MyApp {
                         self.selected_clipboard_index = items_vec.len() - 1;
                     }
                     
-                    // Save to file
-                    if let Err(e) = save_clipboard_items(&items_vec) {
-                        eprintln!("Failed to save clipboard items: {}", e);
-                    }
+                        // Save to file
+                        if let Err(e) = save_clipboard_items(&items_vec, &self.config) {
+                            eprintln!("Failed to save clipboard items: {}", e);
+                        }
                 }
             }
             
@@ -1002,7 +1145,7 @@ impl eframe::App for MyApp {
                                         group_mut.clips.push(clipboard_item);
                                         
                                         // Save to file
-                                        if let Err(e) = save_bookmark_groups(&self.bookmark_groups) {
+                                        if let Err(e) = save_bookmark_groups(&self.bookmark_groups, &self.config) {
                                             eprintln!("Failed to save bookmark groups: {}", e);
                                         }
                                     }
@@ -1067,7 +1210,7 @@ impl eframe::App for MyApp {
                         self.selected_clipboard_index = 0;
                         
                         // Save to file
-                        if let Err(e) = save_clipboard_items(&items_vec) {
+                        if let Err(e) = save_clipboard_items(&items_vec, &self.config) {
                             eprintln!("Failed to save clipboard items: {}", e);
                         }
                         
@@ -1181,7 +1324,7 @@ impl eframe::App for MyApp {
                                                     self.bookmark_groups.push(new_group);
                                                     
                                                     // Save to file
-                                                    if let Err(e) = save_bookmark_groups(&self.bookmark_groups) {
+                                                    if let Err(e) = save_bookmark_groups(&self.bookmark_groups, &self.config) {
                                                         eprintln!("Failed to save bookmark groups: {}", e);
                                                     }
                     }
