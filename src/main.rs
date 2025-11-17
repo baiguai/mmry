@@ -588,6 +588,33 @@ enum FilterMode {
     Generous,  // '/' - contains match
 }
 
+#[derive(Debug, Clone, PartialEq)]
+enum Context {
+    Help,             // Help dialog
+    Always,           // Always available
+    ClipsList,        // When viewing clips list (not filtering)
+    Filtering,        // When filtering clips
+    BookmarkGroups,   // When viewing bookmark groups
+    BookmarkClips,    // When viewing clips in a bookmark group
+}
+
+#[derive(Debug, Clone)]
+struct KeyBinding {
+    key: String,
+    description: String,
+    context: Context,
+}
+
+impl KeyBinding {
+    fn new(key: &str, description: &str, context: Context) -> Self {
+        Self {
+            key: key.to_string(),
+            description: description.to_string(),
+            context,
+        }
+    }
+}
+
 struct MyApp {
     visible: Arc<Mutex<bool>>,
     should_quit: bool,
@@ -619,6 +646,8 @@ struct MyApp {
     just_switched_to_clips: bool,  // prevent immediate Enter key handling after switching to clips view
     show_settings: bool,  // Whether to show settings dialog
     just_started_filtering: bool,  // prevent initial / from being added to filter text
+    show_help: bool,  // Whether to show help dialog
+    help_scroll_offset: f32,  // Scroll position for help dialog
     
 }
 
@@ -686,6 +715,8 @@ impl MyApp {
             just_switched_to_clips: false,
             show_settings: false,
             just_started_filtering: false,
+            show_help: false,
+            help_scroll_offset: 0.0,
             
         }
     }
@@ -749,7 +780,9 @@ impl eframe::App for MyApp {
         let mut bookmark_clip_enter_handled = false;
         ctx.input(|i| {
             if i.key_pressed(egui::Key::Escape) {
-                if self.show_settings {
+                if self.show_help {
+                    self.show_help = false;
+                } else if self.show_settings {
                     self.show_settings = false;
                 } else if self.show_bookmark_groups && self.selected_bookmark_group_for_clips.is_some() {
                     // Go back from clips view to groups view
@@ -787,16 +820,28 @@ impl eframe::App for MyApp {
                 }
             }
             
-            if i.modifiers.ctrl && i.key_pressed(egui::Key::Q) {
+            if i.modifiers.ctrl && i.key_pressed(egui::Key::Q) && !self.show_help {
                 self.should_quit = true;
             }
             
-            if i.modifiers.ctrl && i.key_pressed(egui::Key::S) {
+            if i.modifiers.ctrl && i.key_pressed(egui::Key::S) && !self.show_help {
                 self.show_settings = !self.show_settings;
             }
             
+            // Help keybinding - ? to show help dialog (only when not in other dialogs)
+            if !self.show_help && !self.show_settings && !self.show_bookmark_groups && !self.is_filtering {
+                for event in &i.events {
+                    if let egui::Event::Text(text) = event {
+                        if text == "?" {
+                            self.show_help = true;
+                            self.help_scroll_offset = 0.0; // Reset scroll when opening help
+                        }
+                    }
+                }
+            }
+            
             // Filter keybindings
-            if self.filter_mode == FilterMode::None && !self.show_bookmark_groups {
+            if self.filter_mode == FilterMode::None && !self.show_bookmark_groups && !self.show_help {
                 // / - start generous filter
                 if i.key_pressed(egui::Key::Slash) && !i.modifiers.ctrl && !i.modifiers.alt && !i.modifiers.shift {
                     self.filter_mode = FilterMode::Generous;
@@ -810,7 +855,7 @@ impl eframe::App for MyApp {
             }
             
             // M/m - show bookmark groups dialog (only when not filtering)
-            if !self.show_bookmark_groups && !self.is_filtering {
+            if !self.show_bookmark_groups && !self.is_filtering && !self.show_help {
                 for event in &i.events {
                     if let egui::Event::Key { key, pressed: true, .. } = event {
                         if *key == egui::Key::M && !i.modifiers.ctrl && !i.modifiers.alt {
@@ -918,7 +963,7 @@ impl eframe::App for MyApp {
             }
             
             // Backtick - show bookmark groups for accessing clips (only when not filtering)
-            if !self.show_bookmark_groups && !self.is_filtering {
+            if !self.show_bookmark_groups && !self.is_filtering && !self.show_help {
                 for event in &i.events {
                     if let egui::Event::Key { key, pressed: true, .. } = event {
                         if *key == egui::Key::Backtick && !i.modifiers.ctrl && !i.modifiers.alt && !i.modifiers.shift {
@@ -986,8 +1031,25 @@ impl eframe::App for MyApp {
                 }
             }
             
+            // Help dialog navigation with j/k
+            if self.show_help {
+                // j - scroll down
+                if i.key_pressed(egui::Key::J) && !i.modifiers.ctrl && !i.modifiers.alt && !i.modifiers.shift {
+                    self.help_scroll_offset += 30.0; // Scroll down by 30 pixels
+                    self.help_scroll_offset = self.help_scroll_offset.max(0.0);
+                }
+                
+                // k - scroll up  
+                if i.key_pressed(egui::Key::K) && !i.modifiers.ctrl && !i.modifiers.alt && !i.modifiers.shift {
+                    self.help_scroll_offset -= 30.0; // Scroll up by 30 pixels
+                    self.help_scroll_offset = self.help_scroll_offset.max(0.0);
+                }
+            }
+            
             // Vim navigation keybindings (when not editing filter)
-            if self.filter_mode == FilterMode::None {
+            
+            // Vim navigation keybindings (when not editing filter)
+            if self.filter_mode == FilterMode::None && !self.show_help {
                 // Get the effective list length (filtered or all items)
                 let effective_len = if self.filter_active {
                     let items = self.clipboard_items.lock().unwrap();
@@ -1150,7 +1212,7 @@ impl eframe::App for MyApp {
 
             
             // D - delete selected item (Shift+D)
-            if i.key_pressed(egui::Key::D) && i.modifiers.shift && !i.modifiers.ctrl && !i.modifiers.alt {
+            if i.key_pressed(egui::Key::D) && i.modifiers.shift && !i.modifiers.ctrl && !i.modifiers.alt && !self.show_help {
                 let mut items_vec = self.clipboard_items.lock().unwrap();
                 if !items_vec.is_empty() && self.selected_clipboard_index < items_vec.len() {
                     items_vec.remove(self.selected_clipboard_index);
@@ -1170,7 +1232,7 @@ impl eframe::App for MyApp {
             }
             
             // Handle Enter key for bookmark groups (before main Enter handler)
-            if self.show_bookmark_groups && !self.show_bookmark_input && self.selected_bookmark_group_for_clips.is_none() && i.key_pressed(egui::Key::Enter) && !i.modifiers.ctrl && !i.modifiers.alt && !i.modifiers.shift {
+            if self.show_bookmark_groups && !self.show_bookmark_input && self.selected_bookmark_group_for_clips.is_none() && i.key_pressed(egui::Key::Enter) && !i.modifiers.ctrl && !i.modifiers.alt && !i.modifiers.shift && !self.show_help {
                 // Get the selected bookmark group index in the full list
                 let selected_group_index = if self.show_bookmark_input && !self.new_bookmark_group_name.is_empty() {
                     let filter_lower = self.new_bookmark_group_name.to_lowercase();
@@ -1240,7 +1302,7 @@ impl eframe::App for MyApp {
             }
             
             // Handle Enter key (works in both normal and filter mode, but not in bookmark groups dialog)
-            if i.key_pressed(egui::Key::Enter) && !i.modifiers.ctrl && !i.modifiers.alt && !i.modifiers.shift && !self.show_bookmark_groups && !bookmark_enter_handled && !bookmark_clip_enter_handled && self.selected_bookmark_group_for_clips.is_none() {
+            if i.key_pressed(egui::Key::Enter) && !i.modifiers.ctrl && !i.modifiers.alt && !i.modifiers.shift && !self.show_bookmark_groups && !bookmark_enter_handled && !bookmark_clip_enter_handled && self.selected_bookmark_group_for_clips.is_none() && !self.show_help {
                 if let Ok(mut clipboard) = Clipboard::new() {
                     let selected_item_id = {
                         let items = self.clipboard_items.lock().unwrap();
@@ -1749,6 +1811,138 @@ impl eframe::App for MyApp {
                             });
                         }
                     }
+                });
+        }
+        
+        // Help dialog
+        if self.show_help {
+            egui::Window::new("Help - Key Bindings")
+                .collapsible(false)
+                .resizable(true)
+                .default_width(600.0)
+                .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
+                .show(ctx, |ui| {
+                    ui.style_mut().visuals.override_text_color = Some(hex_to_color(&self.theme.text_color));
+                    ui.style_mut().visuals.panel_fill = hex_to_color(&self.theme.background_color);
+                    
+                    ui.horizontal(|ui| {
+                        ui.label(egui::RichText::new("Press Escape to close")
+                            .color(hex_to_color(&self.theme.text_color))
+                            .family(egui::FontFamily::Monospace));
+                    });
+                    ui.add_space(10.0);
+                    
+                    ui.separator();
+                    ui.add_space(10.0);
+                    
+                    // Define all keybindings
+                    let keybindings = vec![
+                        // Help dialog navigation
+                        KeyBinding::new("j", "Scroll down in help dialog", Context::Help),
+                        KeyBinding::new("k", "Scroll up in help dialog", Context::Help),
+                        KeyBinding::new("Escape", "Close help dialog", Context::Help),
+                        
+                        // Always available
+                        KeyBinding::new("Escape", "Close window/dialog", Context::Always),
+                        KeyBinding::new("Ctrl+Q", "Quit application", Context::Always),
+                        KeyBinding::new("Ctrl+S", "Toggle settings dialog", Context::Always),
+                        KeyBinding::new("?", "Show this help dialog", Context::Always),
+                        
+                        // Clips list navigation
+                        KeyBinding::new("j", "Move down in list", Context::ClipsList),
+                        KeyBinding::new("k", "Move up in list", Context::ClipsList),
+                        KeyBinding::new("gg", "Go to first item", Context::ClipsList),
+                        KeyBinding::new("G", "Go to last item", Context::ClipsList),
+                        KeyBinding::new("Enter", "Copy selected item to clipboard", Context::ClipsList),
+                        KeyBinding::new("Shift+D", "Delete selected item", Context::ClipsList),
+                        
+                        // Filtering
+                        KeyBinding::new("/", "Start filtering clips", Context::ClipsList),
+                        KeyBinding::new("Enter", "Apply filter", Context::Filtering),
+                        KeyBinding::new("Escape", "Clear filter", Context::Filtering),
+                        KeyBinding::new("↑/↓", "Navigate filtered results", Context::Filtering),
+                        KeyBinding::new("Backspace", "Delete filter character", Context::Filtering),
+                        
+                        // Bookmark groups
+                        KeyBinding::new("m", "Show bookmark groups (add mode)", Context::ClipsList),
+                        KeyBinding::new("Shift+M", "Show bookmark groups with input", Context::ClipsList),
+                        KeyBinding::new("`", "Show bookmark groups (access mode)", Context::ClipsList),
+                        KeyBinding::new("j/k", "Navigate groups", Context::BookmarkGroups),
+                        KeyBinding::new("Enter", "View clips in group / Add to group", Context::BookmarkGroups),
+                        KeyBinding::new("Shift+D", "Delete bookmark group", Context::BookmarkGroups),
+                        
+                        // Bookmark clips
+                        KeyBinding::new("j/k", "Navigate clips in group", Context::BookmarkClips),
+                        KeyBinding::new("Enter", "Copy clip to clipboard", Context::BookmarkClips),
+                        KeyBinding::new("d", "Remove clip from group", Context::BookmarkClips),
+                        KeyBinding::new("Escape", "Go back to groups", Context::BookmarkClips),
+                    ];
+                    
+                    egui::ScrollArea::vertical()
+                        .max_height(500.0)
+                        .vertical_scroll_offset(self.help_scroll_offset)
+                        .show(ui, |ui| {
+                            ui.set_width(ui.available_width() - 20.0); // Make scrollable area 20px narrower
+                            // Group by context
+                            let mut last_context: Option<Context> = None;
+                            
+                            for keybinding in &keybindings {
+                                // Show context header if changed
+                                if last_context.as_ref() != Some(&keybinding.context) {
+                                    if last_context.is_some() {
+                                        ui.add_space(10.0);
+                                    }
+                                    
+                                    let context_name = match keybinding.context {
+                                        Context::Help => "Help Dialog",
+                                        Context::Always => "Always Available",
+                                        Context::ClipsList => "Clips List",
+                                        Context::Filtering => "Filtering Mode",
+                                        Context::BookmarkGroups => "Bookmark Groups",
+                                        Context::BookmarkClips => "Bookmark Clips",
+                                    };
+                                    
+                                    ui.heading(egui::RichText::new(context_name)
+                                        .color(hex_to_color(&self.theme.selected_border_color))
+                                        .family(egui::FontFamily::Monospace)
+                                        .size(16.0));
+                                    ui.add_space(5.0);
+                                    
+                                    last_context = Some(keybinding.context.clone());
+                                }
+                                
+                                // Keybinding row
+                                ui.horizontal(|ui| {
+                                    // Key column
+                                    ui.add_sized(
+                                        [120.0, 0.0],
+                                        egui::Label::new(
+                                            egui::RichText::new(&keybinding.key)
+                                                .color(hex_to_color(&self.theme.selected_text_color))
+                                                .family(egui::FontFamily::Monospace)
+                                                .strong()
+                                        )
+                                    );
+                                    
+                                    // Description column
+                                    ui.label(egui::RichText::new(&keybinding.description)
+                                        .color(hex_to_color(&self.theme.text_color))
+                                        .family(egui::FontFamily::Monospace));
+                                });
+                                
+                                ui.add_space(2.0);
+                            }
+                        });
+                    
+                    ui.add_space(10.0);
+                    ui.separator();
+                    ui.add_space(5.0);
+                    
+                    // Instructions
+                    ui.label(egui::RichText::new("Scroll to see all available keybindings")
+                        .color(hex_to_color(&self.theme.text_color))
+                        .family(egui::FontFamily::Monospace)
+                        .size(12.0));
                 });
         }
         
