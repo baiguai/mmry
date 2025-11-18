@@ -24,7 +24,7 @@ mod native_clipboard {
     pub fn start_clipboard_monitor() -> Result<Receiver<String>, String> {
         let (tx, rx) = mpsc::channel();
         
-        thread::spawn(move || {
+        /*thread::spawn(move || {
             // Check if we're on Wayland or X11
             if std::env::var("WAYLAND_DISPLAY").is_ok() {
                 // Wayland - use smithay approach (simplified for now)
@@ -33,7 +33,7 @@ mod native_clipboard {
                 // X11 - use XFixes selection events via x11rb
                 start_x11_monitor(tx)
             }
-        });
+        });*/
         
         Ok(rx)
     }
@@ -58,7 +58,7 @@ mod native_clipboard {
     fn start_x11_monitor(tx: Sender<String>) {
         // For now, use efficient polling approach for X11
         // TODO: Implement true XFixes event-driven monitoring for zero CPU usage
-        thread::spawn(move || {
+        /*thread::spawn(move || {
             let mut clipboard = match Clipboard::new() {
                 Ok(cb) => cb,
                 Err(e) => {
@@ -70,17 +70,16 @@ mod native_clipboard {
             let mut last_content: Option<String> = None;
             
             loop {
+                // Check every 60 seconds - minimal CPU usage
                 if let Ok(content) = clipboard.get_text() {
                     if last_content.as_ref() != Some(&content) {
                         last_content = Some(content.clone());
                         let _ = tx.send(content);
                     }
                 }
-                
-                // Check every 2 seconds - much more efficient than before
-                thread::sleep(Duration::from_secs(2));
+                thread::sleep(Duration::from_secs(60));
             }
-        });
+        });*/
     }
 }
 
@@ -94,7 +93,7 @@ mod native_clipboard {
     pub fn start_clipboard_monitor() -> Result<Receiver<String>, String> {
         let (tx, rx) = mpsc::channel();
         
-        thread::spawn(move || {
+        /*thread::spawn(move || {
             unsafe {
                 // Get NSPasteboard class
                 let pasteboard_class = Class::get("NSPasteboard").unwrap();
@@ -117,17 +116,15 @@ mod native_clipboard {
                         
                         if !content.is_null() {
                             let c_string: *const i8 = msg_send![content, UTF8String];
-                            if !c_string.is_null() {
-                                let rust_string = std::ffi::CStr::from_ptr(c_string).to_string_lossy().into_owned();
-                                let _ = tx.send(rust_string);
-                            }
+                            let rust_string = std::ffi::CStr::from_ptr(c_string).to_string_lossy().into_owned();
+                            let _ = tx.send(rust_string);
                         }
                     }
                     
-                    thread::sleep(Duration::from_millis(500));
+                    thread::sleep(Duration::from_secs(1));
                 }
             }
-        });
+        });*/
         
         Ok(rx)
     }
@@ -143,7 +140,7 @@ mod native_clipboard {
     pub fn start_clipboard_monitor() -> Result<Receiver<String>, String> {
         let (tx, rx) = mpsc::channel();
         
-        thread::spawn(move || {
+        /*thread::spawn(move || {
             unsafe {
                 // Set up clipboard viewer
                 let _hwnd = SetClipboardViewer(std::ptr::null_mut());
@@ -165,7 +162,7 @@ mod native_clipboard {
                     }
                 }
             }
-        });
+        });*/
         
         Ok(rx)
     }
@@ -886,7 +883,7 @@ impl MyApp {
         config: Config,
         _visible: Arc<Mutex<bool>>,
     ) {
-        thread::spawn(move || {
+        /*thread::spawn(move || {
             // Use native OS-specific clipboard monitoring for near-zero CPU usage
             match native_clipboard::start_clipboard_monitor() {
                 Ok(rx) => {
@@ -928,69 +925,20 @@ impl MyApp {
                     }
                 }
                 Err(e) => {
-                    eprintln!("Failed to start native clipboard monitoring: {}, falling back to minimal polling", e);
-                    
-                    // Fallback to minimal polling only if native monitoring fails
-                    let mut clipboard = match Clipboard::new() {
-                        Ok(cb) => cb,
-                        Err(e) => {
-                            eprintln!("Failed to initialize clipboard: {}", e);
-                            return;
-                        }
-                    };
-                    
-                    let mut last_check = std::time::Instant::now();
-                    
-                    loop {
-                        // Check clipboard every 30 seconds - ultra-low frequency
-                        if last_check.elapsed() >= Duration::from_secs(30) {
-                            if let Ok(content) = clipboard.get_text() {
-                                let mut last = last_content.lock().unwrap();
-                                
-                                if last.as_ref() != Some(&content) {
-                                    *last = Some(content.clone());
-                                    
-                                    let mut items_vec = items.lock().unwrap();
-                                    let mut id = next_id.lock().unwrap();
-                                    
-                                    // Check if item already exists
-                                    if let Some(existing_index) = items_vec.iter().position(|item| item.content == content) {
-                                        // Move existing item to top and update timestamp
-                                        let mut item = items_vec.remove(existing_index);
-                                        item.timestamp = Utc::now();
-                                        items_vec.insert(0, item);
-                                    } else {
-                                        // Add new item to the beginning
-                                        items_vec.insert(0, ClipboardItem::new(content.clone(), *id));
-                                        *id += 1;
-                                    }
-                                    
-                                    // Keep only last max_items items
-                                    let max_items = config.max_items;
-                                    if items_vec.len() > max_items {
-                                        items_vec.truncate(max_items);
-                                    }
-                                    
-                                    // Save to file
-                                    if let Err(e) = save_clipboard_items(&items_vec, &config) {
-                                        eprintln!("Failed to save clipboard items: {}", e);
-                                    }
-                                }
-                            }
-                            last_check = std::time::Instant::now();
-                        }
-                        
-                        // Sleep for 5 seconds to prevent busy waiting
-                        thread::sleep(Duration::from_secs(5));
-                    }
+                    eprintln!("Failed to start clipboard monitoring: {}", e);
+                    // Fallback to manual clipboard checking
+                    start_fallback_clipboard_monitoring(items, last_content, next_id, config, visible);
                 }
             }
-        });
+        });*/
     }
 }
 
 impl eframe::App for MyApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+        // DEBUG: Track update frequency
+        println!("DEBUG: Update called");
+        
         // Check visibility and adjust behavior
         let is_visible = *self.visible.lock().unwrap();
         
