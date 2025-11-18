@@ -68,9 +68,63 @@ private:
     bool verboseMode;
     std::string configDir;
     std::string dataFile;
+    size_t maxClips = 500;
+    bool encrypted = false;
+    std::string theme = "console";
     
     // Navigation
     size_t selectedItem = 0;
+    bool filterMode = false;
+    std::string filterText;
+    std::vector<size_t> filteredItems;
+    
+    // Helper methods
+    size_t getDisplayItemCount() {
+        if (filterMode) {
+            return filteredItems.size();
+        }
+        return items.size();
+    }
+    
+    size_t getActualItemIndex(size_t displayIndex) {
+        if (filterMode && displayIndex < filteredItems.size()) {
+            return filteredItems[displayIndex];
+        }
+        return displayIndex;
+    }
+    
+    void updateFilteredItems() {
+        filteredItems.clear();
+        
+        if (filterText.empty()) {
+            for (size_t i = 0; i < items.size(); ++i) {
+                filteredItems.push_back(i);
+            }
+        } else {
+            std::string lowerFilter = filterText;
+            for (char& c : lowerFilter) {
+                c = tolower(c);
+            }
+            
+            for (size_t i = 0; i < items.size(); ++i) {
+                std::string lowerContent = items[i].content;
+                for (char& c : lowerContent) {
+                    c = tolower(c);
+                }
+                
+                if (lowerContent.find(lowerFilter) != std::string::npos) {
+                    filteredItems.push_back(i);
+                }
+            }
+        }
+        
+        // Reset selection if no items match
+        if (filteredItems.empty()) {
+            selectedItem = 0;
+        } else if (selectedItem >= filteredItems.size()) {
+            selectedItem = filteredItems.size() - 1;
+        }
+    }
     
 public:
     ClipboardManager() : running(false), visible(false), verboseMode(false) {
@@ -108,10 +162,12 @@ public:
     }
     
     ~ClipboardManager() {
+#ifdef __linux__
         if (font) XFreeFont(display, font);
         if (gc) XFreeGC(display, gc);
         if (window) XDestroyWindow(display, window);
         if (display) XCloseDisplay(display);
+#endif
     }
     
     void setupConfigDir() {
@@ -193,12 +249,8 @@ public:
             std::cerr << "Warning: Could not grab Ctrl+Alt+C hotkey (already in use)" << std::endl;
         }
         
-        // Grab Escape globally
-        grabResult = XGrabKey(display, XKeysymToKeycode(display, XK_Escape), 
-                             0, root, True, GrabModeAsync, GrabModeAsync);
-        if (grabResult == BadAccess) {
-            std::cerr << "Warning: Could not grab Escape hotkey (already in use)" << std::endl;
-        }
+        // Don't grab Escape globally - let window handle it
+        // This allows Escape to work properly in filter mode
         
         XSelectInput(display, root, KeyPressMask);
 #endif
@@ -246,16 +298,23 @@ public:
         XSetWindowBackground(display, window, BlackPixel(display, screen));
         XClearWindow(display, window);
         
-        // Draw mode indicator
-        std::string modeLine = "Mode: " + std::string(verboseMode ? "Verbose" : "Normal");
-        XDrawString(display, window, gc, 10, 20, modeLine.c_str(), modeLine.length());
+        // Draw filter textbox if in filter mode
+        int startY = 20;
+        if (filterMode) {
+            // Draw filter input
+            std::string filterDisplay = "/" + filterText;
+            XDrawString(display, window, gc, 10, startY, filterDisplay.c_str(), filterDisplay.length());
+            startY += 20;
+        }
         
         // Draw clipboard items
-        int y = 40;
-        int maxItems = (WINDOW_HEIGHT - 60) / 15; // Approximate lines that fit
+        int y = startY;
+        int maxItems = (WINDOW_HEIGHT - startY - 20) / 15; // Approximate lines that fit
         
-        for (size_t i = 0; i < items.size() && i < maxItems; ++i) {
-            const auto& item = items[i];
+        size_t displayCount = getDisplayItemCount();
+        for (size_t i = 0; i < displayCount && i < maxItems; ++i) {
+            size_t actualIndex = getActualItemIndex(i);
+            const auto& item = items[actualIndex];
             
             std::string line;
             
@@ -338,8 +397,8 @@ public:
             y += 15;
         }
         
-        if (items.empty()) {
-            std::string empty = "No clipboard items yet...";
+        if (displayCount == 0) {
+            std::string empty = filterMode ? "No matching items..." : "No clipboard items yet...";
             XDrawString(display, window, gc, 10, y, empty.c_str(), empty.length());
         }
 #endif
@@ -422,24 +481,29 @@ public:
                 }
             }
             
-        if (!isDuplicate) {
-            items.emplace(items.begin(), content);
-            if (items.size() > 100) { // Keep only last 100 items
-                items.pop_back();
+            if (!isDuplicate) {
+                items.emplace(items.begin(), content);
+                if (items.size() > maxClips) { // Keep only last maxClips items
+                    items.pop_back();
+                }
+                
+                // Reset selection to top when new item is added
+                selectedItem = 0;
+                
+                // Update filtered items if in filter mode
+                if (filterMode) {
+                    updateFilteredItems();
+                }
+                
+                saveToFile();
+                
+                std::cout << "New clipboard item added" << std::endl;
+                
+                // Refresh display if window is visible
+                if (visible) {
+                    drawConsole();
+                }
             }
-            
-            // Reset selection to top when new item is added
-            selectedItem = 0;
-            
-            saveToFile();
-            
-            std::cout << "New clipboard item added" << std::endl;
-            
-            // Refresh display if window is visible
-            if (visible) {
-                drawConsole();
-            }
-        }
         }
     }
     
@@ -449,23 +513,87 @@ public:
         if (file.is_open()) {
             std::string line;
             while (std::getline(file, line)) {
-                // Simple JSON parsing for "verbose": true/false
+                // Parse verbose
                 if (line.find("\"verbose\"") != std::string::npos) {
-                    if (line.find("true") != std::string::npos) {
-                        verboseMode = true;
-                    } else {
-                        verboseMode = false;
+                    verboseMode = line.find("true") != std::string::npos;
+                }
+                // Parse max_clips
+                else if (line.find("\"max_clips\"") != std::string::npos) {
+                    size_t colon = line.find(':');
+                    if (colon != std::string::npos) {
+                        std::string value = line.substr(colon + 1);
+                        // Remove whitespace and commas
+                        value.erase(0, value.find_first_not_of(" \t"));
+                        value.erase(value.find_last_not_of(" \t,") + 1);
+                        maxClips = std::stoull(value);
                     }
-                    break;
+                }
+                // Parse encrypted
+                else if (line.find("\"encrypted\"") != std::string::npos) {
+                    encrypted = line.find("true") != std::string::npos;
+                }
+                // Parse theme
+                else if (line.find("\"theme\"") != std::string::npos) {
+                    size_t start = line.find('"', line.find(':'));
+                    size_t end = line.find('"', start + 1);
+                    if (start != std::string::npos && end != std::string::npos) {
+                        theme = line.substr(start + 1, end - start - 1);
+                    }
                 }
             }
             file.close();
         } else {
-            // Create default config
-            std::ofstream outFile(configFile);
-            outFile << "{\n    \"verbose\": false\n}\n";
-            outFile.close();
+            // Create default config with all settings
+            createDefaultConfig();
         }
+    }
+    
+    void createDefaultConfig() {
+        std::string configFile = configDir + "/config.json";
+        std::ofstream outFile(configFile);
+        outFile << "{\n";
+        outFile << "    \"verbose\": false,\n";
+        outFile << "    \"max_clips\": 500,\n";
+        outFile << "    \"encrypted\": true,\n";
+        outFile << "    \"theme\": \"console\"\n";
+        outFile << "}\n";
+        outFile.close();
+        
+        std::cout << "Created default config at: " << configFile << std::endl;
+    }
+    
+    void copyToClipboard(const std::string& content) {
+#ifdef __linux__
+        // Use xclip to copy to clipboard
+        FILE* pipe = popen("xclip -selection clipboard", "w");
+        if (pipe) {
+            fwrite(content.c_str(), 1, content.length(), pipe);
+            pclose(pipe);
+        }
+#endif
+
+#ifdef _WIN32
+        // Windows clipboard
+        if (OpenClipboard(nullptr)) {
+            EmptyClipboard();
+            HGLOBAL hMem = GlobalAlloc(GMEM_MOVEABLE, content.length() + 1);
+            if (hMem) {
+                memcpy(GlobalLock(hMem), content.c_str(), content.length() + 1);
+                GlobalUnlock(hMem);
+                SetClipboardData(CF_TEXT, hMem);
+            }
+            CloseClipboard();
+        }
+#endif
+
+#ifdef __APPLE__
+        // macOS clipboard using pbcopy
+        FILE* pipe = popen("pbcopy", "w");
+        if (pipe) {
+            fwrite(content.c_str(), 1, content.length(), pipe);
+            pclose(pipe);
+        }
+#endif
     }
     
     void saveToFile() {
@@ -487,15 +615,20 @@ public:
             std::string line;
             while (std::getline(file, line)) {
                 size_t pos = line.find('|');
-                if (pos != std::string::npos) {
+                if (pos != std::string::npos && pos > 0) {
                     std::string timestampStr = line.substr(0, pos);
                     std::string content = line.substr(pos + 1);
                     
-                    ClipboardItem item(content);
-                    auto timestamp = std::chrono::seconds(std::stoll(timestampStr));
-                    item.timestamp = std::chrono::system_clock::time_point(timestamp);
-                    
-                    items.push_back(item);
+                    try {
+                        ClipboardItem item(content);
+                        auto timestamp = std::chrono::seconds(std::stoll(timestampStr));
+                        item.timestamp = std::chrono::system_clock::time_point(timestamp);
+                        
+                        items.push_back(item);
+                    } catch (const std::exception& e) {
+                        // Skip invalid entries
+                        continue;
+                    }
                 }
             }
             file.close();
@@ -530,44 +663,124 @@ public:
                     if (keyEvent->window == root) {
                         if (keysym == XK_c && (keyEvent->state & ControlMask) && (keyEvent->state & Mod1Mask)) {
                             showWindow();
-                        } else if (keysym == XK_Escape) {
-                            hideWindow();
                         }
                     } 
                     // Check if it's a local window hotkey
                     else if (keyEvent->window == window) {
                         if (keysym == XK_Escape) {
-                            hideWindow();
-                        } else if (keysym == XK_q || keysym == XK_Q) {
-                            stop();
-                        } else if (keysym == XK_j) {
-                            // Move down
-                            if (!items.empty() && selectedItem < items.size() - 1) {
-                                selectedItem++;
-                                drawConsole();
-                            }
-                        } else if (keysym == XK_k) {
-                            // Move up
-                            if (selectedItem > 0) {
-                                selectedItem--;
-                                drawConsole();
-                            }
-                        } else if (keysym == XK_g) {
-                            // gg - go to top (need to detect double g)
-                            static auto lastGTime = std::chrono::steady_clock::now();
-                            auto now = std::chrono::steady_clock::now();
-                            auto diff = std::chrono::duration_cast<std::chrono::milliseconds>(now - lastGTime);
-                            
-                            if (diff.count() < 500) { // Double g within 500ms
+                            if (filterMode) {
+                                // Exit filter mode but keep window open
+                                filterMode = false;
+                                filterText = "";
+                                filteredItems.clear();
                                 selectedItem = 0;
                                 drawConsole();
+                            } else {
+                                hideWindow();
                             }
-                            lastGTime = now;
-                        } else if (keysym == XK_G) {
-                            // Go to bottom
-                            if (!items.empty()) {
-                                selectedItem = items.size() - 1;
+                        } else if (keysym == XK_q && (keyEvent->state & ShiftMask) && !filterMode) {
+                            stop();
+                        } else if (filterMode) {
+                            // In filter mode, allow navigation and text input
+                            if (keysym == XK_BackSpace) {
+                                // Handle backspace in filter mode
+                                if (!filterText.empty()) {
+                                    filterText.pop_back();
+                                    updateFilteredItems();
+                                    selectedItem = 0;
+                                    drawConsole();
+                                }
+                            } else if (keysym == XK_Up) {
+                                // Navigate up in filtered results
+                                if (getDisplayItemCount() > 0 && selectedItem > 0) {
+                                    selectedItem--;
+                                    drawConsole();
+                                }
+                            } else if (keysym == XK_Down) {
+                                // Navigate down in filtered results
+                                if (getDisplayItemCount() > 0 && selectedItem < getDisplayItemCount() - 1) {
+                                    selectedItem++;
+                                    drawConsole();
+                                }
+                            } else if (keysym == XK_Return) {
+                                // Copy selected item to clipboard and hide window
+                                if (!items.empty() && selectedItem < getDisplayItemCount()) {
+                                    size_t actualIndex = getActualItemIndex(selectedItem);
+                                    copyToClipboard(items[actualIndex].content);
+                                    std::cout << "Copied to clipboard: " << items[actualIndex].content.substr(0, 50) << "..." << std::endl;
+                                    filterMode = false;
+                                    filterText = "";
+                                    filteredItems.clear();
+                                    hideWindow();
+                                }
+                            } else {
+                                // Handle text input in filter mode
+                                char buffer[10];
+                                int count = XLookupString(keyEvent, buffer, sizeof(buffer), nullptr, nullptr);
+                                if (count > 0) {
+                                    filterText += std::string(buffer, count);
+                                    updateFilteredItems();
+                                    selectedItem = 0;
+                                    drawConsole();
+                                }
+                            }
+                        } else {
+                            // Not in filter mode - handle navigation keys
+                            if (keysym == XK_j && !(keyEvent->state & ShiftMask)) {
+                                // Move down
+                                if (getDisplayItemCount() > 0 && selectedItem < getDisplayItemCount() - 1) {
+                                    selectedItem++;
+                                    drawConsole();
+                                }
+                            } else if (keysym == XK_k && !(keyEvent->state & ShiftMask)) {
+                                // Move up
+                                if (selectedItem > 0) {
+                                    selectedItem--;
+                                    drawConsole();
+                                }
+                            } else if (keysym == XK_g && !(keyEvent->state & ShiftMask)) {
+                                // gg - go to top (need to detect double g)
+                                static auto lastGTime = std::chrono::steady_clock::now();
+                                auto now = std::chrono::steady_clock::now();
+                                auto diff = std::chrono::duration_cast<std::chrono::milliseconds>(now - lastGTime);
+                                
+                                if (diff.count() < 500) { // Double g within 500ms
+                                    selectedItem = 0;
+                                    drawConsole();
+                                }
+                                lastGTime = now;
+                            } else if (keysym == XK_g && (keyEvent->state & ShiftMask)) {
+                                // Go to bottom (Shift+G)
+                                if (getDisplayItemCount() > 0) {
+                                    selectedItem = getDisplayItemCount() - 1;
+                                    drawConsole();
+                                }
+                            } else if (keysym == XK_d && (keyEvent->state & ShiftMask)) {
+                                // Delete selected item
+                                if (!items.empty() && selectedItem < getDisplayItemCount()) {
+                                    size_t actualIndex = getActualItemIndex(selectedItem);
+                                    items.erase(items.begin() + actualIndex);
+                                    if (selectedItem >= getDisplayItemCount() && selectedItem > 0) {
+                                        selectedItem--;
+                                    }
+                                    saveToFile();
+                                    drawConsole();
+                                    std::cout << "Item deleted" << std::endl;
+                                }
+                            } else if (keysym == XK_slash) {
+                                // Enter filter mode
+                                filterMode = true;
+                                filterText = "";
+                                updateFilteredItems();
                                 drawConsole();
+                            } else if (keysym == XK_Return) {
+                                // Copy selected item to clipboard and hide window
+                                if (!items.empty() && selectedItem < getDisplayItemCount()) {
+                                    size_t actualIndex = getActualItemIndex(selectedItem);
+                                    copyToClipboard(items[actualIndex].content);
+                                    std::cout << "Copied to clipboard: " << items[actualIndex].content.substr(0, 50) << "..." << std::endl;
+                                    hideWindow();
+                                }
                             }
                         }
                     }
@@ -599,9 +812,6 @@ public:
 
 int main() {
     ClipboardManager manager;
-    
-    // Run in main thread
     manager.run();
-    
     return 0;
 }
