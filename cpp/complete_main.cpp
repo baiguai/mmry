@@ -50,6 +50,10 @@ public:
                 // Escape hides dialog but not window
                 bookmarkDialogVisible = false;
                 drawConsole();
+            } else if (addToBookmarkDialogVisible) {
+                // Escape hides dialog but not window
+                addToBookmarkDialogVisible = false;
+                drawConsole();
             } else {
                 // Normal escape behavior
                 hideWindow();
