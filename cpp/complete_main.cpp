@@ -57,6 +57,119 @@ public:
                 filterText = "";
                 filteredItems.clear();
             }
+        } else if (bookmarkDialogVisible) {
+            // Bookmark dialog is visible - handle dialog-specific keys first
+            if (keysym == XK_Q && (keyEvent->state & ShiftMask)) {
+                // Shift+Q quits application even from dialog
+                std::cout << "Quitting MMRY..." << std::endl;
+                stop();
+            } else if (keysym == XK_Return) {
+                // Enter creates/selects bookmark group using input text only
+                if (!bookmarkDialogInput.empty()) {
+                    // Check if this is a new group
+                    bool groupExists = false;
+                    for (const auto& group : bookmarkGroups) {
+                        if (group == bookmarkDialogInput) {
+                            groupExists = true;
+                            break;
+                        }
+                    }
+                    
+                    if (!groupExists) {
+                        // Create new group and add current clip
+                        bookmarkGroups.push_back(bookmarkDialogInput);
+                        saveBookmarkGroups();
+                        
+                        // Add current clip to bookmark
+                        if (!items.empty() && selectedItem < getDisplayItemCount()) {
+                            size_t actualIndex = getActualItemIndex(selectedItem);
+                            addClipToBookmarkGroup(bookmarkDialogInput, items[actualIndex].content);
+                            std::cout << "Added clip to bookmark group: " << bookmarkDialogInput << std::endl;
+                        }
+                    } else {
+                        // Add current clip to existing group
+                        if (!items.empty() && selectedItem < getDisplayItemCount()) {
+                            size_t actualIndex = getActualItemIndex(selectedItem);
+                            addClipToBookmarkGroup(bookmarkDialogInput, items[actualIndex].content);
+                            std::cout << "Added clip to bookmark group: " << bookmarkDialogInput << std::endl;
+                        }
+                    }
+                    
+                    bookmarkDialogVisible = false;
+                    drawConsole();
+                }
+            } else if (keysym == XK_Down) {
+                // Down arrow navigates through bookmark groups
+                std::vector<std::string> filteredGroups;
+                for (const auto& group : bookmarkGroups) {
+                    if (bookmarkDialogInput.empty() || group.find(bookmarkDialogInput) != std::string::npos) {
+                        filteredGroups.push_back(group);
+                    }
+                }
+                
+                if (!filteredGroups.empty()) {
+                    selectedBookmarkGroup = (selectedBookmarkGroup + 1) % filteredGroups.size();
+                    drawConsole();
+                }
+            } else if (keysym == XK_Up) {
+                // Up arrow navigates backwards through bookmark groups
+                std::vector<std::string> filteredGroups;
+                for (const auto& group : bookmarkGroups) {
+                    if (bookmarkDialogInput.empty() || group.find(bookmarkDialogInput) != std::string::npos) {
+                        filteredGroups.push_back(group);
+                    }
+                }
+                
+                if (!filteredGroups.empty()) {
+                    selectedBookmarkGroup = (selectedBookmarkGroup == 0) ? filteredGroups.size() - 1 : selectedBookmarkGroup - 1;
+                    drawConsole();
+                }
+            } else if (keysym == XK_D && (keyEvent->state & ShiftMask)) {
+                // Shift+D deletes selected bookmark group and its clips
+                std::vector<std::string> filteredGroups;
+                for (const auto& group : bookmarkGroups) {
+                    if (bookmarkDialogInput.empty() || group.find(bookmarkDialogInput) != std::string::npos) {
+                        filteredGroups.push_back(group);
+                    }
+                }
+                
+                if (!filteredGroups.empty() && selectedBookmarkGroup < filteredGroups.size()) {
+                    std::string groupToDelete = filteredGroups[selectedBookmarkGroup];
+                    
+                    // Remove group from list
+                    for (auto it = bookmarkGroups.begin(); it != bookmarkGroups.end(); ++it) {
+                        if (*it == groupToDelete) {
+                            bookmarkGroups.erase(it);
+                            break;
+                        }
+                    }
+                    saveBookmarkGroups();
+                    
+                    // Delete bookmark file
+                    std::string bookmarkFile = configDir + "/bookmarks_" + groupToDelete + ".txt";
+                    unlink(bookmarkFile.c_str());
+                    
+                    std::cout << "Deleted bookmark group: " << groupToDelete << std::endl;
+                    
+                    // Reset selection
+                    selectedBookmarkGroup = 0;
+                    drawConsole();
+                }
+            } else if (keysym == XK_BackSpace) {
+                // Backspace in input field
+                if (!bookmarkDialogInput.empty()) {
+                    bookmarkDialogInput.pop_back();
+                    drawConsole();
+                }
+            } else {
+                // Text input for bookmark dialog
+                char buffer[10];
+                int count = XLookupString(keyEvent, buffer, sizeof(buffer), nullptr, nullptr);
+                if (count > 0) {
+                    bookmarkDialogInput += std::string(buffer, count);
+                    drawConsole();
+                }
+            }
         } else if (keysym == XK_j || keysym == XK_Down) {
             // Move down
             size_t displayCount = getDisplayItemCount();
@@ -144,67 +257,7 @@ public:
                     drawConsole();
                 }
             }
-        } else if (bookmarkDialogVisible) {
-            // Bookmark dialog is visible - handle dialog-specific keys
-            if (keysym == XK_Escape) {
-                // Escape hides dialog but not window
-                bookmarkDialogVisible = false;
-                drawConsole();
-            } else if (keysym == XK_Q && (keyEvent->state & ShiftMask)) {
-                // Shift+Q quits application even from dialog
-                std::cout << "Quitting MMRY..." << std::endl;
-                stop();
-            } else if (keysym == XK_Return) {
-                // Enter creates/selects bookmark group
-                if (!bookmarkDialogInput.empty()) {
-                    // Check if this is a new group
-                    bool groupExists = false;
-                    for (const auto& group : bookmarkGroups) {
-                        if (group == bookmarkDialogInput) {
-                            groupExists = true;
-                            break;
-                        }
-                    }
-                    
-                    if (!groupExists) {
-                        // Create new group and add current clip
-                        bookmarkGroups.push_back(bookmarkDialogInput);
-                        saveBookmarkGroups();
-                        
-                        // Add current clip to bookmark
-                        if (!items.empty() && selectedItem < getDisplayItemCount()) {
-                            size_t actualIndex = getActualItemIndex(selectedItem);
-                            addClipToBookmarkGroup(bookmarkDialogInput, items[actualIndex].content);
-                            std::cout << "Added clip to bookmark group: " << bookmarkDialogInput << std::endl;
-                        }
-                    } else {
-                        // Add current clip to existing group
-                        if (!items.empty() && selectedItem < getDisplayItemCount()) {
-                            size_t actualIndex = getActualItemIndex(selectedItem);
-                            addClipToBookmarkGroup(bookmarkDialogInput, items[actualIndex].content);
-                            std::cout << "Added clip to bookmark group: " << bookmarkDialogInput << std::endl;
-                        }
-                    }
-                    
-                    bookmarkDialogVisible = false;
-                    drawConsole();
-                }
 
-            } else if (keysym == XK_BackSpace) {
-                // Backspace in input field
-                if (!bookmarkDialogInput.empty()) {
-                    bookmarkDialogInput.pop_back();
-                    drawConsole();
-                }
-            } else {
-                // Text input for bookmark dialog
-                char buffer[10];
-                int count = XLookupString(keyEvent, buffer, sizeof(buffer), nullptr, nullptr);
-                if (count > 0) {
-                    bookmarkDialogInput += std::string(buffer, count);
-                    drawConsole();
-                }
-            }
         } else {
             // Not in filter mode, handle Return key and Q key
             if (keysym == XK_Return) {
@@ -822,9 +875,7 @@ private:
             y += 18;
         }
         
-        // Draw instructions
-        std::string instructions = "Enter: Create/Select | Escape: Close";
-        XDrawString(display, window, gc, DIALOG_X + 20, DIALOG_Y + DIALOG_HEIGHT - 20, instructions.c_str(), instructions.length());
+
 #endif
     }
     
