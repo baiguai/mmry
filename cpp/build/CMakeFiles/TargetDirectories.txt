@@ -1,3 +1,0 @@
-/home/baiguai/documents/development/rust/mmry/cpp/build/CMakeFiles/mmry_cpp.dir
-/home/baiguai/documents/development/rust/mmry/cpp/build/CMakeFiles/edit_cache.dir
-/home/baiguai/documents/development/rust/mmry/cpp/build/CMakeFiles/rebuild_cache.dir
