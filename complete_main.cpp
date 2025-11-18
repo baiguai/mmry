@@ -589,6 +589,29 @@ public:
                 }
                 return;
             }
+
+            if (keysym == XK_Down) {
+                // Move down
+                size_t displayCount = getDisplayItemCount();
+                if (selectedItem < displayCount - 1) {
+                    selectedItem++;
+                    updateConsoleScrollOffset();
+                    drawConsole();
+                }
+                return;
+            }
+
+            if (keysym == XK_Up) {
+                // Move up
+                if (selectedItem > 0) {
+                    selectedItem--;
+                    updateConsoleScrollOffset();
+                    drawConsole();
+                }
+                return;
+            }
+
+
             // Handle text input in filter mode - exclude vim navigation keys
             char buffer[10];
             int count = XLookupString(keyEvent, buffer, sizeof(buffer), nullptr, nullptr);
