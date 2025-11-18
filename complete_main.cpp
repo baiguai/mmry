@@ -36,6 +36,10 @@ struct ClipboardItem {
 };
 
 class ClipboardManager {
+private:
+    std::atomic<bool> hotkeyGrabbed{false};
+    std::thread hotkeyMonitorThread;
+
 public:
     void handleKeyPress(XEvent* event) {
 #ifdef __linux__
@@ -44,6 +48,31 @@ public:
         XKeyEvent* keyEvent = (XKeyEvent*)event;
         
         XLookupString(keyEvent, buffer, sizeof(buffer), &keysym, nullptr);
+
+        if (keysym == XK_Q && (keyEvent->state & ShiftMask)) {
+            // Shift+Q quits application even from dialog
+            std::cout << "Quitting MMRY..." << std::endl;
+            stop();
+        }
+        
+        // Check if this is from the root window (global hotkey)
+        if (event->xany.window == root) {
+            // More robust hotkey detection
+            if (keysym == XK_c || keysym == XK_C) {
+                unsigned int state = keyEvent->state;
+                
+                // Mask out NumLock (Mod2Mask) and CapsLock (LockMask) for comparison
+                state &= ~(Mod2Mask | LockMask);
+                
+                // Check if Ctrl+Alt are pressed (ignore other modifiers)
+                if ((state & ControlMask) && (state & Mod1Mask)) {
+                    std::cout << "Hotkey triggered: Ctrl+Alt+C (state: 0x" 
+                             << std::hex << keyEvent->state << std::dec << ")" << std::endl;
+                    showWindow();
+                    return;
+                }
+            }
+        }
         
         if (keysym == XK_Escape) {
             if (bookmarkDialogVisible) {
@@ -62,31 +91,135 @@ public:
                 // Escape hides view bookmarks dialog but not window
                 viewBookmarksDialogVisible = false;
                 drawConsole();
-            } else {
-                // Normal escape behavior
-                hideWindow();
+            } else if (filterMode) {
+                // Escape exits filter mode but doesn't hide window
                 filterMode = false;
                 filterText = "";
                 filteredItems.clear();
+                selectedItem = 0;
+                drawConsole();
+            } else {
+                // Normal escape behavior - hide window
+                hideWindow();
             }
-        } else if (helpDialogVisible) {
-            // Help dialog is visible - handle dialog-specific keys
-            if (keysym == XK_Q && (keyEvent->state & ShiftMask)) {
-                // Shift+Q quits application even from help dialog
-                std::cout << "Quitting MMRY..." << std::endl;
-                stop();
-            } else if (keysym == XK_Escape || keysym == XK_question) {
+
+            return;
+        }
+
+        if (helpDialogVisible) {
+            if (keysym == XK_Escape || keysym == XK_question) {
                 // Escape or '?' closes help dialog
                 helpDialogVisible = false;
                 drawConsole();
             }
-        } else if (viewBookmarksDialogVisible) {
+
+            return;
+        }
+
+        // ---------------------------------------------------------------------
+
+
+        // Adding bookmark groups
+        //
+        if (bookmarkDialogVisible && !addToBookmarkDialogVisible) {
+            if (keysym == XK_Return) {
+                // Enter creates/selects bookmark group using input text only
+                if (!bookmarkDialogInput.empty()) {
+                    // Check if this is a new group
+                    bool groupExists = false;
+                    for (const auto& group : bookmarkGroups) {
+                        if (group == bookmarkDialogInput) {
+                            groupExists = true;
+                            break;
+                        }
+                    }
+                    
+                    if (!groupExists) {
+                        // Create new group and add current clip
+                        bookmarkGroups.push_back(bookmarkDialogInput);
+                        saveBookmarkGroups();
+                        
+                        // Add current clip to bookmark
+                        if (!items.empty() && selectedItem < getDisplayItemCount()) {
+                            size_t actualIndex = getActualItemIndex(selectedItem);
+                            addClipToBookmarkGroup(bookmarkDialogInput, items[actualIndex].content);
+                            std::cout << "Added clip to bookmark group: " << bookmarkDialogInput << std::endl;
+                        }
+                    } else {
+                        // Add current clip to existing group
+                        if (!items.empty() && selectedItem < getDisplayItemCount()) {
+                            size_t actualIndex = getActualItemIndex(selectedItem);
+                            addClipToBookmarkGroup(bookmarkDialogInput, items[actualIndex].content);
+                            std::cout << "Added clip to bookmark group: " << bookmarkDialogInput << std::endl;
+                        }
+                    }
+                    
+                    bookmarkDialogVisible = false;
+                    drawConsole();
+                }
+                return;
+            }
+
+            if (keysym == XK_Down) {
+                // j/Down arrow navigates through bookmark groups only when input is empty
+                std::vector<std::string> filteredGroups;
+                for (const auto& group : bookmarkGroups) {
+                    if (bookmarkDialogInput.empty() || group.find(bookmarkDialogInput) != std::string::npos) {
+                        filteredGroups.push_back(group);
+                    }
+                }
+                
+                if (!filteredGroups.empty()) {
+                    selectedBookmarkGroup = (selectedBookmarkGroup + 1) % filteredGroups.size();
+                    updateBookmarkMgmtScrollOffset();
+                    drawConsole();
+                }
+                return;
+            }
+
+            if (keysym == XK_Up) {
+                // k/Up arrow navigates backwards through bookmark groups only when input is empty
+                std::vector<std::string> filteredGroups;
+                for (const auto& group : bookmarkGroups) {
+                    if (bookmarkDialogInput.empty() || group.find(bookmarkDialogInput) != std::string::npos) {
+                        filteredGroups.push_back(group);
+                    }
+                }
+                
+                if (!filteredGroups.empty()) {
+                    selectedBookmarkGroup = (selectedBookmarkGroup == 0) ? filteredGroups.size() - 1 : selectedBookmarkGroup - 1;
+                    updateBookmarkMgmtScrollOffset();
+                    drawConsole();
+                }
+                return;
+            }
+            
+            if (keysym == XK_BackSpace) {
+                // Backspace in input field
+                if (!bookmarkDialogInput.empty()) {
+                    bookmarkDialogInput.pop_back();
+                    drawConsole();
+                }
+                return;
+            }
+
+            // Text input for bookmark dialog - exclude vim navigation keys
+            char buffer[10];
+            int count = XLookupString(keyEvent, buffer, sizeof(buffer), nullptr, nullptr);
+            if (count > 0) {
+                bookmarkDialogInput += std::string(buffer, count);
+                drawConsole();
+            }
+
+            return;
+        }
+
+
+        // Accessing bookmarked clips
+        //
+        if (viewBookmarksDialogVisible) {
             // View bookmarks dialog is visible - handle dialog-specific keys
-            if (keysym == XK_Q && (keyEvent->state & ShiftMask)) {
-                // Shift+Q quits application even from dialog
-                std::cout << "Quitting MMRY..." << std::endl;
-                stop();
-            } else if (keysym == XK_Escape || keysym == XK_grave) {
+            if (keysym == XK_Escape || keysym == XK_grave) {
                 // Escape or '`' closes view bookmarks dialog or goes back to groups
                 if (!viewBookmarksShowingGroups) {
                     // If viewing clips, go back to groups
@@ -98,7 +231,14 @@ public:
                     viewBookmarksDialogVisible = false;
                 }
                 drawConsole();
-            } else if (viewBookmarksShowingGroups) {
+
+                return;
+            }
+
+
+            // Groups view
+            //
+            if (viewBookmarksShowingGroups) {
                 // In group selection mode
                 if (keysym == XK_j || keysym == XK_Down) {
                     // Move down in groups
@@ -107,24 +247,36 @@ public:
                         updateScrollOffset();
                         drawConsole();
                     }
-                } else if (keysym == XK_k || keysym == XK_Up) {
+                    return;
+                }
+
+                if (keysym == XK_k || keysym == XK_Up) {
                     // Move up in groups
                     if (selectedViewBookmarkGroup > 0) {
                         selectedViewBookmarkGroup--;
                         updateScrollOffset();
                         drawConsole();
                     }
-                } else if (keysym == XK_g) {
-                    // Go to top (gg)
+                    return;
+                }
+
+                if (keysym == XK_g) {
+                    // Go to top
                     selectedViewBookmarkGroup = 0;
                     viewBookmarksScrollOffset = 0;
                     drawConsole();
-                } else if (keysym == XK_G && (keyEvent->state & ShiftMask)) {
+                    return;
+                }
+
+                if (keysym == XK_G && (keyEvent->state & ShiftMask)) {
                     // Go to bottom
                     selectedViewBookmarkGroup = bookmarkGroups.size() - 1;
                     updateScrollOffset();
                     drawConsole();
-                } else if (keysym == XK_D && (keyEvent->state & ShiftMask)) {
+                    return;
+                }
+
+                if (keysym == XK_D && (keyEvent->state & ShiftMask)) {
                     // Shift+D deletes selected group and its clips
                     if (selectedViewBookmarkGroup < bookmarkGroups.size()) {
                         std::string groupToDelete = bookmarkGroups[selectedViewBookmarkGroup];
@@ -151,7 +303,10 @@ public:
                         
                         drawConsole();
                     }
-                } else if (keysym == XK_Return) {
+                    return;
+                }
+
+                if (keysym == XK_Return) {
                     // Select this group and show its clips
                     if (selectedViewBookmarkGroup < bookmarkGroups.size()) {
                         viewBookmarksShowingGroups = false;
@@ -159,27 +314,40 @@ public:
                         viewBookmarksScrollOffset = 0; // Reset scroll when switching modes
                         drawConsole();
                     }
+                    return;
                 }
-            } else {
-                // In clip viewing mode
+            }
+
+            // Clips are being shown
+            //
+            else {
                 if (keysym == XK_j || keysym == XK_Down) {
                     // Move down in bookmark items
                     selectedViewBookmarkItem++;
                     updateScrollOffset();
                     drawConsole();
-                } else if (keysym == XK_k || keysym == XK_Up) {
+                    return;
+                }
+
+                if (keysym == XK_k || keysym == XK_Up) {
                     // Move up in bookmark items
                     if (selectedViewBookmarkItem > 0) {
                         selectedViewBookmarkItem--;
                         updateScrollOffset();
                         drawConsole();
                     }
-                } else if (keysym == XK_g) {
-                    // Go to top (gg)
+                    return;
+                }
+
+                if (keysym == XK_g) {
+                    // Go to top
                     selectedViewBookmarkItem = 0;
                     viewBookmarksScrollOffset = 0;
                     drawConsole();
-                } else if (keysym == XK_G && (keyEvent->state & ShiftMask)) {
+                    return;
+                }
+
+                if (keysym == XK_G && (keyEvent->state & ShiftMask)) {
                     // Go to bottom
                     if (selectedViewBookmarkGroup < bookmarkGroups.size()) {
                         std::string selectedGroup = bookmarkGroups[selectedViewBookmarkGroup];
@@ -204,7 +372,10 @@ public:
                             }
                         }
                     }
-                } else if (keysym == XK_D && (keyEvent->state & ShiftMask)) {
+                    return;
+                }
+
+                if (keysym == XK_D && (keyEvent->state & ShiftMask)) {
                     // Shift+D deletes selected clip
                     if (selectedViewBookmarkGroup < bookmarkGroups.size()) {
                         std::string selectedGroup = bookmarkGroups[selectedViewBookmarkGroup];
@@ -245,7 +416,10 @@ public:
                             }
                         }
                     }
-                } else if (keysym == XK_Return) {
+                    return;
+                }
+
+                if (keysym == XK_Return) {
                     // Copy selected bookmark item to clipboard
                     if (selectedViewBookmarkGroup < bookmarkGroups.size()) {
                         std::string selectedGroup = bookmarkGroups[selectedViewBookmarkGroup];
@@ -283,153 +457,26 @@ public:
                             }
                         }
                     }
+                    return;
                 }
             }
-        } else if (bookmarkDialogVisible) {
-            // Bookmark dialog is visible - handle dialog-specific keys first
-            if (keysym == XK_Q && (keyEvent->state & ShiftMask)) {
-                // Shift+Q quits application even from dialog
-                std::cout << "Quitting MMRY..." << std::endl;
-                stop();
-            } else if (keysym == XK_Return) {
-                // Enter creates/selects bookmark group using input text only
-                if (!bookmarkDialogInput.empty()) {
-                    // Check if this is a new group
-                    bool groupExists = false;
-                    for (const auto& group : bookmarkGroups) {
-                        if (group == bookmarkDialogInput) {
-                            groupExists = true;
-                            break;
-                        }
-                    }
-                    
-                    if (!groupExists) {
-                        // Create new group and add current clip
-                        bookmarkGroups.push_back(bookmarkDialogInput);
-                        saveBookmarkGroups();
-                        
-                        // Add current clip to bookmark
-                        if (!items.empty() && selectedItem < getDisplayItemCount()) {
-                            size_t actualIndex = getActualItemIndex(selectedItem);
-                            addClipToBookmarkGroup(bookmarkDialogInput, items[actualIndex].content);
-                            std::cout << "Added clip to bookmark group: " << bookmarkDialogInput << std::endl;
-                        }
-                    } else {
-                        // Add current clip to existing group
-                        if (!items.empty() && selectedItem < getDisplayItemCount()) {
-                            size_t actualIndex = getActualItemIndex(selectedItem);
-                            addClipToBookmarkGroup(bookmarkDialogInput, items[actualIndex].content);
-                            std::cout << "Added clip to bookmark group: " << bookmarkDialogInput << std::endl;
-                        }
-                    }
-                    
-                    bookmarkDialogVisible = false;
-                    drawConsole();
-                }
-            } else if (keysym == XK_j || keysym == XK_Down) {
-                // j/Down arrow navigates through bookmark groups
-                std::vector<std::string> filteredGroups;
-                for (const auto& group : bookmarkGroups) {
-                    if (bookmarkDialogInput.empty() || group.find(bookmarkDialogInput) != std::string::npos) {
-                        filteredGroups.push_back(group);
-                    }
-                }
-                
-                if (!filteredGroups.empty()) {
-                    selectedBookmarkGroup = (selectedBookmarkGroup + 1) % filteredGroups.size();
-                    updateBookmarkMgmtScrollOffset();
-                    drawConsole();
-                }
-            } else if (keysym == XK_k || keysym == XK_Up) {
-                // k/Up arrow navigates backwards through bookmark groups
-                std::vector<std::string> filteredGroups;
-                for (const auto& group : bookmarkGroups) {
-                    if (bookmarkDialogInput.empty() || group.find(bookmarkDialogInput) != std::string::npos) {
-                        filteredGroups.push_back(group);
-                    }
-                }
-                
-                if (!filteredGroups.empty()) {
-                    selectedBookmarkGroup = (selectedBookmarkGroup == 0) ? filteredGroups.size() - 1 : selectedBookmarkGroup - 1;
-                    updateBookmarkMgmtScrollOffset();
-                    drawConsole();
-                }
-            } else if (keysym == XK_g) {
-                // Go to top (gg)
-                selectedBookmarkGroup = 0;
-                bookmarkMgmtScrollOffset = 0;
-                drawConsole();
-            } else if (keysym == XK_G && (keyEvent->state & ShiftMask)) {
-                // Go to bottom
-                std::vector<std::string> filteredGroups;
-                for (const auto& group : bookmarkGroups) {
-                    if (bookmarkDialogInput.empty() || group.find(bookmarkDialogInput) != std::string::npos) {
-                        filteredGroups.push_back(group);
-                    }
-                }
-                
-                if (!filteredGroups.empty()) {
-                    selectedBookmarkGroup = filteredGroups.size() - 1;
-                    updateBookmarkMgmtScrollOffset();
-                    drawConsole();
-                }
-            } else if (keysym == XK_D && (keyEvent->state & ShiftMask)) {
-                // Shift+D deletes selected bookmark group and its clips
-                std::vector<std::string> filteredGroups;
-                for (const auto& group : bookmarkGroups) {
-                    if (bookmarkDialogInput.empty() || group.find(bookmarkDialogInput) != std::string::npos) {
-                        filteredGroups.push_back(group);
-                    }
-                }
-                
-                if (!filteredGroups.empty() && selectedBookmarkGroup < filteredGroups.size()) {
-                    std::string groupToDelete = filteredGroups[selectedBookmarkGroup];
-                    
-                    // Remove group from list
-                    for (auto it = bookmarkGroups.begin(); it != bookmarkGroups.end(); ++it) {
-                        if (*it == groupToDelete) {
-                            bookmarkGroups.erase(it);
-                            break;
-                        }
-                    }
-                    saveBookmarkGroups();
-                    
-                    // Delete bookmark file
-                    std::string bookmarkFile = configDir + "/bookmarks_" + groupToDelete + ".txt";
-                    unlink(bookmarkFile.c_str());
-                    
-                    std::cout << "Deleted bookmark group: " << groupToDelete << std::endl;
-                    
-                    // Reset selection
-                    selectedBookmarkGroup = 0;
-                    drawConsole();
-                }
-            } else if (keysym == XK_BackSpace) {
-                // Backspace in input field
-                if (!bookmarkDialogInput.empty()) {
-                    bookmarkDialogInput.pop_back();
-                    drawConsole();
-                }
-            } else {
-                // Text input for bookmark dialog
-                char buffer[10];
-                int count = XLookupString(keyEvent, buffer, sizeof(buffer), nullptr, nullptr);
-                if (count > 0) {
-                    bookmarkDialogInput += std::string(buffer, count);
-                    drawConsole();
-                }
-            }
-        } else if (addToBookmarkDialogVisible) {
+            return;
+        }
+
+
+        // Adding the current clip to a bookmark group
+        //
+        if (addToBookmarkDialogVisible) {
             // Add to bookmark dialog is visible - handle dialog-specific keys
             if (keysym == XK_Escape) {
                 // Escape closes dialog but not window
                 addToBookmarkDialogVisible = false;
                 drawConsole();
-            } else if (keysym == XK_Q && (keyEvent->state & ShiftMask)) {
-                // Shift+Q quits application even from dialog
-                std::cout << "Quitting MMRY..." << std::endl;
-                stop();
-            } else if (keysym == XK_Return) {
+                return;
+            }
+
+            if (keysym == XK_Return) {
+                // std::cout << "TEST: hit return" << std::endl;
                 // Enter adds clip to selected bookmark group
                 if (!bookmarkGroups.empty() && selectedAddBookmarkGroup < bookmarkGroups.size()) {
                     std::string selectedGroup = bookmarkGroups[selectedAddBookmarkGroup];
@@ -465,34 +512,99 @@ public:
                     addToBookmarkDialogVisible = false;
                     drawConsole();
                 }
-            } else if (keysym == XK_j || keysym == XK_Down) {
+                return;
+            }
+
+            if (keysym == XK_j || keysym == XK_Down) {
                 // Move down in bookmark groups
                 if (!bookmarkGroups.empty() && selectedAddBookmarkGroup < bookmarkGroups.size() - 1) {
                     selectedAddBookmarkGroup++;
                     updateAddBookmarkScrollOffset();
                     drawConsole();
                 }
-            } else if (keysym == XK_k || keysym == XK_Up) {
+                return;
+            }
+
+            if (keysym == XK_k || keysym == XK_Up) {
                 // Move up in bookmark groups
                 if (selectedAddBookmarkGroup > 0) {
                     selectedAddBookmarkGroup--;
                     updateAddBookmarkScrollOffset();
                     drawConsole();
                 }
-            } else if (keysym == XK_g) {
+                return;
+            }
+
+            if (keysym == XK_g) {
                 // Go to top
                 selectedAddBookmarkGroup = 0;
                 addBookmarkScrollOffset = 0;
                 drawConsole();
-            } else if (keysym == XK_G && (keyEvent->state & ShiftMask)) {
+                return;
+            }
+
+            if (keysym == XK_G && (keyEvent->state & ShiftMask)) {
                 // Go to bottom
                 if (!bookmarkGroups.empty()) {
                     selectedAddBookmarkGroup = bookmarkGroups.size() - 1;
                     updateAddBookmarkScrollOffset();
                     drawConsole();
                 }
+                return;
             }
-        } else if (keysym == XK_j || keysym == XK_Down) {
+
+            return;
+        }
+
+
+        // Filter mode
+        //
+        if (filterMode) {
+            if (keysym == XK_BackSpace) {
+                // Remove last character from filter
+                if (!filterText.empty()) {
+                    filterText.pop_back();
+                    updateFilteredItems();
+                    selectedItem = 0;
+                    drawConsole();
+                }
+                return;
+            }
+
+            if (keysym == XK_Return) {
+                // Copy selected item to clipboard and hide window
+                if (!items.empty() && selectedItem < getDisplayItemCount()) {
+                    size_t actualIndex = getActualItemIndex(selectedItem);
+                    copyToClipboard(items[actualIndex].content);
+                    int lines = countLines(items[actualIndex].content);
+                    if (lines > 1) {
+                        std::cout << "Copied " << lines << " lines to clipboard" << std::endl;
+                    } else {
+                        std::cout << "Copied to clipboard: " << items[actualIndex].content.substr(0, 50) << "..." << std::endl;
+                    }
+                    filterMode = false;
+                    filterText = "";
+                    filteredItems.clear();
+                    hideWindow();
+                }
+                return;
+            }
+            // Handle text input in filter mode - exclude vim navigation keys
+            char buffer[10];
+            int count = XLookupString(keyEvent, buffer, sizeof(buffer), nullptr, nullptr);
+            filterText += std::string(buffer, count);
+            updateFilteredItems();
+            selectedItem = 0;
+            drawConsole();
+
+            return;
+        }
+
+
+
+        // General keys - main clips list
+        //
+        if (keysym == XK_j || keysym == XK_Down) {
             // Move down
             size_t displayCount = getDisplayItemCount();
             if (selectedItem < displayCount - 1) {
@@ -500,19 +612,28 @@ public:
                 updateConsoleScrollOffset();
                 drawConsole();
             }
-        } else if (keysym == XK_k || keysym == XK_Up) {
+            return;
+        }
+
+        if (keysym == XK_k || keysym == XK_Up) {
             // Move up
             if (selectedItem > 0) {
                 selectedItem--;
                 updateConsoleScrollOffset();
                 drawConsole();
             }
-        } else if (keysym == XK_g) {
-            // Go to top (gg)
+            return;
+        }
+
+        if (keysym == XK_g) {
+            // Go to top
             selectedItem = 0;
             updateConsoleScrollOffset();
             drawConsole();
-        } else if (keysym == XK_G) {
+            return;
+        }
+
+        if (keysym == XK_G) {
             // Go to bottom
             size_t displayCount = getDisplayItemCount();
             if (displayCount > 0) {
@@ -520,7 +641,10 @@ public:
                 updateConsoleScrollOffset();
                 drawConsole();
             }
-        } else if (keysym == XK_D && (keyEvent->state & ShiftMask)) {
+            return;
+        }
+
+        if (keysym == XK_D && (keyEvent->state & ShiftMask)) {
             // Delete selected item (Shift+D)
             if (!items.empty() && selectedItem < getDisplayItemCount()) {
                 size_t actualIndex = getActualItemIndex(selectedItem);
@@ -540,99 +664,74 @@ public:
                 saveToFile();
                 drawConsole();
             }
-        } else if (keysym == XK_slash) {
+            return;
+        }
+
+        if (keysym == XK_slash) {
             // Enter filter mode
             filterMode = true;
             filterText = "";
             updateFilteredItems();
             selectedItem = 0;
             drawConsole();
-        } else if (filterMode) {
-            if (keysym == XK_BackSpace) {
-                // Remove last character from filter
-                if (!filterText.empty()) {
-                    filterText.pop_back();
-                    updateFilteredItems();
-                    selectedItem = 0;
-                    drawConsole();
-                }
-            } else if (keysym == XK_Return) {
-                // Copy selected item to clipboard and hide window
-                if (!items.empty() && selectedItem < getDisplayItemCount()) {
-                    size_t actualIndex = getActualItemIndex(selectedItem);
-                    copyToClipboard(items[actualIndex].content);
-                    int lines = countLines(items[actualIndex].content);
-                    if (lines > 1) {
-                        std::cout << "Copied " << lines << " lines to clipboard" << std::endl;
-                    } else {
-                        std::cout << "Copied to clipboard: " << items[actualIndex].content.substr(0, 50) << "..." << std::endl;
-                    }
-                    filterMode = false;
-                    filterText = "";
-                    filteredItems.clear();
-                    hideWindow();
-                }
-            } else {
-                // Handle text input in filter mode
-                char buffer[10];
-                int count = XLookupString(keyEvent, buffer, sizeof(buffer), nullptr, nullptr);
-                if (count > 0) {
-                    filterText += std::string(buffer, count);
-                    updateFilteredItems();
-                    selectedItem = 0;
-                    drawConsole();
-                }
-            }
+            return;
+        }
 
-        } else {
-            // Not in filter mode, handle Return key and Q key
-            if (keysym == XK_Return) {
-                // Copy selected item to clipboard and hide window
-                if (!items.empty() && selectedItem < getDisplayItemCount()) {
-                    size_t actualIndex = getActualItemIndex(selectedItem);
-                    copyToClipboard(items[actualIndex].content);
-                    int lines = countLines(items[actualIndex].content);
-                    if (lines > 1) {
-                        std::cout << "Copied " << lines << " lines to clipboard" << std::endl;
-                    } else {
-                        std::cout << "Copied to clipboard: " << items[actualIndex].content.substr(0, 50) << "..." << std::endl;
-                    }
-                    hideWindow();
+        if (keysym == XK_Return) {
+            // Copy selected item to clipboard and hide window
+            if (!items.empty() && selectedItem < getDisplayItemCount()) {
+                size_t actualIndex = getActualItemIndex(selectedItem);
+                copyToClipboard(items[actualIndex].content);
+                int lines = countLines(items[actualIndex].content);
+                if (lines > 1) {
+                    std::cout << "Copied " << lines << " lines to clipboard" << std::endl;
+                } else {
+                    std::cout << "Copied to clipboard: " << items[actualIndex].content.substr(0, 50) << "..." << std::endl;
                 }
-            } else if (keysym == XK_M && (keyEvent->state & ShiftMask)) {
-                // Shift+M to show bookmark dialog
-                bookmarkDialogVisible = true;
-                bookmarkDialogInput = "";
-                selectedBookmarkGroup = 0;
-                bookmarkMgmtScrollOffset = 0; // Reset scroll when opening
-                drawConsole();
-            } else if (keysym == XK_m) {
-                // Lowercase m to show add-to-bookmark dialog
-                if (!bookmarkGroups.empty()) {
-                    addToBookmarkDialogVisible = true;
-                    selectedAddBookmarkGroup = 0;
-                    addBookmarkScrollOffset = 0; // Reset scroll when opening
-                    drawConsole();
-                }
-            } else if (keysym == XK_question) {
-                // '?' to show help dialog
-                helpDialogVisible = true;
-                drawConsole();
-            } else if (keysym == XK_grave) {
-                // '`' to show view bookmarks dialog
-                if (!bookmarkGroups.empty()) {
-                    viewBookmarksDialogVisible = true;
-                    viewBookmarksShowingGroups = true; // Start with group selection
-                    selectedViewBookmarkGroup = 0;
-                    selectedViewBookmarkItem = 0;
-                    viewBookmarksScrollOffset = 0; // Reset scroll when opening
-                    drawConsole();
-                }
-            } else if (keysym == XK_Q && (keyEvent->state & ShiftMask)) {
-                // Shift+Q to quit the application
-                std::cout << "Quitting MMRY..." << std::endl;
-                stop();
+                hideWindow();
             }
+            return;
+        }
+
+        if (keysym == XK_M && (keyEvent->state & ShiftMask)) {
+            // Shift+M to show bookmark dialog
+            bookmarkDialogVisible = true;
+            bookmarkDialogInput = "";
+            selectedBookmarkGroup = 0;
+            bookmarkMgmtScrollOffset = 0; // Reset scroll when opening
+            drawConsole();
+            return;
+        }
+
+        if (keysym == XK_m) {
+            // Lowercase m to show add-to-bookmark dialog
+            if (!bookmarkGroups.empty()) {
+                addToBookmarkDialogVisible = true;
+                selectedAddBookmarkGroup = 0;
+                addBookmarkScrollOffset = 0; // Reset scroll when opening
+                drawConsole();
+            }
+            return;
+        }
+
+        if (keysym == XK_question) {
+            // '?' to show help dialog
+            helpDialogVisible = true;
+            drawConsole();
+            return;
+        }
+
+        if (keysym == XK_grave) {
+            // '`' to show view bookmarks dialog
+            if (!bookmarkGroups.empty()) {
+                viewBookmarksDialogVisible = true;
+                viewBookmarksShowingGroups = true; // Start with group selection
+                selectedViewBookmarkGroup = 0;
+                selectedViewBookmarkItem = 0;
+                viewBookmarksScrollOffset = 0; // Reset scroll when opening
+                drawConsole();
+            }
+            return;
         }
 #endif
     }
@@ -1240,51 +1339,108 @@ private:
     
     void setupHotkeys() {
 #ifdef __linux__
-        // Wait a bit for X11 to be fully initialized
-        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        // First, ensure X11 is fully synchronized
+        XSync(display, False);
+        std::this_thread::sleep_for(std::chrono::milliseconds(200));
         
-        // Try to grab global hotkeys with retry mechanism
-        int grabResult;
-        int retries = 3;
-        bool hotkeyGrabbed = false;
+        // Install X11 error handler to catch grab failures
+        auto oldHandler = XSetErrorHandler([](Display* d, XErrorEvent* e) -> int {
+            if (e->error_code == BadAccess) {
+                std::cerr << "X11 Error: BadAccess when trying to grab key" << std::endl;
+                return 0;
+            }
+            return 0;
+        });
         
-        while (retries > 0 && !hotkeyGrabbed) {
-            // Grab Ctrl+Alt+C globally
-            grabResult = XGrabKey(display, XKeysymToKeycode(display, XK_c), 
-                                 ControlMask | Mod1Mask, root, True, GrabModeAsync, GrabModeAsync);
+        // Try multiple times with exponential backoff
+        const int MAX_RETRIES = 5;
+        bool success = false;
+        
+        for (int retry = 0; retry < MAX_RETRIES && !success; retry++) {
+            if (retry > 0) {
+                std::cerr << "Retry " << retry << " of " << MAX_RETRIES << "..." << std::endl;
+                std::this_thread::sleep_for(std::chrono::milliseconds(500 * retry));
+            }
             
-            if (grabResult == BadAccess) {
-                std::cerr << "Warning: Could not grab Ctrl+Alt+C hotkey (already in use), retrying..." << std::endl;
-                retries--;
-                std::this_thread::sleep_for(std::chrono::milliseconds(500));
+            // First ungrab any existing grabs
+            XUngrabKey(display, AnyKey, AnyModifier, root);
+            XSync(display, False);
+            std::this_thread::sleep_for(std::chrono::milliseconds(100));
+            
+            // Try to grab the key
+            KeyCode keycode = XKeysymToKeycode(display, XK_c);
+            
+            // Grab with all possible combinations of NumLock and CapsLock
+            // since these can interfere with modifier detection
+            unsigned int modifiers[] = {
+                ControlMask | Mod1Mask,                    // Ctrl+Alt
+                ControlMask | Mod1Mask | Mod2Mask,         // Ctrl+Alt+NumLock
+                ControlMask | Mod1Mask | LockMask,         // Ctrl+Alt+CapsLock
+                ControlMask | Mod1Mask | Mod2Mask | LockMask // Ctrl+Alt+NumLock+CapsLock
+            };
+            
+            bool grabFailed = false;
+            for (unsigned int mod : modifiers) {
+                int result = XGrabKey(display, keycode, mod, root, True, 
+                                     GrabModeAsync, GrabModeAsync);
                 
-                // Try to ungrab any existing grabs first
-                XUngrabKey(display, XKeysymToKeycode(display, XK_c), 
-                          ControlMask | Mod1Mask, root);
+                // Force synchronization to detect errors immediately
                 XSync(display, False);
-            } else {
+                
+                if (result == BadAccess) {
+                    grabFailed = true;
+                    break;
+                }
+            }
+            
+            if (!grabFailed) {
+                success = true;
                 hotkeyGrabbed = true;
                 std::cout << "Successfully grabbed Ctrl+Alt+C hotkey" << std::endl;
             }
         }
         
-        if (!hotkeyGrabbed) {
-            std::cerr << "Error: Failed to grab Ctrl+Alt+C hotkey after multiple attempts" << std::endl;
+        // Restore old error handler
+        XSetErrorHandler(oldHandler);
+        
+        if (!success) {
+            std::cerr << "CRITICAL: Failed to grab Ctrl+Alt+C hotkey after " 
+                      << MAX_RETRIES << " attempts!" << std::endl;
+            std::cerr << "Another application may be using this hotkey." << std::endl;
+            std::cerr << "MMRY will still work, but you'll need to focus the window manually." << std::endl;
         }
         
-        // Don't grab Escape globally - let window handle it
-        // This allows Escape to work properly in filter mode
-        
-        XSelectInput(display, root, KeyPressMask);
+        // Select KeyPress events on root window
+        XSelectInput(display, root, KeyPressMask | KeyReleaseMask);
         XSync(display, False);
+        
+        // Start a monitoring thread to periodically verify the hotkey is still grabbed
+        startHotkeyMonitoring();
 #endif
+    }
 
-#ifdef _WIN32
-        // Windows hotkey setup
-#endif
-
-#ifdef __APPLE__
-        // macOS hotkey setup
+    void startHotkeyMonitoring() {
+#ifdef __linux__
+        hotkeyMonitorThread = std::thread([this]() {
+            while (running) {
+                std::this_thread::sleep_for(std::chrono::seconds(5));
+                
+                if (!hotkeyGrabbed) {
+                    continue;
+                }
+                
+                // Periodically try to re-grab the hotkey in case it was lost
+                // This is a safety mechanism for when other applications interfere
+                KeyCode keycode = XKeysymToKeycode(display, XK_c);
+                
+                // Check if we still have the grab by attempting to grab again
+                // If we already have it, this should fail gracefully
+                XGrabKey(display, keycode, ControlMask | Mod1Mask, root, True,
+                        GrabModeAsync, GrabModeAsync);
+                XSync(display, False);
+            }
+        });
+        hotkeyMonitorThread.detach();
 #endif
     }
     
@@ -1466,54 +1622,54 @@ private:
         // Draw help content
         XSetForeground(display, gc, textColor);
         int y = DIALOG_Y + 50;
-        int lineHeight = 18;
+        int lineHeight = 15;
         
         // Main Window shortcuts
-        XDrawString(display, window, gc, DIALOG_X + 20, y, "Main Window:", 13);
+        XDrawString(display, window, gc, DIALOG_X + 20, y, "Main Window:", 11);
         y += lineHeight;
-        XDrawString(display, window, gc, DIALOG_X + 30, y, "j/k or ↑/↓  - Navigate items", 28);
+        XDrawString(display, window, gc, DIALOG_X + 30, y, "j/k          - Navigate items", 29);
         y += lineHeight;
-        XDrawString(display, window, gc, DIALOG_X + 30, y, "g/G          - Top/bottom", 22);
+        XDrawString(display, window, gc, DIALOG_X + 30, y, "g/G          - Top/bottom", 25);
         y += lineHeight;
-        XDrawString(display, window, gc, DIALOG_X + 30, y, "Enter        - Copy item", 20);
+        XDrawString(display, window, gc, DIALOG_X + 30, y, "Enter        - Copy item", 24);
         y += lineHeight;
-        XDrawString(display, window, gc, DIALOG_X + 30, y, "/            - Filter mode", 22);
+        XDrawString(display, window, gc, DIALOG_X + 30, y, "/            - Filter mode", 26);
         y += lineHeight;
-        XDrawString(display, window, gc, DIALOG_X + 30, y, "Shift+M      - Manage bookmarks", 26);
+        XDrawString(display, window, gc, DIALOG_X + 30, y, "Shift+M      - Manage bookmark groups", 37);
         y += lineHeight;
-        XDrawString(display, window, gc, DIALOG_X + 30, y, "m            - Add to bookmark", 24);
+        XDrawString(display, window, gc, DIALOG_X + 30, y, "m            - Add to bookmark", 30);
         y += lineHeight;
-        XDrawString(display, window, gc, DIALOG_X + 30, y, "`            - View bookmarks", 22);
+        XDrawString(display, window, gc, DIALOG_X + 30, y, "`            - View bookmarks", 29);
         y += lineHeight;
-        XDrawString(display, window, gc, DIALOG_X + 30, y, "?            - This help", 18);
+        XDrawString(display, window, gc, DIALOG_X + 30, y, "?            - This help", 24);
         y += lineHeight;
-        XDrawString(display, window, gc, DIALOG_X + 30, y, "Shift+D      - Delete item", 22);
+        XDrawString(display, window, gc, DIALOG_X + 30, y, "Shift+D      - Delete item", 26);
         y += lineHeight;
-        XDrawString(display, window, gc, DIALOG_X + 30, y, "Shift+Q      - Quit", 16);
+        XDrawString(display, window, gc, DIALOG_X + 30, y, "Shift+Q      - Quit", 19);
         y += lineHeight;
-        XDrawString(display, window, gc, DIALOG_X + 30, y, "Escape       - Hide window", 20);
+        XDrawString(display, window, gc, DIALOG_X + 30, y, "Escape       - Hide window", 26);
         y += lineHeight + 5;
         
         // Filter Mode shortcuts
         XDrawString(display, window, gc, DIALOG_X + 20, y, "Filter Mode:", 12);
         y += lineHeight;
-        XDrawString(display, window, gc, DIALOG_X + 30, y, "Type text    - Filter items", 24);
+        XDrawString(display, window, gc, DIALOG_X + 30, y, "Type text    - Filter items", 27);
         y += lineHeight;
-        XDrawString(display, window, gc, DIALOG_X + 30, y, "Backspace    - Delete char", 22);
+        XDrawString(display, window, gc, DIALOG_X + 30, y, "Backspace    - Delete char", 26);
         y += lineHeight;
-        XDrawString(display, window, gc, DIALOG_X + 30, y, "Enter        - Copy item", 20);
+        XDrawString(display, window, gc, DIALOG_X + 30, y, "Enter        - Copy item", 24);
         y += lineHeight;
-        XDrawString(display, window, gc, DIALOG_X + 30, y, "Escape       - Exit filter", 20);
+        XDrawString(display, window, gc, DIALOG_X + 30, y, "Escape       - Exit filter", 26);
         y += lineHeight + 5;
         
         // Bookmark Dialog shortcuts
-        XDrawString(display, window, gc, DIALOG_X + 20, y, "Bookmark Dialogs:", 18);
+        XDrawString(display, window, gc, DIALOG_X + 20, y, "Bookmark Dialogs:", 17);
         y += lineHeight;
-        XDrawString(display, window, gc, DIALOG_X + 30, y, "All dialogs: ↑/↓ or j/k - Navigate", 34);
+        XDrawString(display, window, gc, DIALOG_X + 30, y, "All dialogs: up/down or j/k - Navigate", 38);
         y += lineHeight;
-        XDrawString(display, window, gc, DIALOG_X + 30, y, "Mgmt: Enter - Create/select, Shift+D - Delete", 42);
+        XDrawString(display, window, gc, DIALOG_X + 30, y, "Mgmt: Enter - Create/select, Shift+D - Delete", 45);
         y += lineHeight;
-        XDrawString(display, window, gc, DIALOG_X + 30, y, "Add: Enter - Add to group", 26);
+        XDrawString(display, window, gc, DIALOG_X + 30, y, "Add: Enter - Add to group", 25);
         y += lineHeight;
         XDrawString(display, window, gc, DIALOG_X + 30, y, "View: g/G - Top/bottom, Enter - Select", 38);
         y += lineHeight;
@@ -1521,9 +1677,9 @@ private:
         y += lineHeight + 10;
         
         // Global hotkey
-        XDrawString(display, window, gc, DIALOG_X + 20, y, "Global Hotkey:", 15);
+        XDrawString(display, window, gc, DIALOG_X + 20, y, "Global Hotkey:", 14);
         y += lineHeight;
-        XDrawString(display, window, gc, DIALOG_X + 30, y, "Ctrl+Alt+C   - Show/hide window", 27);
+        XDrawString(display, window, gc, DIALOG_X + 30, y, "Ctrl+Alt+C   - Show/hide window", 31);
         
 #endif
     }

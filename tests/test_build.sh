@@ -30,7 +30,7 @@ else
 fi
 
 # Check if executable was created
-EXECUTABLE="/home/baiguai/documents/development/rust/mmry/cpp/build/bin/mmry_cpp"
+EXECUTABLE="$(dirname "$0")/../build/bin/mmry_cpp"
 if [ -f "$EXECUTABLE" ]; then
     echo "✅ Executable created at $EXECUTABLE"
 else

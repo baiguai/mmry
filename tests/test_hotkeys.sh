@@ -13,7 +13,7 @@ unset EDITOR VISUAL GIT_EDITOR
 echo "Testing MMRY Hotkey Functionality..."
 echo ""
 
-EXECUTABLE="/home/baiguai/documents/development/rust/mmry/cpp/build/bin/mmry_cpp"
+EXECUTABLE="$(dirname "$0")/../build/bin/mmry_cpp"
 if [ ! -f "$EXECUTABLE" ]; then
     echo "❌ FAIL: Executable not found"
     exit 1
@@ -21,7 +21,7 @@ fi
 
 # Test 1: Check for hotkey implementation in source
 echo "Test 1: Verifying hotkey implementation..."
-SOURCE_FILE="/home/baiguai/documents/development/rust/mmry/cpp/complete_main.cpp"
+SOURCE_FILE="$(dirname "$0")/../complete_main.cpp"
 
 # Check for hotkey constants
 HOTKEY_CONSTS=(

@@ -35,7 +35,7 @@ if [ -f "bin/mmry_cpp" ]; then
     echo "  ./bin/mmry_cpp"
     echo ""
     echo "Or from the parent directory:"
-    echo "  ./cpp/build/bin/mmry_cpp"
+    echo "  ./build/bin/mmry_cpp"
 else
     echo "❌ Build failed!"
     exit 1
