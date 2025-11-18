@@ -220,7 +220,7 @@ public:
         }
 
 
-        // Bookmark groups / clips dialog - for accessing bookmarked clips
+        // Accessing bookmarked clips
         //
         if (viewBookmarksDialogVisible) {
             // View bookmarks dialog is visible - handle dialog-specific keys
@@ -481,6 +481,7 @@ public:
             }
 
             if (keysym == XK_Return) {
+                // std::cout << "TEST: hit return" << std::endl;
                 // Enter adds clip to selected bookmark group
                 if (!bookmarkGroups.empty() && selectedAddBookmarkGroup < bookmarkGroups.size()) {
                     std::string selectedGroup = bookmarkGroups[selectedAddBookmarkGroup];
