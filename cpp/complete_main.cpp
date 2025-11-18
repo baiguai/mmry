@@ -111,6 +111,33 @@ public:
                         selectedViewBookmarkGroup--;
                         drawConsole();
                     }
+                } else if (keysym == XK_D && (keyEvent->state & ShiftMask)) {
+                    // Shift+D deletes selected group and its clips
+                    if (selectedViewBookmarkGroup < bookmarkGroups.size()) {
+                        std::string groupToDelete = bookmarkGroups[selectedViewBookmarkGroup];
+                        
+                        // Remove group from list
+                        bookmarkGroups.erase(bookmarkGroups.begin() + selectedViewBookmarkGroup);
+                        saveBookmarkGroups();
+                        
+                        // Delete bookmark file
+                        std::string bookmarkFile = configDir + "/bookmarks_" + groupToDelete + ".txt";
+                        unlink(bookmarkFile.c_str());
+                        
+                        std::cout << "Deleted bookmark group and all clips: " << groupToDelete << std::endl;
+                        
+                        // Adjust selection
+                        if (selectedViewBookmarkGroup > 0 && selectedViewBookmarkGroup >= bookmarkGroups.size()) {
+                            selectedViewBookmarkGroup = bookmarkGroups.size() - 1;
+                        }
+                        
+                        // Close dialog if no groups left
+                        if (bookmarkGroups.empty()) {
+                            viewBookmarksDialogVisible = false;
+                        }
+                        
+                        drawConsole();
+                    }
                 } else if (keysym == XK_Return) {
                     // Select this group and show its clips
                     if (selectedViewBookmarkGroup < bookmarkGroups.size()) {
@@ -130,6 +157,47 @@ public:
                     if (selectedViewBookmarkItem > 0) {
                         selectedViewBookmarkItem--;
                         drawConsole();
+                    }
+                } else if (keysym == XK_D && (keyEvent->state & ShiftMask)) {
+                    // Shift+D deletes selected clip
+                    if (selectedViewBookmarkGroup < bookmarkGroups.size()) {
+                        std::string selectedGroup = bookmarkGroups[selectedViewBookmarkGroup];
+                        std::string bookmarkFile = configDir + "/bookmarks_" + selectedGroup + ".txt";
+                        std::ifstream file(bookmarkFile);
+                        
+                        if (file.is_open()) {
+                            std::string line;
+                            std::vector<std::string> lines;
+                            
+                            // Read all lines
+                            while (std::getline(file, line)) {
+                                lines.push_back(line);
+                            }
+                            file.close();
+                            
+                            // Remove the selected item if valid
+                            if (selectedViewBookmarkItem < lines.size()) {
+                                lines.erase(lines.begin() + selectedViewBookmarkItem);
+                                
+                                // Write back remaining lines
+                                std::ofstream outFile(bookmarkFile);
+                                if (outFile.is_open()) {
+                                    for (const auto& line : lines) {
+                                        outFile << line << "\n";
+                                    }
+                                    outFile.close();
+                                    
+                                    std::cout << "Deleted bookmark item from group: " << selectedGroup << std::endl;
+                                    
+                                    // Adjust selection
+                                    if (selectedViewBookmarkItem > 0 && selectedViewBookmarkItem >= lines.size()) {
+                                        selectedViewBookmarkItem = lines.size() - 1;
+                                    }
+                                    
+                                    drawConsole();
+                                }
+                            }
+                        }
                     }
                 } else if (keysym == XK_Return) {
                     // Copy selected bookmark item to clipboard
@@ -1295,6 +1363,8 @@ private:
         y += lineHeight;
         XDrawString(display, window, gc, DIALOG_X + 30, y, "             Enter - Select group/item", 36);
         y += lineHeight;
+        XDrawString(display, window, gc, DIALOG_X + 30, y, "             Shift+D - Delete group/item", 38);
+        y += lineHeight;
         XDrawString(display, window, gc, DIALOG_X + 30, y, "             Escape - Back/close", 33);
         y += lineHeight + 10;
         
@@ -1354,7 +1424,7 @@ private:
             // Draw instructions for group selection
             XSetForeground(display, gc, textColor);
             int instructionY = DIALOG_Y + DIALOG_HEIGHT - 30;
-            XDrawString(display, window, gc, DIALOG_X + 20, instructionY, "j/k or ↑/↓: Navigate groups | Enter: Select group | Escape: Close", 62);
+            XDrawString(display, window, gc, DIALOG_X + 20, instructionY, "j/k or ↑/↓: Navigate | Enter: Select | Shift+D: Delete | Escape: Close", 68);
             
         } else {
             // Show bookmark items for selected group
@@ -1422,7 +1492,7 @@ private:
             // Draw instructions for clip viewing
             XSetForeground(display, gc, textColor);
             int instructionY = DIALOG_Y + DIALOG_HEIGHT - 30;
-            XDrawString(display, window, gc, DIALOG_X + 20, instructionY, "j/k or ↑/↓: Navigate items | Enter: Copy | Escape: Back to groups", 65);
+            XDrawString(display, window, gc, DIALOG_X + 20, instructionY, "j/k or ↑/↓: Navigate | Enter: Copy | Shift+D: Delete | Escape: Back", 71);
         }
         
 #endif
