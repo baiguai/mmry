@@ -13,7 +13,7 @@ unset EDITOR VISUAL GIT_EDITOR
 echo "Testing MMRY File Operations..."
 echo ""
 
-EXECUTABLE="/home/baiguai/documents/development/rust/mmry/cpp/build/bin/mmry_cpp"
+EXECUTABLE="$(dirname "$0")/../build/bin/mmry_cpp"
 if [ ! -f "$EXECUTABLE" ]; then
     echo "❌ FAIL: Executable not found"
     exit 1
@@ -21,7 +21,7 @@ fi
 
 # Test 1: Check for file operation functions in source
 echo "Test 1: Verifying file operation implementation..."
-SOURCE_FILE="/home/baiguai/documents/development/rust/mmry/cpp/complete_main.cpp"
+SOURCE_FILE="$(dirname "$0")/../complete_main.cpp"
 
 # Check for file I/O functions
 FILE_FUNCS=(
