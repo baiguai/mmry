@@ -56,8 +56,8 @@ mod native_clipboard {
     }
     
     fn start_x11_monitor(tx: Sender<String>) {
-        // For now, use a very efficient polling approach for X11
-        // Full XFixes implementation can be complex and may have compatibility issues
+        // For now, use efficient polling approach for X11
+        // TODO: Implement true XFixes event-driven monitoring for zero CPU usage
         thread::spawn(move || {
             let mut clipboard = match Clipboard::new() {
                 Ok(cb) => cb,
@@ -1000,8 +1000,7 @@ impl eframe::App for MyApp {
             // But also minimize CPU usage with size reduction
             ctx.send_viewport_cmd(egui::ViewportCommand::InnerSize(egui::vec2(1.0, 1.0)));
             
-            // Request very slow repaint when window is hidden to save CPU
-            ctx.request_repaint_after(std::time::Duration::from_secs(60));
+            // NO repaint when hidden - window is invisible, no need to repaint
             return;
         }
         
