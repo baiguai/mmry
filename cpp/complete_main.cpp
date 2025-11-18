@@ -326,8 +326,8 @@ public:
                     bookmarkDialogVisible = false;
                     drawConsole();
                 }
-            } else if (keysym == XK_Down) {
-                // Down arrow navigates through bookmark groups
+            } else if (keysym == XK_j || keysym == XK_Down) {
+                // j/Down arrow navigates through bookmark groups
                 std::vector<std::string> filteredGroups;
                 for (const auto& group : bookmarkGroups) {
                     if (bookmarkDialogInput.empty() || group.find(bookmarkDialogInput) != std::string::npos) {
@@ -337,10 +337,11 @@ public:
                 
                 if (!filteredGroups.empty()) {
                     selectedBookmarkGroup = (selectedBookmarkGroup + 1) % filteredGroups.size();
+                    updateBookmarkMgmtScrollOffset();
                     drawConsole();
                 }
-            } else if (keysym == XK_Up) {
-                // Up arrow navigates backwards through bookmark groups
+            } else if (keysym == XK_k || keysym == XK_Up) {
+                // k/Up arrow navigates backwards through bookmark groups
                 std::vector<std::string> filteredGroups;
                 for (const auto& group : bookmarkGroups) {
                     if (bookmarkDialogInput.empty() || group.find(bookmarkDialogInput) != std::string::npos) {
@@ -350,6 +351,26 @@ public:
                 
                 if (!filteredGroups.empty()) {
                     selectedBookmarkGroup = (selectedBookmarkGroup == 0) ? filteredGroups.size() - 1 : selectedBookmarkGroup - 1;
+                    updateBookmarkMgmtScrollOffset();
+                    drawConsole();
+                }
+            } else if (keysym == XK_g) {
+                // Go to top (gg)
+                selectedBookmarkGroup = 0;
+                bookmarkMgmtScrollOffset = 0;
+                drawConsole();
+            } else if (keysym == XK_G && (keyEvent->state & ShiftMask)) {
+                // Go to bottom
+                std::vector<std::string> filteredGroups;
+                for (const auto& group : bookmarkGroups) {
+                    if (bookmarkDialogInput.empty() || group.find(bookmarkDialogInput) != std::string::npos) {
+                        filteredGroups.push_back(group);
+                    }
+                }
+                
+                if (!filteredGroups.empty()) {
+                    selectedBookmarkGroup = filteredGroups.size() - 1;
+                    updateBookmarkMgmtScrollOffset();
                     drawConsole();
                 }
             } else if (keysym == XK_D && (keyEvent->state & ShiftMask)) {
@@ -448,22 +469,26 @@ public:
                 // Move down in bookmark groups
                 if (!bookmarkGroups.empty() && selectedAddBookmarkGroup < bookmarkGroups.size() - 1) {
                     selectedAddBookmarkGroup++;
+                    updateAddBookmarkScrollOffset();
                     drawConsole();
                 }
             } else if (keysym == XK_k || keysym == XK_Up) {
                 // Move up in bookmark groups
                 if (selectedAddBookmarkGroup > 0) {
                     selectedAddBookmarkGroup--;
+                    updateAddBookmarkScrollOffset();
                     drawConsole();
                 }
             } else if (keysym == XK_g) {
                 // Go to top
                 selectedAddBookmarkGroup = 0;
+                addBookmarkScrollOffset = 0;
                 drawConsole();
-            } else if (keysym == XK_G) {
+            } else if (keysym == XK_G && (keyEvent->state & ShiftMask)) {
                 // Go to bottom
                 if (!bookmarkGroups.empty()) {
                     selectedAddBookmarkGroup = bookmarkGroups.size() - 1;
+                    updateAddBookmarkScrollOffset();
                     drawConsole();
                 }
             }
@@ -472,23 +497,27 @@ public:
             size_t displayCount = getDisplayItemCount();
             if (selectedItem < displayCount - 1) {
                 selectedItem++;
+                updateConsoleScrollOffset();
                 drawConsole();
             }
         } else if (keysym == XK_k || keysym == XK_Up) {
             // Move up
             if (selectedItem > 0) {
                 selectedItem--;
+                updateConsoleScrollOffset();
                 drawConsole();
             }
         } else if (keysym == XK_g) {
             // Go to top (gg)
             selectedItem = 0;
+            updateConsoleScrollOffset();
             drawConsole();
         } else if (keysym == XK_G) {
             // Go to bottom
             size_t displayCount = getDisplayItemCount();
             if (displayCount > 0) {
                 selectedItem = displayCount - 1;
+                updateConsoleScrollOffset();
                 drawConsole();
             }
         } else if (keysym == XK_D && (keyEvent->state & ShiftMask)) {
@@ -575,12 +604,14 @@ public:
                 bookmarkDialogVisible = true;
                 bookmarkDialogInput = "";
                 selectedBookmarkGroup = 0;
+                bookmarkMgmtScrollOffset = 0; // Reset scroll when opening
                 drawConsole();
             } else if (keysym == XK_m) {
                 // Lowercase m to show add-to-bookmark dialog
                 if (!bookmarkGroups.empty()) {
                     addToBookmarkDialogVisible = true;
                     selectedAddBookmarkGroup = 0;
+                    addBookmarkScrollOffset = 0; // Reset scroll when opening
                     drawConsole();
                 }
             } else if (keysym == XK_question) {
@@ -743,6 +774,7 @@ private:
     
     // Navigation
     size_t selectedItem = 0;
+    size_t consoleScrollOffset = 0; // For scrolling main clips list
     bool filterMode = false;
     std::string filterText;
     std::vector<size_t> filteredItems;
@@ -752,10 +784,12 @@ private:
     std::string bookmarkDialogInput;
     std::vector<std::string> bookmarkGroups;
     size_t selectedBookmarkGroup = 0;
+    size_t bookmarkMgmtScrollOffset = 0; // For scrolling long lists
     
     // Add to bookmark dialog state
     bool addToBookmarkDialogVisible = false;
     size_t selectedAddBookmarkGroup = 0;
+    size_t addBookmarkScrollOffset = 0; // For scrolling long lists
     
     // Help dialog state
     bool helpDialogVisible = false;
@@ -832,6 +866,44 @@ private:
             } else if (selectedViewBookmarkItem >= viewBookmarksScrollOffset + VISIBLE_ITEMS) {
                 viewBookmarksScrollOffset = selectedViewBookmarkItem - VISIBLE_ITEMS + 1;
             }
+        }
+    }
+    
+    void updateConsoleScrollOffset() {
+        const int VISIBLE_ITEMS = (WINDOW_HEIGHT - 60) / 15; // Approximate lines that fit
+        
+        if (selectedItem < consoleScrollOffset) {
+            consoleScrollOffset = selectedItem;
+        } else if (selectedItem >= consoleScrollOffset + VISIBLE_ITEMS) {
+            consoleScrollOffset = selectedItem - VISIBLE_ITEMS + 1;
+        }
+    }
+    
+    void updateBookmarkMgmtScrollOffset() {
+        const int VISIBLE_ITEMS = 8; // Number of groups visible in bookmark management dialog
+        
+        // Filter groups for scroll calculation
+        std::vector<std::string> filteredGroups;
+        for (const auto& group : bookmarkGroups) {
+            if (bookmarkDialogInput.empty() || group.find(bookmarkDialogInput) != std::string::npos) {
+                filteredGroups.push_back(group);
+            }
+        }
+        
+        if (selectedBookmarkGroup < bookmarkMgmtScrollOffset) {
+            bookmarkMgmtScrollOffset = selectedBookmarkGroup;
+        } else if (selectedBookmarkGroup >= bookmarkMgmtScrollOffset + VISIBLE_ITEMS) {
+            bookmarkMgmtScrollOffset = selectedBookmarkGroup - VISIBLE_ITEMS + 1;
+        }
+    }
+    
+    void updateAddBookmarkScrollOffset() {
+        const int VISIBLE_ITEMS = 8; // Number of groups visible in add bookmark dialog
+        
+        if (selectedAddBookmarkGroup < addBookmarkScrollOffset) {
+            addBookmarkScrollOffset = selectedAddBookmarkGroup;
+        } else if (selectedAddBookmarkGroup >= addBookmarkScrollOffset + VISIBLE_ITEMS) {
+            addBookmarkScrollOffset = selectedAddBookmarkGroup - VISIBLE_ITEMS + 1;
         }
     }
     
@@ -1290,7 +1362,12 @@ private:
         }
         
         int y = DIALOG_Y + 140;
-        for (size_t i = 0; i < filteredGroups.size() && i < 8; ++i) {
+        const int VISIBLE_ITEMS = 8;
+        
+        size_t startIdx = bookmarkMgmtScrollOffset;
+        size_t endIdx = std::min(startIdx + VISIBLE_ITEMS, filteredGroups.size());
+        
+        for (size_t i = startIdx; i < endIdx; ++i) {
             std::string displayText = "  " + filteredGroups[i];
             if (i == selectedBookmarkGroup) {
                 displayText = "> " + filteredGroups[i];
@@ -1301,6 +1378,12 @@ private:
             }
             XDrawString(display, window, gc, DIALOG_X + 20, y, displayText.c_str(), displayText.length());
             y += 18;
+        }
+        
+        // Show scroll indicator if needed
+        if (filteredGroups.size() > VISIBLE_ITEMS) {
+            std::string scrollText = "[" + std::to_string(selectedBookmarkGroup + 1) + "/" + std::to_string(filteredGroups.size()) + "]";
+            XDrawString(display, window, gc, DIALOG_X + DIALOG_WIDTH - 60, DIALOG_Y + 40, scrollText.c_str(), scrollText.length());
         }
         
 
@@ -1333,9 +1416,12 @@ private:
         XDrawString(display, window, gc, DIALOG_X + 20, DIALOG_Y + 60, "Select bookmark group:", 20);
         
         int y = DIALOG_Y + 80;
-        int maxGroups = (DIALOG_HEIGHT - 120) / 18; // Approximate groups that fit
+        const int VISIBLE_ITEMS = 8;
         
-        for (size_t i = 0; i < bookmarkGroups.size() && i < maxGroups; ++i) {
+        size_t startIdx = addBookmarkScrollOffset;
+        size_t endIdx = std::min(startIdx + VISIBLE_ITEMS, bookmarkGroups.size());
+        
+        for (size_t i = startIdx; i < endIdx; ++i) {
             std::string displayText = "  " + bookmarkGroups[i];
             if (i == selectedAddBookmarkGroup) {
                 displayText = "> " + bookmarkGroups[i];
@@ -1346,6 +1432,12 @@ private:
             }
             XDrawString(display, window, gc, DIALOG_X + 20, y, displayText.c_str(), displayText.length());
             y += 18;
+        }
+        
+        // Show scroll indicator if needed
+        if (bookmarkGroups.size() > VISIBLE_ITEMS) {
+            std::string scrollText = "[" + std::to_string(selectedAddBookmarkGroup + 1) + "/" + std::to_string(bookmarkGroups.size()) + "]";
+            XDrawString(display, window, gc, DIALOG_X + DIALOG_WIDTH - 60, DIALOG_Y + 40, scrollText.c_str(), scrollText.length());
         }
 #endif
     }
@@ -1425,7 +1517,7 @@ private:
         y += lineHeight;
         XDrawString(display, window, gc, DIALOG_X + 30, y, "View: g/G - Top/bottom, Enter - Select", 38);
         y += lineHeight;
-        XDrawString(display, window, gc, DIALOG_X + 30, y, "      Shift+D - Delete, Escape - Back", 38);
+
         y += lineHeight + 10;
         
         // Global hotkey
@@ -1592,7 +1684,10 @@ private:
         int maxItems = (WINDOW_HEIGHT - startY - 20) / 15; // Approximate lines that fit
         
         size_t displayCount = getDisplayItemCount();
-        for (size_t i = 0; i < displayCount && i < maxItems; ++i) {
+        size_t startIdx = consoleScrollOffset;
+        size_t endIdx = std::min(startIdx + maxItems, displayCount);
+        
+        for (size_t i = startIdx; i < endIdx; ++i) {
             size_t actualIndex = getActualItemIndex(i);
             const auto& item = items[actualIndex];
             
@@ -1673,6 +1768,12 @@ private:
             XDrawString(display, window, gc, 10, y, line.c_str(), line.length());
             
             y += 15;
+        }
+        
+        // Show scroll indicator if needed
+        if (displayCount > maxItems) {
+            std::string scrollText = "[" + std::to_string(selectedItem + 1) + "/" + std::to_string(displayCount) + "]";
+            XDrawString(display, window, gc, WINDOW_WIDTH - 80, 15, scrollText.c_str(), scrollText.length());
         }
         
         if (displayCount == 0) {
