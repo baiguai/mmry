@@ -36,6 +36,214 @@ struct ClipboardItem {
 };
 
 class ClipboardManager {
+public:
+    void handleKeyPress(XEvent* event) {
+#ifdef __linux__
+        KeySym keysym;
+        char buffer[10];
+        XKeyEvent* keyEvent = (XKeyEvent*)event;
+        
+        XLookupString(keyEvent, buffer, sizeof(buffer), &keysym, nullptr);
+        
+        if (keysym == XK_Escape) {
+            hideWindow();
+            filterMode = false;
+            filterText = "";
+            filteredItems.clear();
+        } else if (keysym == XK_j || keysym == XK_Down) {
+            // Move down
+            size_t displayCount = getDisplayItemCount();
+            if (selectedItem < displayCount - 1) {
+                selectedItem++;
+                drawConsole();
+            }
+        } else if (keysym == XK_k || keysym == XK_Up) {
+            // Move up
+            if (selectedItem > 0) {
+                selectedItem--;
+                drawConsole();
+            }
+        } else if (keysym == XK_g) {
+            // Go to top (gg)
+            selectedItem = 0;
+            drawConsole();
+        } else if (keysym == XK_G) {
+            // Go to bottom
+            size_t displayCount = getDisplayItemCount();
+            if (displayCount > 0) {
+                selectedItem = displayCount - 1;
+                drawConsole();
+            }
+        } else if (keysym == XK_D && (keyEvent->state & ShiftMask)) {
+            // Delete selected item (Shift+D)
+            if (!items.empty() && selectedItem < getDisplayItemCount()) {
+                size_t actualIndex = getActualItemIndex(selectedItem);
+                items.erase(items.begin() + actualIndex);
+                
+                // Adjust selection
+                size_t displayCount = getDisplayItemCount();
+                if (selectedItem >= displayCount && selectedItem > 0) {
+                    selectedItem--;
+                }
+                
+                // Update filtered items if in filter mode
+                if (filterMode) {
+                    updateFilteredItems();
+                }
+                
+                saveToFile();
+                drawConsole();
+            }
+        } else if (keysym == XK_slash) {
+            // Enter filter mode
+            filterMode = true;
+            filterText = "";
+            updateFilteredItems();
+            selectedItem = 0;
+            drawConsole();
+        } else if (filterMode) {
+            if (keysym == XK_BackSpace) {
+                // Remove last character from filter
+                if (!filterText.empty()) {
+                    filterText.pop_back();
+                    updateFilteredItems();
+                    selectedItem = 0;
+                    drawConsole();
+                }
+            } else if (keysym == XK_Return) {
+                // Copy selected item to clipboard and hide window
+                if (!items.empty() && selectedItem < getDisplayItemCount()) {
+                    size_t actualIndex = getActualItemIndex(selectedItem);
+                    copyToClipboard(items[actualIndex].content);
+                    int lines = countLines(items[actualIndex].content);
+                    if (lines > 1) {
+                        std::cout << "Copied " << lines << " lines to clipboard" << std::endl;
+                    } else {
+                        std::cout << "Copied to clipboard: " << items[actualIndex].content.substr(0, 50) << "..." << std::endl;
+                    }
+                    filterMode = false;
+                    filterText = "";
+                    filteredItems.clear();
+                    hideWindow();
+                }
+            } else {
+                // Handle text input in filter mode
+                char buffer[10];
+                int count = XLookupString(keyEvent, buffer, sizeof(buffer), nullptr, nullptr);
+                if (count > 0) {
+                    filterText += std::string(buffer, count);
+                    updateFilteredItems();
+                    selectedItem = 0;
+                    drawConsole();
+                }
+            }
+        } else {
+            // Not in filter mode, handle Return key and Q key
+            if (keysym == XK_Return) {
+                // Copy selected item to clipboard and hide window
+                if (!items.empty() && selectedItem < getDisplayItemCount()) {
+                    size_t actualIndex = getActualItemIndex(selectedItem);
+                    copyToClipboard(items[actualIndex].content);
+                    int lines = countLines(items[actualIndex].content);
+                    if (lines > 1) {
+                        std::cout << "Copied " << lines << " lines to clipboard" << std::endl;
+                    } else {
+                        std::cout << "Copied to clipboard: " << items[actualIndex].content.substr(0, 50) << "..." << std::endl;
+                    }
+                    hideWindow();
+                }
+            } else if (keysym == XK_Q && (keyEvent->state & ShiftMask)) {
+                // Shift+Q to quit the application
+                std::cout << "Quitting MMRY..." << std::endl;
+                stop();
+            }
+        }
+#endif
+    }
+    
+    void run() {
+        running = true;
+        
+        // Initialize X11
+#ifdef __linux__
+        display = XOpenDisplay(nullptr);
+        if (!display) {
+            std::cerr << "Cannot open display" << std::endl;
+            return;
+        }
+        screen = DefaultScreen(display);
+        root = RootWindow(display, screen);
+        clipboardAtom = XInternAtom(display, "CLIPBOARD", False);
+        utf8Atom = XInternAtom(display, "UTF8_STRING", False);
+        textAtom = XInternAtom(display, "TEXT", False);
+        
+        // Create window
+        createWindow();
+        
+        // Setup hotkey
+        setupHotkeys();
+#endif
+        
+        // Initialize configuration and theme
+        setupConfigDir();
+        loadConfig();
+        loadTheme();
+        loadFromFile();
+        
+        std::cout << "MMRY Clipboard Manager started" << std::endl;
+        std::cout << "Config directory: " << configDir << std::endl;
+        std::cout << "Press Ctrl+Alt+C to show window, Escape to hide" << std::endl;
+        std::cout << "Press Shift+Q in window to quit application" << std::endl;
+        std::cout << "Press Ctrl+C in terminal to exit" << std::endl;
+        
+#ifdef __linux__
+        XEvent event;
+        while (running) {
+            XNextEvent(display, &event);
+            
+            // Check if event is from root window (hotkey) or application window
+            if (event.xany.window == root) {
+                // Hotkey event from root window
+                if (event.type == KeyPress) {
+                    KeySym keysym = XLookupKeysym(&event.xkey, 0);
+                    if (keysym == XK_c && (event.xkey.state & (ControlMask | Mod1Mask))) {
+                        // Ctrl+Alt+C pressed - show window
+                        showWindow();
+                    }
+                }
+            } else {
+                // Event from application window
+                switch (event.type) {
+                    case Expose:
+                        drawConsole();
+                        break;
+                    case KeyPress:
+                        handleKeyPress(&event);
+                        break;
+                }
+            }
+        }
+#endif
+
+#ifdef _WIN32
+        // Windows event loop
+        MSG msg;
+        while (running && GetMessage(&msg, nullptr, 0, 0)) {
+            TranslateMessage(&msg);
+            DispatchMessage(&msg);
+        }
+#endif
+
+#ifdef __APPLE__
+        // macOS event loop
+        // This would require NSApplication setup
+#endif
+    }
+    
+    void stop() {
+        running = false;
+    }
+    
 private:
 #ifdef __linux__
     Display* display;
@@ -73,6 +281,12 @@ private:
     bool encrypted = false;
     std::string encryptionKey = "";
     std::string theme = "console";
+    
+    // Theme colors
+    unsigned long backgroundColor = 0;
+    unsigned long textColor = 0;
+    unsigned long selectionColor = 0;
+    unsigned long borderColor = 0;
     
     // Navigation
     size_t selectedItem = 0;
@@ -203,48 +417,101 @@ private:
         return decrypted;
     }
     
-public:
-    ClipboardManager() : running(false), visible(false), verboseMode(false) {
-        setupConfigDir();
-        
-#ifdef __linux__
-        display = XOpenDisplay(nullptr);
-        if (!display) {
-            std::cerr << "Cannot open display" << std::endl;
-            exit(1);
+    // Convert hex color string to RGB value
+    unsigned long hexToRgb(const std::string& hex) {
+        if (hex.length() != 7 || hex[0] != '#') {
+            return 0; // Default to black if invalid
         }
         
-        screen = DefaultScreen(display);
-        root = RootWindow(display, screen);
-        
-        // Initialize clipboard atoms
-        clipboardAtom = XInternAtom(display, "CLIPBOARD", False);
-        utf8Atom = XInternAtom(display, "UTF8_STRING", False);
-        textAtom = XInternAtom(display, "TEXT", False);
-#endif
-
-#ifdef _WIN32
-        // Windows initialization
-#endif
-
-#ifdef __APPLE__
-        // macOS initialization
-#endif
-        
-        loadConfig();
-        loadFromFile();
-        createWindow();
-        setupHotkeys();
-        startClipboardMonitoring();
+        try {
+            unsigned long r = std::stoul(hex.substr(1, 2), nullptr, 16);
+            unsigned long g = std::stoul(hex.substr(3, 2), nullptr, 16);
+            unsigned long b = std::stoul(hex.substr(5, 2), nullptr, 16);
+            return r * 256 * 256 + g * 256 + b;
+        } catch (...) {
+            return 0; // Default to black if conversion fails
+        }
     }
     
-    ~ClipboardManager() {
-#ifdef __linux__
-        if (font) XFreeFont(display, font);
-        if (gc) XFreeGC(display, gc);
-        if (window) XDestroyWindow(display, window);
-        if (display) XCloseDisplay(display);
-#endif
+    void loadTheme() {
+        std::string themeFile = configDir + "/themes/" + theme + ".json";
+        std::ifstream file(themeFile);
+        
+        // Set default colors (console theme)
+        backgroundColor = 0x000000; // Black
+        textColor = 0xFFFFFF;      // White
+        selectionColor = 0x404040;  // Dim gray
+        borderColor = 0xFFFFFF;    // White
+        
+        if (!file.is_open()) {
+            // Try to create default theme file
+            createDefaultThemeFile();
+            return;
+        }
+        
+        std::string line;
+        std::string currentSection;
+        while (std::getline(file, line)) {
+            // Remove whitespace
+            line.erase(0, line.find_first_not_of(" \t"));
+            line.erase(line.find_last_not_of(" \t") + 1);
+            
+            if (line.find("\"background\"") != std::string::npos) {
+                size_t start = line.find('"', line.find(':'));
+                size_t end = line.find('"', start + 1);
+                if (start != std::string::npos && end != std::string::npos) {
+                    backgroundColor = hexToRgb(line.substr(start + 1, end - start - 1));
+                }
+            }
+            else if (line.find("\"text\"") != std::string::npos) {
+                size_t start = line.find('"', line.find(':'));
+                size_t end = line.find('"', start + 1);
+                if (start != std::string::npos && end != std::string::npos) {
+                    textColor = hexToRgb(line.substr(start + 1, end - start - 1));
+                }
+            }
+            else if (line.find("\"selection\"") != std::string::npos) {
+                size_t start = line.find('"', line.find(':'));
+                size_t end = line.find('"', start + 1);
+                if (start != std::string::npos && end != std::string::npos) {
+                    selectionColor = hexToRgb(line.substr(start + 1, end - start - 1));
+                }
+            }
+            else if (line.find("\"border\"") != std::string::npos) {
+                size_t start = line.find('"', line.find(':'));
+                size_t end = line.find('"', start + 1);
+                if (start != std::string::npos && end != std::string::npos) {
+                    borderColor = hexToRgb(line.substr(start + 1, end - start - 1));
+                }
+            }
+        }
+        file.close();
+    }
+    
+    void createDefaultThemeFile() {
+        // Create themes directory if it doesn't exist
+        std::string themesDir = configDir + "/themes";
+        struct stat st = {0};
+        if (stat(themesDir.c_str(), &st) == -1) {
+            mkdir(themesDir.c_str(), 0755);
+        }
+        
+        // Create default console theme file
+        std::string themeFile = themesDir + "/console.json";
+        std::ofstream outFile(themeFile);
+        if (outFile.is_open()) {
+            outFile << "{\n";
+            outFile << "    \"name\": \"Console\",\n";
+            outFile << "    \"description\": \"Default console theme with black background and white text\",\n";
+            outFile << "    \"colors\": {\n";
+            outFile << "        \"background\": \"#000000\",\n";
+            outFile << "        \"text\": \"#FFFFFF\",\n";
+            outFile << "        \"selection\": \"#404040\",\n";
+            outFile << "        \"border\": \"#FFFFFF\"\n";
+            outFile << "    }\n";
+            outFile << "}\n";
+            outFile.close();
+        }
     }
     
     void setupConfigDir() {
@@ -265,14 +532,11 @@ public:
     
     void createWindow() {
 #ifdef __linux__
-        // Create window
-        unsigned long black = BlackPixel(display, screen);
-        unsigned long white = WhitePixel(display, screen);
-        
+        // Create window with theme colors
         window = XCreateSimpleWindow(display, root, 
                                    WINDOW_X, WINDOW_Y, 
                                    WINDOW_WIDTH, WINDOW_HEIGHT,
-                                   2, white, black);
+                                   2, borderColor, backgroundColor);
         
         // Set window properties
         XStoreName(display, window, "MMRY");
@@ -280,7 +544,7 @@ public:
         
         // Create graphics context
         gc = XCreateGC(display, window, 0, nullptr);
-        XSetForeground(display, gc, white);
+        XSetForeground(display, gc, textColor);
         
         // Load font (try to find a monospace font)
         font = XLoadQueryFont(display, "-*-fixed-medium-r-*-*-13-*-*-*-*-*-*-*");
@@ -371,8 +635,8 @@ public:
         if (!visible) return;
         
 #ifdef __linux__
-        // Clear window with black background
-        XSetWindowBackground(display, window, BlackPixel(display, screen));
+        // Clear window with theme background
+        XSetWindowBackground(display, window, backgroundColor);
         XClearWindow(display, window);
         
         // Draw filter textbox if in filter mode
@@ -458,15 +722,13 @@ public:
                 }
             }
             
-            // Highlight selected item with dim gray
+            // Highlight selected item with theme selection color
             if (i == selectedItem) {
-                // Create dim gray color (RGB: 64, 64, 64)
-                unsigned long grayPixel = 64 * 256 * 256 + 64 * 256 + 64;
-                XSetForeground(display, gc, grayPixel);
+                XSetForeground(display, gc, selectionColor);
                 XFillRectangle(display, window, gc, 5, y - 12, WINDOW_WIDTH - 10, 15);
-                XSetForeground(display, gc, WhitePixel(display, screen));
+                XSetForeground(display, gc, textColor);
             } else {
-                XSetForeground(display, gc, WhitePixel(display, screen));
+                XSetForeground(display, gc, textColor);
             }
             
             XDrawString(display, window, gc, 10, y, line.c_str(), line.length());
@@ -752,190 +1014,6 @@ public:
             }
             file.close();
         }
-    }
-    
-    void run() {
-        running = true;
-        
-        std::cout << "MMRY Clipboard Manager started" << std::endl;
-        std::cout << "Config directory: " << configDir << std::endl;
-        std::cout << "Press Ctrl+Alt+C to show window, Escape to hide" << std::endl;
-        std::cout << "Press Ctrl+C in terminal to exit" << std::endl;
-        
-#ifdef __linux__
-        XEvent event;
-        while (running) {
-            XNextEvent(display, &event);
-            
-            switch (event.type) {
-                case Expose:
-                    if (event.xexpose.count == 0) {
-                        drawConsole();
-                    }
-                    break;
-                    
-                case KeyPress: {
-                    XKeyEvent* keyEvent = reinterpret_cast<XKeyEvent*>(&event);
-                    KeySym keysym = XLookupKeysym(keyEvent, 0);
-                    
-                    // Check if it's a global hotkey (root window)
-                    if (keyEvent->window == root) {
-                        if (keysym == XK_c && (keyEvent->state & ControlMask) && (keyEvent->state & Mod1Mask)) {
-                            showWindow();
-                        }
-                    } 
-                    // Check if it's a local window hotkey
-                    else if (keyEvent->window == window) {
-                        if (keysym == XK_Escape) {
-                            if (filterMode) {
-                                // Exit filter mode but keep window open
-                                filterMode = false;
-                                filterText = "";
-                                filteredItems.clear();
-                                selectedItem = 0;
-                                drawConsole();
-                            } else {
-                                hideWindow();
-                            }
-                        } else if (keysym == XK_q && (keyEvent->state & ShiftMask) && !filterMode) {
-                            stop();
-                        } else if (filterMode) {
-                            // In filter mode, allow navigation and text input
-                            if (keysym == XK_BackSpace) {
-                                // Handle backspace in filter mode
-                                if (!filterText.empty()) {
-                                    filterText.pop_back();
-                                    updateFilteredItems();
-                                    selectedItem = 0;
-                                    drawConsole();
-                                }
-                            } else if (keysym == XK_Up) {
-                                // Navigate up in filtered results
-                                if (getDisplayItemCount() > 0 && selectedItem > 0) {
-                                    selectedItem--;
-                                    drawConsole();
-                                }
-                            } else if (keysym == XK_Down) {
-                                // Navigate down in filtered results
-                                if (getDisplayItemCount() > 0 && selectedItem < getDisplayItemCount() - 1) {
-                                    selectedItem++;
-                                    drawConsole();
-                                }
-                            } else if (keysym == XK_Return) {
-                                // Copy selected item to clipboard and hide window
-                                if (!items.empty() && selectedItem < getDisplayItemCount()) {
-                                    size_t actualIndex = getActualItemIndex(selectedItem);
-                                    copyToClipboard(items[actualIndex].content);
-                                    int lines = countLines(items[actualIndex].content);
-                                    if (lines > 1) {
-                                        std::cout << "Copied " << lines << " lines to clipboard" << std::endl;
-                                    } else {
-                                        std::cout << "Copied to clipboard: " << items[actualIndex].content.substr(0, 50) << "..." << std::endl;
-                                    }
-                                    filterMode = false;
-                                    filterText = "";
-                                    filteredItems.clear();
-                                    hideWindow();
-                                }
-                            } else {
-                                // Handle text input in filter mode
-                                char buffer[10];
-                                int count = XLookupString(keyEvent, buffer, sizeof(buffer), nullptr, nullptr);
-                                if (count > 0) {
-                                    filterText += std::string(buffer, count);
-                                    updateFilteredItems();
-                                    selectedItem = 0;
-                                    drawConsole();
-                                }
-                            }
-                        } else {
-                            // Not in filter mode - handle navigation keys
-                            if (keysym == XK_j && !(keyEvent->state & ShiftMask)) {
-                                // Move down
-                                if (getDisplayItemCount() > 0 && selectedItem < getDisplayItemCount() - 1) {
-                                    selectedItem++;
-                                    drawConsole();
-                                }
-                            } else if (keysym == XK_k && !(keyEvent->state & ShiftMask)) {
-                                // Move up
-                                if (selectedItem > 0) {
-                                    selectedItem--;
-                                    drawConsole();
-                                }
-                            } else if (keysym == XK_g && !(keyEvent->state & ShiftMask)) {
-                                // gg - go to top (need to detect double g)
-                                static auto lastGTime = std::chrono::steady_clock::now();
-                                auto now = std::chrono::steady_clock::now();
-                                auto diff = std::chrono::duration_cast<std::chrono::milliseconds>(now - lastGTime);
-                                
-                                if (diff.count() < 500) { // Double g within 500ms
-                                    selectedItem = 0;
-                                    drawConsole();
-                                }
-                                lastGTime = now;
-                            } else if (keysym == XK_g && (keyEvent->state & ShiftMask)) {
-                                // Go to bottom (Shift+G)
-                                if (getDisplayItemCount() > 0) {
-                                    selectedItem = getDisplayItemCount() - 1;
-                                    drawConsole();
-                                }
-                            } else if (keysym == XK_d && (keyEvent->state & ShiftMask)) {
-                                // Delete selected item
-                                if (!items.empty() && selectedItem < getDisplayItemCount()) {
-                                    size_t actualIndex = getActualItemIndex(selectedItem);
-                                    items.erase(items.begin() + actualIndex);
-                                    if (selectedItem >= getDisplayItemCount() && selectedItem > 0) {
-                                        selectedItem--;
-                                    }
-                                    saveToFile();
-                                    drawConsole();
-                                    std::cout << "Item deleted" << std::endl;
-                                }
-                            } else if (keysym == XK_slash) {
-                                // Enter filter mode
-                                filterMode = true;
-                                filterText = "";
-                                updateFilteredItems();
-                                drawConsole();
-                            } else if (keysym == XK_Return) {
-                                // Copy selected item to clipboard and hide window
-                                if (!items.empty() && selectedItem < getDisplayItemCount()) {
-                                    size_t actualIndex = getActualItemIndex(selectedItem);
-                                    copyToClipboard(items[actualIndex].content);
-                                    int lines = countLines(items[actualIndex].content);
-                                    if (lines > 1) {
-                                        std::cout << "Copied " << lines << " lines to clipboard" << std::endl;
-                                    } else {
-                                        std::cout << "Copied to clipboard: " << items[actualIndex].content.substr(0, 50) << "..." << std::endl;
-                                    }
-                                    hideWindow();
-                                }
-                            }
-                        }
-                    }
-                    break;
-                }
-            }
-        }
-#endif
-
-#ifdef _WIN32
-        // Windows event loop
-        MSG msg;
-        while (running && GetMessage(&msg, nullptr, 0, 0)) {
-            TranslateMessage(&msg);
-            DispatchMessage(&msg);
-        }
-#endif
-
-#ifdef __APPLE__
-        // macOS event loop
-        // This would require NSApplication setup
-#endif
-    }
-    
-    void stop() {
-        running = false;
     }
 };
 
