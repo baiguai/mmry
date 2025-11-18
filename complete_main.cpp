@@ -1622,54 +1622,54 @@ private:
         // Draw help content
         XSetForeground(display, gc, textColor);
         int y = DIALOG_Y + 50;
-        int lineHeight = 18;
+        int lineHeight = 15;
         
         // Main Window shortcuts
-        XDrawString(display, window, gc, DIALOG_X + 20, y, "Main Window:", 13);
+        XDrawString(display, window, gc, DIALOG_X + 20, y, "Main Window:", 11);
         y += lineHeight;
-        XDrawString(display, window, gc, DIALOG_X + 30, y, "j/k or ↑/↓  - Navigate items", 28);
+        XDrawString(display, window, gc, DIALOG_X + 30, y, "j/k          - Navigate items", 29);
         y += lineHeight;
-        XDrawString(display, window, gc, DIALOG_X + 30, y, "g/G          - Top/bottom", 22);
+        XDrawString(display, window, gc, DIALOG_X + 30, y, "g/G          - Top/bottom", 25);
         y += lineHeight;
-        XDrawString(display, window, gc, DIALOG_X + 30, y, "Enter        - Copy item", 20);
+        XDrawString(display, window, gc, DIALOG_X + 30, y, "Enter        - Copy item", 24);
         y += lineHeight;
-        XDrawString(display, window, gc, DIALOG_X + 30, y, "/            - Filter mode", 22);
+        XDrawString(display, window, gc, DIALOG_X + 30, y, "/            - Filter mode", 26);
         y += lineHeight;
-        XDrawString(display, window, gc, DIALOG_X + 30, y, "Shift+M      - Manage bookmarks", 26);
+        XDrawString(display, window, gc, DIALOG_X + 30, y, "Shift+M      - Manage bookmark groups", 37);
         y += lineHeight;
-        XDrawString(display, window, gc, DIALOG_X + 30, y, "m            - Add to bookmark", 24);
+        XDrawString(display, window, gc, DIALOG_X + 30, y, "m            - Add to bookmark", 30);
         y += lineHeight;
-        XDrawString(display, window, gc, DIALOG_X + 30, y, "`            - View bookmarks", 22);
+        XDrawString(display, window, gc, DIALOG_X + 30, y, "`            - View bookmarks", 29);
         y += lineHeight;
-        XDrawString(display, window, gc, DIALOG_X + 30, y, "?            - This help", 18);
+        XDrawString(display, window, gc, DIALOG_X + 30, y, "?            - This help", 24);
         y += lineHeight;
-        XDrawString(display, window, gc, DIALOG_X + 30, y, "Shift+D      - Delete item", 22);
+        XDrawString(display, window, gc, DIALOG_X + 30, y, "Shift+D      - Delete item", 26);
         y += lineHeight;
-        XDrawString(display, window, gc, DIALOG_X + 30, y, "Shift+Q      - Quit", 16);
+        XDrawString(display, window, gc, DIALOG_X + 30, y, "Shift+Q      - Quit", 19);
         y += lineHeight;
-        XDrawString(display, window, gc, DIALOG_X + 30, y, "Escape       - Hide window", 20);
+        XDrawString(display, window, gc, DIALOG_X + 30, y, "Escape       - Hide window", 26);
         y += lineHeight + 5;
         
         // Filter Mode shortcuts
         XDrawString(display, window, gc, DIALOG_X + 20, y, "Filter Mode:", 12);
         y += lineHeight;
-        XDrawString(display, window, gc, DIALOG_X + 30, y, "Type text    - Filter items", 24);
+        XDrawString(display, window, gc, DIALOG_X + 30, y, "Type text    - Filter items", 27);
         y += lineHeight;
-        XDrawString(display, window, gc, DIALOG_X + 30, y, "Backspace    - Delete char", 22);
+        XDrawString(display, window, gc, DIALOG_X + 30, y, "Backspace    - Delete char", 26);
         y += lineHeight;
-        XDrawString(display, window, gc, DIALOG_X + 30, y, "Enter        - Copy item", 20);
+        XDrawString(display, window, gc, DIALOG_X + 30, y, "Enter        - Copy item", 24);
         y += lineHeight;
-        XDrawString(display, window, gc, DIALOG_X + 30, y, "Escape       - Exit filter", 20);
+        XDrawString(display, window, gc, DIALOG_X + 30, y, "Escape       - Exit filter", 26);
         y += lineHeight + 5;
         
         // Bookmark Dialog shortcuts
-        XDrawString(display, window, gc, DIALOG_X + 20, y, "Bookmark Dialogs:", 18);
+        XDrawString(display, window, gc, DIALOG_X + 20, y, "Bookmark Dialogs:", 17);
         y += lineHeight;
-        XDrawString(display, window, gc, DIALOG_X + 30, y, "All dialogs: ↑/↓ or j/k - Navigate", 34);
+        XDrawString(display, window, gc, DIALOG_X + 30, y, "All dialogs: up/down or j/k - Navigate", 38);
         y += lineHeight;
-        XDrawString(display, window, gc, DIALOG_X + 30, y, "Mgmt: Enter - Create/select, Shift+D - Delete", 42);
+        XDrawString(display, window, gc, DIALOG_X + 30, y, "Mgmt: Enter - Create/select, Shift+D - Delete", 45);
         y += lineHeight;
-        XDrawString(display, window, gc, DIALOG_X + 30, y, "Add: Enter - Add to group", 26);
+        XDrawString(display, window, gc, DIALOG_X + 30, y, "Add: Enter - Add to group", 25);
         y += lineHeight;
         XDrawString(display, window, gc, DIALOG_X + 30, y, "View: g/G - Top/bottom, Enter - Select", 38);
         y += lineHeight;
@@ -1677,9 +1677,9 @@ private:
         y += lineHeight + 10;
         
         // Global hotkey
-        XDrawString(display, window, gc, DIALOG_X + 20, y, "Global Hotkey:", 15);
+        XDrawString(display, window, gc, DIALOG_X + 20, y, "Global Hotkey:", 14);
         y += lineHeight;
-        XDrawString(display, window, gc, DIALOG_X + 30, y, "Ctrl+Alt+C   - Show/hide window", 27);
+        XDrawString(display, window, gc, DIALOG_X + 30, y, "Ctrl+Alt+C   - Show/hide window", 31);
         
 #endif
     }
