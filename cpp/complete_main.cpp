@@ -1,7 +1,3 @@
-#include <X11/Xlib.h>
-#include <X11/keysym.h>
-#include <X11/Xutil.h>
-#include <X11/Xatom.h>
 #include <iostream>
 #include <unistd.h>
 #include <thread>
@@ -12,26 +8,53 @@
 #include <fstream>
 #include <sstream>
 #include <iomanip>
+#include <cstdlib>
+#include <sys/stat.h>
+
+#ifdef __linux__
+#include <X11/Xlib.h>
+#include <X11/keysym.h>
+#include <X11/Xutil.h>
+#include <X11/Xatom.h>
+#endif
+
+#ifdef _WIN32
+#include <windows.h>
+#endif
+
+#ifdef __APPLE__
+#include <ApplicationServices/ApplicationServices.h>
+#endif
 
 struct ClipboardItem {
     std::string content;
     std::chrono::system_clock::time_point timestamp;
-    size_t id;
     
-    ClipboardItem(const std::string& content, size_t id) 
-        : content(content), id(id), timestamp(std::chrono::system_clock::now()) {}
+    ClipboardItem(const std::string& content) 
+        : content(content), timestamp(std::chrono::system_clock::now()) {}
 };
 
 class ClipboardManager {
 private:
+#ifdef __linux__
     Display* display;
     Window window;
     Window root;
-    std::atomic<bool> running;
-    std::atomic<bool> visible;
     int screen;
     GC gc;
     XFontStruct* font;
+    Atom clipboardAtom;
+    Atom utf8Atom;
+    Atom textAtom;
+#endif
+
+#ifdef _WIN32
+    HWND hwnd;
+    HFONT font;
+#endif
+
+    std::atomic<bool> running;
+    std::atomic<bool> visible;
     
     // Window properties
     const int WINDOW_WIDTH = 800;
@@ -41,15 +64,19 @@ private:
     
     // Clipboard data
     std::vector<ClipboardItem> items;
-    size_t nextId;
     std::string lastClipboardContent;
     bool verboseMode;
-    Atom clipboardAtom;
-    Atom utf8Atom;
-    Atom textAtom;
+    std::string configDir;
+    std::string dataFile;
+    
+    // Navigation
+    size_t selectedItem = 0;
     
 public:
-    ClipboardManager() : running(false), visible(false), nextId(1), verboseMode(false) {
+    ClipboardManager() : running(false), visible(false), verboseMode(false) {
+        setupConfigDir();
+        
+#ifdef __linux__
         display = XOpenDisplay(nullptr);
         if (!display) {
             std::cerr << "Cannot open display" << std::endl;
@@ -63,7 +90,17 @@ public:
         clipboardAtom = XInternAtom(display, "CLIPBOARD", False);
         utf8Atom = XInternAtom(display, "UTF8_STRING", False);
         textAtom = XInternAtom(display, "TEXT", False);
+#endif
+
+#ifdef _WIN32
+        // Windows initialization
+#endif
+
+#ifdef __APPLE__
+        // macOS initialization
+#endif
         
+        loadConfig();
         loadFromFile();
         createWindow();
         setupHotkeys();
@@ -77,7 +114,24 @@ public:
         if (display) XCloseDisplay(display);
     }
     
+    void setupConfigDir() {
+        const char* home = getenv("HOME");
+        if (!home) home = getenv("USERPROFILE");
+        if (!home) home = ".";
+        
+        configDir = std::string(home) + "/.config/mmry";
+        
+        // Create config directory if it doesn't exist
+        struct stat st = {0};
+        if (stat(configDir.c_str(), &st) == -1) {
+            mkdir(configDir.c_str(), 0755);
+        }
+        
+        dataFile = configDir + "/clips.txt";
+    }
+    
     void createWindow() {
+#ifdef __linux__
         // Create window
         unsigned long black = BlackPixel(display, screen);
         unsigned long white = WhitePixel(display, screen);
@@ -116,23 +170,56 @@ public:
         Atom atom_dialog = XInternAtom(display, "_NET_WM_WINDOW_TYPE_DIALOG", False);
         XChangeProperty(display, window, atom_type, XA_ATOM, 32, PropModeReplace, 
                        (unsigned char*)&atom_dialog, 1);
+#endif
+
+#ifdef _WIN32
+        // Windows window creation
+#endif
+
+#ifdef __APPLE__
+        // macOS window creation
+#endif
     }
     
     void setupHotkeys() {
+#ifdef __linux__
+        // Try to grab global hotkeys with error handling
+        int grabResult;
+        
         // Grab Ctrl+Alt+C globally
-        XGrabKey(display, XKeysymToKeycode(display, XK_c), 
-                 ControlMask | Mod1Mask, root, True, GrabModeAsync, GrabModeAsync);
+        grabResult = XGrabKey(display, XKeysymToKeycode(display, XK_c), 
+                             ControlMask | Mod1Mask, root, True, GrabModeAsync, GrabModeAsync);
+        if (grabResult == BadAccess) {
+            std::cerr << "Warning: Could not grab Ctrl+Alt+C hotkey (already in use)" << std::endl;
+        }
         
         // Grab Escape globally
-        XGrabKey(display, XKeysymToKeycode(display, XK_Escape), 
-                 0, root, True, GrabModeAsync, GrabModeAsync);
+        grabResult = XGrabKey(display, XKeysymToKeycode(display, XK_Escape), 
+                             0, root, True, GrabModeAsync, GrabModeAsync);
+        if (grabResult == BadAccess) {
+            std::cerr << "Warning: Could not grab Escape hotkey (already in use)" << std::endl;
+        }
         
         XSelectInput(display, root, KeyPressMask);
+#endif
+
+#ifdef _WIN32
+        // Windows hotkey setup
+#endif
+
+#ifdef __APPLE__
+        // macOS hotkey setup
+#endif
     }
     
     void showWindow() {
         if (!visible) {
+#ifdef __linux__
             XMapWindow(display, window);
+#endif
+#ifdef _WIN32
+            ShowWindow(hwnd, SW_SHOW);
+#endif
             visible = true;
             std::cout << "Window shown" << std::endl;
         }
@@ -140,7 +227,12 @@ public:
     
     void hideWindow() {
         if (visible) {
+#ifdef __linux__
             XUnmapWindow(display, window);
+#endif
+#ifdef _WIN32
+            ShowWindow(hwnd, SW_HIDE);
+#endif
             visible = false;
             std::cout << "Window hidden" << std::endl;
         }
@@ -149,12 +241,13 @@ public:
     void drawConsole() {
         if (!visible) return;
         
+#ifdef __linux__
         // Clear window with black background
         XSetWindowBackground(display, window, BlackPixel(display, screen));
         XClearWindow(display, window);
         
         // Draw mode indicator
-        std::string modeLine = "Mode: " + std::string(verboseMode ? "Verbose" : "Normal") + " (V to toggle)";
+        std::string modeLine = "Mode: " + std::string(verboseMode ? "Verbose" : "Normal");
         XDrawString(display, window, gc, 10, 20, modeLine.c_str(), modeLine.length());
         
         // Draw clipboard items
@@ -166,8 +259,15 @@ public:
             
             std::string line;
             
+            // Add selection indicator
+            if (i == selectedItem) {
+                line = "> ";
+            } else {
+                line = "  ";
+            }
+            
             if (verboseMode) {
-                // Verbose mode: [id] timestamp | lines | content
+                // Verbose mode: timestamp | lines | content
                 auto time_t = std::chrono::system_clock::to_time_t(item.timestamp);
                 auto tm = *std::localtime(&time_t);
                 
@@ -180,8 +280,7 @@ public:
                     if (c == '\n') lineCount++;
                 }
                 
-                line = "[" + std::to_string(item.id) + "] " + timeStream.str() + " | " + 
-                       std::to_string(lineCount) + " lines | ";
+                line += timeStream.str() + " | " + std::to_string(lineCount) + " lines | ";
                 
                 // Truncate content if too long
                 std::string content = item.content;
@@ -196,8 +295,7 @@ public:
                 
                 line += content;
             } else {
-                // Normal mode: [id] content (line count if > 1)
-                line = "[" + std::to_string(item.id) + "] ";
+                // Normal mode: content (line count if > 1)
                 
                 // Count lines in content
                 size_t lineCount = 1;
@@ -224,7 +322,19 @@ public:
                 }
             }
             
+            // Highlight selected item with dim gray
+            if (i == selectedItem) {
+                // Create dim gray color (RGB: 64, 64, 64)
+                unsigned long grayPixel = 64 * 256 * 256 + 64 * 256 + 64;
+                XSetForeground(display, gc, grayPixel);
+                XFillRectangle(display, window, gc, 5, y - 12, WINDOW_WIDTH - 10, 15);
+                XSetForeground(display, gc, WhitePixel(display, screen));
+            } else {
+                XSetForeground(display, gc, WhitePixel(display, screen));
+            }
+            
             XDrawString(display, window, gc, 10, y, line.c_str(), line.length());
+            
             y += 15;
         }
         
@@ -232,6 +342,15 @@ public:
             std::string empty = "No clipboard items yet...";
             XDrawString(display, window, gc, 10, y, empty.c_str(), empty.length());
         }
+#endif
+
+#ifdef _WIN32
+        // Windows drawing
+#endif
+
+#ifdef __APPLE__
+        // macOS drawing
+#endif
     }
     
     void startClipboardMonitoring() {
@@ -245,96 +364,138 @@ public:
     }
     
     void checkClipboard() {
-        // Get clipboard selection
-        Window owner = XGetSelectionOwner(display, clipboardAtom);
-        if (owner == None || owner == window) {
-            return; // No clipboard owner or we own it
+        std::string content;
+        
+#ifdef __linux__
+        // Linux: use xclip command
+        FILE* pipe = popen("xclip -selection clipboard -o 2>/dev/null", "r");
+        if (!pipe) return;
+        
+        char buffer[4096];
+        while (fgets(buffer, sizeof(buffer), pipe) != nullptr) {
+            content += buffer;
+        }
+        pclose(pipe);
+#endif
+
+#ifdef _WIN32
+        // Windows: use Windows API
+        if (OpenClipboard(nullptr)) {
+            HANDLE hData = GetClipboardData(CF_TEXT);
+            if (hData) {
+                char* text = static_cast<char*>(GlobalLock(hData));
+                if (text) {
+                    content = text;
+                    GlobalUnlock(hData);
+                }
+            }
+            CloseClipboard();
+        }
+#endif
+
+#ifdef __APPLE__
+        // macOS: use pbpaste command
+        FILE* pipe = popen("pbpaste 2>/dev/null", "r");
+        if (!pipe) return;
+        
+        char buffer[4096];
+        while (fgets(buffer, sizeof(buffer), pipe) != nullptr) {
+            content += buffer;
+        }
+        pclose(pipe);
+#endif
+        
+        // Trim trailing newlines
+        while (!content.empty() && (content.back() == '\n' || content.back() == '\r')) {
+            content.pop_back();
         }
         
-        // Request clipboard selection
-        XConvertSelection(display, clipboardAtom, utf8Atom, None, window, CurrentTime);
-        XFlush(display);
-        
-        // Wait for selection notification
-        XEvent event;
-        while (XPending(display)) {
-            XNextEvent(display, &event);
-            if (event.type == SelectionNotify) {
-                XSelectionEvent* selEvent = (XSelectionEvent*)&event;
-                if (selEvent->property != None) {
-                    // Get the actual clipboard data
-                    Atom actualType;
-                    int actualFormat;
-                    unsigned long nitems, bytesAfter;
-                    unsigned char* prop = nullptr;
-                    
-                    if (XGetWindowProperty(display, window, selEvent->property, 0, 1024*1024, False,
-                                          AnyPropertyType, &actualType, &actualFormat, &nitems, &bytesAfter, &prop) == Success) {
-                        if (prop && nitems > 0) {
-                            std::string content(reinterpret_cast<char*>(prop));
-                            XFree(prop);
-                            
-                            if (!content.empty() && content != lastClipboardContent) {
-                                lastClipboardContent = content;
-                                
-                                // Check for duplicates
-                                bool isDuplicate = false;
-                                for (const auto& item : items) {
-                                    if (item.content == content) {
-                                        isDuplicate = true;
-                                        break;
-                                    }
-                                }
-                                
-                                if (!isDuplicate) {
-                                    items.emplace(items.begin(), content, nextId++);
-                                    if (items.size() > 100) { // Keep only last 100 items
-                                        items.pop_back();
-                                    }
-                                    saveToFile();
-                                    
-                                    std::cout << "New clipboard item added: [" << (nextId-1) << "]" << std::endl;
-                                    
-                                    // Refresh display if window is visible
-                                    if (visible) {
-                                        drawConsole();
-                                    }
-                                }
-                            }
-                        }
-                    }
-                    
-                    // Clean up the property
-                    XDeleteProperty(display, window, selEvent->property);
+        if (!content.empty() && content != lastClipboardContent) {
+            lastClipboardContent = content;
+            
+            // Check for duplicates
+            bool isDuplicate = false;
+            for (const auto& item : items) {
+                if (item.content == content) {
+                    isDuplicate = true;
+                    break;
                 }
-                break;
             }
+            
+        if (!isDuplicate) {
+            items.emplace(items.begin(), content);
+            if (items.size() > 100) { // Keep only last 100 items
+                items.pop_back();
+            }
+            
+            // Reset selection to top when new item is added
+            selectedItem = 0;
+            
+            saveToFile();
+            
+            std::cout << "New clipboard item added" << std::endl;
+            
+            // Refresh display if window is visible
+            if (visible) {
+                drawConsole();
+            }
+        }
+        }
+    }
+    
+    void loadConfig() {
+        std::string configFile = configDir + "/config.json";
+        std::ifstream file(configFile);
+        if (file.is_open()) {
+            std::string line;
+            while (std::getline(file, line)) {
+                // Simple JSON parsing for "verbose": true/false
+                if (line.find("\"verbose\"") != std::string::npos) {
+                    if (line.find("true") != std::string::npos) {
+                        verboseMode = true;
+                    } else {
+                        verboseMode = false;
+                    }
+                    break;
+                }
+            }
+            file.close();
+        } else {
+            // Create default config
+            std::ofstream outFile(configFile);
+            outFile << "{\n    \"verbose\": false\n}\n";
+            outFile.close();
         }
     }
     
     void saveToFile() {
-        std::ofstream file("/tmp/mmry_data.txt");
+        std::ofstream file(dataFile);
         if (file.is_open()) {
             for (const auto& item : items) {
-                file << item.id << "|" << item.content << "\n";
+                // Store timestamp and content
+                auto timestamp = std::chrono::duration_cast<std::chrono::seconds>(
+                    item.timestamp.time_since_epoch()).count();
+                file << timestamp << "|" << item.content << "\n";
             }
             file.close();
         }
     }
     
     void loadFromFile() {
-        std::ifstream file("/tmp/mmry_data.txt");
+        std::ifstream file(dataFile);
         if (file.is_open()) {
             std::string line;
             while (std::getline(file, line)) {
                 size_t pos = line.find('|');
                 if (pos != std::string::npos) {
-                    size_t id = std::stoull(line.substr(0, pos));
+                    std::string timestampStr = line.substr(0, pos);
                     std::string content = line.substr(pos + 1);
-                    items.emplace_back(content, id);
-                    if (id >= nextId) {
-                        nextId = id + 1;
-                    }
+                    
+                    ClipboardItem item(content);
+                    auto timestamp = std::chrono::seconds(std::stoll(timestampStr));
+                    item.timestamp = std::chrono::system_clock::time_point(timestamp);
+                    
+                    items.push_back(item);
                 }
             }
             file.close();
@@ -345,9 +506,11 @@ public:
         running = true;
         
         std::cout << "MMRY Clipboard Manager started" << std::endl;
+        std::cout << "Config directory: " << configDir << std::endl;
         std::cout << "Press Ctrl+Alt+C to show window, Escape to hide" << std::endl;
         std::cout << "Press Ctrl+C in terminal to exit" << std::endl;
         
+#ifdef __linux__
         XEvent event;
         while (running) {
             XNextEvent(display, &event);
@@ -377,15 +540,56 @@ public:
                             hideWindow();
                         } else if (keysym == XK_q || keysym == XK_Q) {
                             stop();
-                        } else if (keysym == XK_v || keysym == XK_V) {
-                            verboseMode = !verboseMode;
-                            drawConsole();
+                        } else if (keysym == XK_j) {
+                            // Move down
+                            if (!items.empty() && selectedItem < items.size() - 1) {
+                                selectedItem++;
+                                drawConsole();
+                            }
+                        } else if (keysym == XK_k) {
+                            // Move up
+                            if (selectedItem > 0) {
+                                selectedItem--;
+                                drawConsole();
+                            }
+                        } else if (keysym == XK_g) {
+                            // gg - go to top (need to detect double g)
+                            static auto lastGTime = std::chrono::steady_clock::now();
+                            auto now = std::chrono::steady_clock::now();
+                            auto diff = std::chrono::duration_cast<std::chrono::milliseconds>(now - lastGTime);
+                            
+                            if (diff.count() < 500) { // Double g within 500ms
+                                selectedItem = 0;
+                                drawConsole();
+                            }
+                            lastGTime = now;
+                        } else if (keysym == XK_G) {
+                            // Go to bottom
+                            if (!items.empty()) {
+                                selectedItem = items.size() - 1;
+                                drawConsole();
+                            }
                         }
                     }
                     break;
                 }
             }
         }
+#endif
+
+#ifdef _WIN32
+        // Windows event loop
+        MSG msg;
+        while (running && GetMessage(&msg, nullptr, 0, 0)) {
+            TranslateMessage(&msg);
+            DispatchMessage(&msg);
+        }
+#endif
+
+#ifdef __APPLE__
+        // macOS event loop
+        // This would require NSApplication setup
+#endif
     }
     
     void stop() {
