@@ -62,12 +62,16 @@ public:
                 // Escape hides view bookmarks dialog but not window
                 viewBookmarksDialogVisible = false;
                 drawConsole();
-            } else {
-                // Normal escape behavior
-                hideWindow();
+            } else if (filterMode) {
+                // Escape exits filter mode but doesn't hide window
                 filterMode = false;
                 filterText = "";
                 filteredItems.clear();
+                selectedItem = 0;
+                drawConsole();
+            } else {
+                // Normal escape behavior - hide window
+                hideWindow();
             }
         } else if (helpDialogVisible) {
             // Help dialog is visible - handle dialog-specific keys
