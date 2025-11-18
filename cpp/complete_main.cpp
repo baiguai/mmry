@@ -92,6 +92,7 @@ public:
                     // If viewing clips, go back to groups
                     viewBookmarksShowingGroups = true;
                     selectedViewBookmarkItem = 0;
+                    viewBookmarksScrollOffset = 0; // Reset scroll when going back
                 } else {
                     // If viewing groups, close dialog
                     viewBookmarksDialogVisible = false;
@@ -103,14 +104,26 @@ public:
                     // Move down in groups
                     if (selectedViewBookmarkGroup < bookmarkGroups.size() - 1) {
                         selectedViewBookmarkGroup++;
+                        updateScrollOffset();
                         drawConsole();
                     }
                 } else if (keysym == XK_k || keysym == XK_Up) {
                     // Move up in groups
                     if (selectedViewBookmarkGroup > 0) {
                         selectedViewBookmarkGroup--;
+                        updateScrollOffset();
                         drawConsole();
                     }
+                } else if (keysym == XK_g) {
+                    // Go to top (gg)
+                    selectedViewBookmarkGroup = 0;
+                    viewBookmarksScrollOffset = 0;
+                    drawConsole();
+                } else if (keysym == XK_G && (keyEvent->state & ShiftMask)) {
+                    // Go to bottom
+                    selectedViewBookmarkGroup = bookmarkGroups.size() - 1;
+                    updateScrollOffset();
+                    drawConsole();
                 } else if (keysym == XK_D && (keyEvent->state & ShiftMask)) {
                     // Shift+D deletes selected group and its clips
                     if (selectedViewBookmarkGroup < bookmarkGroups.size()) {
@@ -143,6 +156,7 @@ public:
                     if (selectedViewBookmarkGroup < bookmarkGroups.size()) {
                         viewBookmarksShowingGroups = false;
                         selectedViewBookmarkItem = 0;
+                        viewBookmarksScrollOffset = 0; // Reset scroll when switching modes
                         drawConsole();
                     }
                 }
@@ -151,12 +165,44 @@ public:
                 if (keysym == XK_j || keysym == XK_Down) {
                     // Move down in bookmark items
                     selectedViewBookmarkItem++;
+                    updateScrollOffset();
                     drawConsole();
                 } else if (keysym == XK_k || keysym == XK_Up) {
                     // Move up in bookmark items
                     if (selectedViewBookmarkItem > 0) {
                         selectedViewBookmarkItem--;
+                        updateScrollOffset();
                         drawConsole();
+                    }
+                } else if (keysym == XK_g) {
+                    // Go to top (gg)
+                    selectedViewBookmarkItem = 0;
+                    viewBookmarksScrollOffset = 0;
+                    drawConsole();
+                } else if (keysym == XK_G && (keyEvent->state & ShiftMask)) {
+                    // Go to bottom
+                    if (selectedViewBookmarkGroup < bookmarkGroups.size()) {
+                        std::string selectedGroup = bookmarkGroups[selectedViewBookmarkGroup];
+                        std::string bookmarkFile = configDir + "/bookmarks_" + selectedGroup + ".txt";
+                        std::ifstream file(bookmarkFile);
+                        
+                        if (file.is_open()) {
+                            std::string line;
+                            size_t itemCount = 0;
+                            while (std::getline(file, line)) {
+                                size_t pos = line.find('|');
+                                if (pos != std::string::npos && pos > 0) {
+                                    itemCount++;
+                                }
+                            }
+                            file.close();
+                            
+                            if (itemCount > 0) {
+                                selectedViewBookmarkItem = itemCount - 1;
+                                updateScrollOffset();
+                                drawConsole();
+                            }
+                        }
                     }
                 } else if (keysym == XK_D && (keyEvent->state & ShiftMask)) {
                     // Shift+D deletes selected clip
@@ -548,6 +594,7 @@ public:
                     viewBookmarksShowingGroups = true; // Start with group selection
                     selectedViewBookmarkGroup = 0;
                     selectedViewBookmarkItem = 0;
+                    viewBookmarksScrollOffset = 0; // Reset scroll when opening
                     drawConsole();
                 }
             } else if (keysym == XK_Q && (keyEvent->state & ShiftMask)) {
@@ -718,6 +765,7 @@ private:
     bool viewBookmarksShowingGroups = true; // true = groups, false = clips
     size_t selectedViewBookmarkGroup = 0;
     size_t selectedViewBookmarkItem = 0;
+    size_t viewBookmarksScrollOffset = 0; // For scrolling long lists
     
     // Helper methods
     size_t getDisplayItemCount() {
@@ -764,6 +812,26 @@ private:
             selectedItem = 0;
         } else if (selectedItem >= filteredItems.size()) {
             selectedItem = filteredItems.size() - 1;
+        }
+    }
+    
+    void updateScrollOffset() {
+        const int VISIBLE_ITEMS = 20; // Number of items visible in dialog
+        
+        if (viewBookmarksShowingGroups) {
+            // Scrolling for groups
+            if (selectedViewBookmarkGroup < viewBookmarksScrollOffset) {
+                viewBookmarksScrollOffset = selectedViewBookmarkGroup;
+            } else if (selectedViewBookmarkGroup >= viewBookmarksScrollOffset + VISIBLE_ITEMS) {
+                viewBookmarksScrollOffset = selectedViewBookmarkGroup - VISIBLE_ITEMS + 1;
+            }
+        } else {
+            // Scrolling for clips
+            if (selectedViewBookmarkItem < viewBookmarksScrollOffset) {
+                viewBookmarksScrollOffset = selectedViewBookmarkItem;
+            } else if (selectedViewBookmarkItem >= viewBookmarksScrollOffset + VISIBLE_ITEMS) {
+                viewBookmarksScrollOffset = selectedViewBookmarkItem - VISIBLE_ITEMS + 1;
+            }
         }
     }
     
@@ -1313,59 +1381,51 @@ private:
         y += lineHeight;
         XDrawString(display, window, gc, DIALOG_X + 30, y, "j/k or ↑/↓  - Navigate items", 28);
         y += lineHeight;
-        XDrawString(display, window, gc, DIALOG_X + 30, y, "g/G          - Go to top/bottom", 28);
+        XDrawString(display, window, gc, DIALOG_X + 30, y, "g/G          - Top/bottom", 22);
         y += lineHeight;
-        XDrawString(display, window, gc, DIALOG_X + 30, y, "Enter        - Copy selected item", 28);
+        XDrawString(display, window, gc, DIALOG_X + 30, y, "Enter        - Copy item", 20);
         y += lineHeight;
-        XDrawString(display, window, gc, DIALOG_X + 30, y, "/            - Enter filter mode", 28);
+        XDrawString(display, window, gc, DIALOG_X + 30, y, "/            - Filter mode", 22);
         y += lineHeight;
-        XDrawString(display, window, gc, DIALOG_X + 30, y, "Shift+M      - Manage bookmark groups", 32);
+        XDrawString(display, window, gc, DIALOG_X + 30, y, "Shift+M      - Manage bookmarks", 26);
         y += lineHeight;
-        XDrawString(display, window, gc, DIALOG_X + 30, y, "m            - Add to bookmark group", 30);
+        XDrawString(display, window, gc, DIALOG_X + 30, y, "m            - Add to bookmark", 24);
         y += lineHeight;
-        XDrawString(display, window, gc, DIALOG_X + 30, y, "`            - View bookmark groups", 30);
+        XDrawString(display, window, gc, DIALOG_X + 30, y, "`            - View bookmarks", 22);
         y += lineHeight;
-        XDrawString(display, window, gc, DIALOG_X + 30, y, "?            - Show this help", 24);
+        XDrawString(display, window, gc, DIALOG_X + 30, y, "?            - This help", 18);
         y += lineHeight;
-        XDrawString(display, window, gc, DIALOG_X + 30, y, "Shift+D      - Delete selected item", 30);
+        XDrawString(display, window, gc, DIALOG_X + 30, y, "Shift+D      - Delete item", 22);
         y += lineHeight;
-        XDrawString(display, window, gc, DIALOG_X + 30, y, "Shift+Q      - Quit application", 28);
+        XDrawString(display, window, gc, DIALOG_X + 30, y, "Shift+Q      - Quit", 16);
         y += lineHeight;
-        XDrawString(display, window, gc, DIALOG_X + 30, y, "Escape       - Hide window", 22);
-        y += lineHeight + 10;
+        XDrawString(display, window, gc, DIALOG_X + 30, y, "Escape       - Hide window", 20);
+        y += lineHeight + 5;
         
         // Filter Mode shortcuts
         XDrawString(display, window, gc, DIALOG_X + 20, y, "Filter Mode:", 12);
         y += lineHeight;
         XDrawString(display, window, gc, DIALOG_X + 30, y, "Type text    - Filter items", 24);
         y += lineHeight;
-        XDrawString(display, window, gc, DIALOG_X + 30, y, "Backspace    - Delete last character", 32);
+        XDrawString(display, window, gc, DIALOG_X + 30, y, "Backspace    - Delete char", 22);
         y += lineHeight;
-        XDrawString(display, window, gc, DIALOG_X + 30, y, "Enter        - Copy selected item", 28);
+        XDrawString(display, window, gc, DIALOG_X + 30, y, "Enter        - Copy item", 20);
         y += lineHeight;
-        XDrawString(display, window, gc, DIALOG_X + 30, y, "Escape       - Exit filter mode", 26);
-        y += lineHeight + 10;
+        XDrawString(display, window, gc, DIALOG_X + 30, y, "Escape       - Exit filter", 20);
+        y += lineHeight + 5;
         
         // Bookmark Dialog shortcuts
         XDrawString(display, window, gc, DIALOG_X + 20, y, "Bookmark Dialogs:", 18);
         y += lineHeight;
-        XDrawString(display, window, gc, DIALOG_X + 30, y, "Mgmt Dialog: ↑/↓ or j/k - Navigate groups", 42);
+        XDrawString(display, window, gc, DIALOG_X + 30, y, "All dialogs: ↑/↓ or j/k - Navigate", 34);
         y += lineHeight;
-        XDrawString(display, window, gc, DIALOG_X + 30, y, "             Enter - Create/select group", 38);
+        XDrawString(display, window, gc, DIALOG_X + 30, y, "Mgmt: Enter - Create/select, Shift+D - Delete", 42);
         y += lineHeight;
-        XDrawString(display, window, gc, DIALOG_X + 30, y, "             Shift+D - Delete group", 35);
+        XDrawString(display, window, gc, DIALOG_X + 30, y, "Add: Enter - Add to group", 26);
         y += lineHeight;
-        XDrawString(display, window, gc, DIALOG_X + 30, y, "Add Dialog:  ↑/↓ or j/k - Navigate groups", 42);
+        XDrawString(display, window, gc, DIALOG_X + 30, y, "View: g/G - Top/bottom, Enter - Select", 38);
         y += lineHeight;
-        XDrawString(display, window, gc, DIALOG_X + 30, y, "             Enter - Add to group", 32);
-        y += lineHeight;
-        XDrawString(display, window, gc, DIALOG_X + 30, y, "View Dialog: ↑/↓ or j/k - Navigate", 36);
-        y += lineHeight;
-        XDrawString(display, window, gc, DIALOG_X + 30, y, "             Enter - Select group/item", 36);
-        y += lineHeight;
-        XDrawString(display, window, gc, DIALOG_X + 30, y, "             Shift+D - Delete group/item", 38);
-        y += lineHeight;
-        XDrawString(display, window, gc, DIALOG_X + 30, y, "             Escape - Back/close", 33);
+        XDrawString(display, window, gc, DIALOG_X + 30, y, "      Shift+D - Delete, Escape - Back", 38);
         y += lineHeight + 10;
         
         // Global hotkey
@@ -1398,12 +1458,15 @@ private:
         XDrawString(display, window, gc, DIALOG_X + (DIALOG_WIDTH - titleWidth) / 2, DIALOG_Y + 25, title.c_str(), title.length());
         
         if (viewBookmarksShowingGroups) {
-            // Show bookmark groups list
+            // Show bookmark groups list with scrolling
             XSetForeground(display, gc, textColor);
             int y = DIALOG_Y + 60;
-            int maxGroups = (DIALOG_HEIGHT - 120) / 18;
+            const int VISIBLE_ITEMS = 20;
             
-            for (size_t i = 0; i < bookmarkGroups.size() && i < maxGroups; ++i) {
+            size_t startIdx = viewBookmarksScrollOffset;
+            size_t endIdx = std::min(startIdx + VISIBLE_ITEMS, bookmarkGroups.size());
+            
+            for (size_t i = startIdx; i < endIdx; ++i) {
                 std::string displayText = bookmarkGroups[i];
                 
                 // Add selection indicator
@@ -1421,10 +1484,13 @@ private:
                 y += 18;
             }
             
-            // Draw instructions for group selection
-            XSetForeground(display, gc, textColor);
-            int instructionY = DIALOG_Y + DIALOG_HEIGHT - 30;
-            XDrawString(display, window, gc, DIALOG_X + 20, instructionY, "j/k or ↑/↓: Navigate | Enter: Select | Shift+D: Delete | Escape: Close", 68);
+            // Show scroll indicator if needed
+            if (bookmarkGroups.size() > VISIBLE_ITEMS) {
+                std::string scrollText = "[" + std::to_string(selectedViewBookmarkGroup + 1) + "/" + std::to_string(bookmarkGroups.size()) + "]";
+                XDrawString(display, window, gc, DIALOG_X + DIALOG_WIDTH - 60, DIALOG_Y + 40, scrollText.c_str(), scrollText.length());
+            }
+            
+
             
         } else {
             // Show bookmark items for selected group
@@ -1451,11 +1517,14 @@ private:
                     }
                     file.close();
                     
-                    // Draw items
+                    // Draw items with scrolling
                     int itemY = DIALOG_Y + 60;
-                    int maxItems = (DIALOG_HEIGHT - 90) / 18;
+                    const int VISIBLE_ITEMS = 20;
                     
-                    for (size_t i = 0; i < bookmarkItems.size() && i < maxItems; ++i) {
+                    size_t startIdx = viewBookmarksScrollOffset;
+                    size_t endIdx = std::min(startIdx + VISIBLE_ITEMS, bookmarkItems.size());
+                    
+                    for (size_t i = startIdx; i < endIdx; ++i) {
                         std::string displayText = bookmarkItems[i];
                         
                         // Truncate if too long
@@ -1483,16 +1552,19 @@ private:
                         itemY += 18;
                     }
                     
+                    // Show scroll indicator if needed
+                    if (bookmarkItems.size() > VISIBLE_ITEMS) {
+                        std::string scrollText = "[" + std::to_string(selectedViewBookmarkItem + 1) + "/" + std::to_string(bookmarkItems.size()) + "]";
+                        XDrawString(display, window, gc, DIALOG_X + DIALOG_WIDTH - 60, DIALOG_Y + 40, scrollText.c_str(), scrollText.length());
+                    }
+                    
                     if (bookmarkItems.empty()) {
                         XDrawString(display, window, gc, DIALOG_X + 20, itemY, "No bookmarks in this group", 26);
                     }
                 }
             }
             
-            // Draw instructions for clip viewing
-            XSetForeground(display, gc, textColor);
-            int instructionY = DIALOG_Y + DIALOG_HEIGHT - 30;
-            XDrawString(display, window, gc, DIALOG_X + 20, instructionY, "j/k or ↑/↓: Navigate | Enter: Copy | Shift+D: Delete | Escape: Back", 71);
+
         }
         
 #endif
