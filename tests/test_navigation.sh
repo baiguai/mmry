@@ -13,7 +13,7 @@ unset EDITOR VISUAL GIT_EDITOR
 echo "Testing MMRY Navigation..."
 echo ""
 
-EXECUTABLE="/home/baiguai/documents/development/rust/mmry/cpp/build/bin/mmry_cpp"
+EXECUTABLE="$(dirname "$0")/../build/bin/mmry_cpp"
 if [ ! -f "$EXECUTABLE" ]; then
     echo "❌ FAIL: Executable not found"
     exit 1
@@ -73,7 +73,7 @@ fi
 
 # Test 4: Check for navigation-related code
 echo "Test 4: Verifying navigation implementation..."
-SOURCE_FILE="$(dirname "$0")//home/baiguai/documents/development/rust/mmry/cpp/complete_main.cpp"
+SOURCE_FILE="$(dirname "$0")/../complete_main.cpp"
 if [ -f "$SOURCE_FILE" ]; then
     # Check for j/k navigation
     if grep -q "XK_j.*XK_Down" "$SOURCE_FILE" && grep -q "XK_k.*XK_Up" "$SOURCE_FILE"; then

@@ -16,7 +16,7 @@ export INTERACTIVE=0
 echo "Testing MMRY Bookmark Management..."
 echo ""
 
-EXECUTABLE="/home/baiguai/documents/development/rust/mmry/cpp/build/bin/mmry_cpp"
+EXECUTABLE="$(dirname "$0")/../build/bin/mmry_cpp"
 if [ ! -f "$EXECUTABLE" ]; then
     echo "❌ FAIL: Executable not found"
     exit 1
@@ -24,7 +24,7 @@ fi
 
 # Test 1: Check for bookmark-related files and functions
 echo "Test 1: Verifying bookmark infrastructure..."
-SOURCE_FILE="/home/baiguai/documents/development/rust/mmry/cpp/complete_main.cpp"
+SOURCE_FILE="$(dirname "$0")/../complete_main.cpp"
 
 # Check for bookmark variables
 BOOKMARK_VARS=(
