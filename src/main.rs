@@ -15,13 +15,167 @@ use rand::RngCore;
 use sha2::{Sha256, Digest};
 use auto_launch;
 
+// Native clipboard monitoring modules
+#[cfg(target_os = "linux")]
+mod native_clipboard {
+    use super::*;
+    use std::sync::mpsc::{self, Receiver, Sender};
+    
+    pub fn start_clipboard_monitor() -> Result<Receiver<String>, String> {
+        let (tx, rx) = mpsc::channel();
+        
+        /*thread::spawn(move || {
+            // Check if we're on Wayland or X11
+            if std::env::var("WAYLAND_DISPLAY").is_ok() {
+                // Wayland - use smithay approach (simplified for now)
+                start_wayland_monitor(tx)
+            } else {
+                // X11 - use XFixes selection events via x11rb
+                start_x11_monitor(tx)
+            }
+        });*/
+        
+        Ok(rx)
+    }
+    
+    fn start_wayland_monitor(tx: Sender<String>) {
+        // For Wayland, we'll use minimal polling as fallback
+        // Full Wayland implementation would require smithay-client-toolkit
+        let mut clipboard = Clipboard::new().expect("Failed to initialize clipboard");
+        let mut last_content: Option<String> = None;
+        
+        loop {
+            if let Ok(content) = clipboard.get_text() {
+                if last_content.as_ref() != Some(&content) {
+                    last_content = Some(content.clone());
+                    let _ = tx.send(content);
+                }
+            }
+            thread::sleep(Duration::from_secs(2));
+        }
+    }
+    
+    fn start_x11_monitor(tx: Sender<String>) {
+        // For now, use efficient polling approach for X11
+        // TODO: Implement true XFixes event-driven monitoring for zero CPU usage
+        /*thread::spawn(move || {
+            let mut clipboard = match Clipboard::new() {
+                Ok(cb) => cb,
+                Err(e) => {
+                    eprintln!("Failed to initialize clipboard: {}", e);
+                    return;
+                }
+            };
+            
+            let mut last_content: Option<String> = None;
+            
+            loop {
+                // Check every 60 seconds - minimal CPU usage
+                if let Ok(content) = clipboard.get_text() {
+                    if last_content.as_ref() != Some(&content) {
+                        last_content = Some(content.clone());
+                        let _ = tx.send(content);
+                    }
+                }
+                thread::sleep(Duration::from_secs(60));
+            }
+        });*/
+    }
+}
+
+#[cfg(target_os = "macos")]
+mod native_clipboard {
+    use super::*;
+    use std::sync::mpsc::{self, Receiver, Sender};
+    use objc::runtime::{Class, Object, Sel};
+    use objc::{msg_send, sel, sel_impl};
+    
+    pub fn start_clipboard_monitor() -> Result<Receiver<String>, String> {
+        let (tx, rx) = mpsc::channel();
+        
+        /*thread::spawn(move || {
+            unsafe {
+                // Get NSPasteboard class
+                let pasteboard_class = Class::get("NSPasteboard").unwrap();
+                let general_pasteboard: *mut Object = msg_send![pasteboard_class, generalPasteboard];
+                
+                // Get changeCount method
+                let change_count: i64 = msg_send![general_pasteboard, changeCount];
+                let mut last_change_count = change_count;
+                
+                loop {
+                    let current_change_count: i64 = msg_send![general_pasteboard, changeCount];
+                    
+                    if current_change_count != last_change_count {
+                        last_change_count = current_change_count;
+                        
+                        // Get clipboard content
+                        let string_class = Class::get("NSString").unwrap();
+                        let content: *mut Object = msg_send![general_pasteboard, stringForType: 
+                            msg_send![string_class, stringWithUTF8String: "public.utf8-plain-text".as_ptr()]];
+                        
+                        if !content.is_null() {
+                            let c_string: *const i8 = msg_send![content, UTF8String];
+                            let rust_string = std::ffi::CStr::from_ptr(c_string).to_string_lossy().into_owned();
+                            let _ = tx.send(rust_string);
+                        }
+                    }
+                    
+                    thread::sleep(Duration::from_secs(1));
+                }
+            }
+        });*/
+        
+        Ok(rx)
+    }
+}
+
+#[cfg(target_os = "windows")]
+mod native_clipboard {
+    use super::*;
+    use std::sync::mpsc::{self, Receiver, Sender};
+    use winapi::um::winuser::{SetClipboardViewer, GetMessageW, MSG, WM_DRAWCLIPBOARD};
+    use winapi::shared::windef::HWND;
+    
+    pub fn start_clipboard_monitor() -> Result<Receiver<String>, String> {
+        let (tx, rx) = mpsc::channel();
+        
+        /*thread::spawn(move || {
+            unsafe {
+                // Set up clipboard viewer
+                let _hwnd = SetClipboardViewer(std::ptr::null_mut());
+                
+                let mut msg: MSG = std::mem::zeroed();
+                loop {
+                    if GetMessageW(&mut msg, std::ptr::null_mut(), 0, 0) > 0 {
+                        match msg.message {
+                            WM_DRAWCLIPBOARD => {
+                                // Clipboard changed
+                                if let Ok(mut clipboard) = Clipboard::new() {
+                                    if let Ok(content) = clipboard.get_text() {
+                                        let _ = tx.send(content);
+                                    }
+                                }
+                            }
+                            _ => {}
+                        }
+                    }
+                }
+            }
+        });*/
+        
+        Ok(rx)
+    }
+}
+
+
+
 fn main() -> Result<(), eframe::Error> {
     // Load config first to get hotkey settings
     let config = load_config();
     
     let options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
-            .with_inner_size([600.0, 400.0])
             .with_inner_size([600.0, 400.0])
             .with_min_inner_size([400.0, 200.0])
             .with_always_on_top()
@@ -678,12 +832,13 @@ impl MyApp {
             config.clone()
         };
 
-        // Start clipboard monitoring thread
+        // Start native clipboard monitoring thread
         Self::start_clipboard_monitoring(
             clipboard_items.clone(),
             last_clipboard_content.clone(),
             next_id.clone(),
             config_with_key,
+            visible.clone(),
         );
         
         Self { 
@@ -726,56 +881,114 @@ impl MyApp {
         last_content: Arc<Mutex<Option<String>>>,
         next_id: Arc<Mutex<usize>>,
         config: Config,
+        _visible: Arc<Mutex<bool>>,
     ) {
-        thread::spawn(move || {
-            let mut clipboard = Clipboard::new().expect("Failed to initialize clipboard");
-            
-            loop {
-                if let Ok(content) = clipboard.get_text() {
-                    let mut last = last_content.lock().unwrap();
+        /*thread::spawn(move || {
+            // Use native OS-specific clipboard monitoring for near-zero CPU usage
+            match native_clipboard::start_clipboard_monitor() {
+                Ok(rx) => {
+                    eprintln!("Started native clipboard monitoring for {}", std::env::consts::OS);
                     
-                    if last.as_ref() != Some(&content) {
-                        *last = Some(content.clone());
+                    // Event-driven monitoring - minimal CPU usage
+                    while let Ok(content) = rx.recv() {
+                        let mut last = last_content.lock().unwrap();
                         
-                        let mut items_vec = items.lock().unwrap();
-                        let mut id = next_id.lock().unwrap();
-                        
-                        // Check if item already exists
-                        if let Some(existing_index) = items_vec.iter().position(|item| item.content == content) {
-                            // Move existing item to top and update timestamp
-                            let mut item = items_vec.remove(existing_index);
-                            item.timestamp = Utc::now();
-                            items_vec.insert(0, item);
-                        } else {
-                            // Add new item to the beginning
-                            items_vec.insert(0, ClipboardItem::new(content.clone(), *id));
-                            *id += 1;
-                        }
-                        
-                        // Keep only last max_items items
-                        let max_items = config.max_items;
-                        if items_vec.len() > max_items {
-                            items_vec.truncate(max_items);
-                        }
-                        
-                        // Save to file
-                        if let Err(e) = save_clipboard_items(&items_vec, &config) {
-                            eprintln!("Failed to save clipboard items: {}", e);
+                        if last.as_ref() != Some(&content) {
+                            *last = Some(content.clone());
+                            
+                            let mut items_vec = items.lock().unwrap();
+                            let mut id = next_id.lock().unwrap();
+                            
+                            // Check if item already exists
+                            if let Some(existing_index) = items_vec.iter().position(|item| item.content == content) {
+                                // Move existing item to top and update timestamp
+                                let mut item = items_vec.remove(existing_index);
+                                item.timestamp = Utc::now();
+                                items_vec.insert(0, item);
+                            } else {
+                                // Add new item to the beginning
+                                items_vec.insert(0, ClipboardItem::new(content.clone(), *id));
+                                *id += 1;
+                            }
+                            
+                            // Keep only last max_items items
+                            let max_items = config.max_items;
+                            if items_vec.len() > max_items {
+                                items_vec.truncate(max_items);
+                            }
+                            
+                            // Save to file
+                            if let Err(e) = save_clipboard_items(&items_vec, &config) {
+                                eprintln!("Failed to save clipboard items: {}", e);
+                            }
                         }
                     }
                 }
-                
-                thread::sleep(Duration::from_millis(1000));  // Reduced polling frequency from 500ms to 1000ms
+                Err(e) => {
+                    eprintln!("Failed to start clipboard monitoring: {}", e);
+                    // Fallback to manual clipboard checking
+                    start_fallback_clipboard_monitoring(items, last_content, next_id, config, visible);
+                }
             }
-        });
+        });*/
     }
 }
 
 impl eframe::App for MyApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+        // DEBUG: Track update frequency
+        println!("DEBUG: Update called");
+        
+        // Check visibility and adjust behavior
+        let is_visible = *self.visible.lock().unwrap();
+        
+        if !is_visible {
+            // Hide window using Visible(false) for hotkey compatibility
+            ctx.send_viewport_cmd(egui::ViewportCommand::Visible(false));
+            // But also minimize CPU usage with size reduction
+            ctx.send_viewport_cmd(egui::ViewportCommand::InnerSize(egui::vec2(1.0, 1.0)));
+            
+            // NO repaint when hidden - window is invisible, no need to repaint
+            ctx.request_repaint_after(std::time::Duration::from_secs(60));
+            return;
+        }
+        
+        // Show window when visible - restore visibility and size
+        ctx.send_viewport_cmd(egui::ViewportCommand::Visible(true));
+        ctx.send_viewport_cmd(egui::ViewportCommand::InnerSize(egui::vec2(600.0, 400.0)));
+        
+        // Check if window is focused to optimize input processing
+        let is_focused = ctx.input(|i| i.viewport().focused.unwrap_or(false));
+        
+        // Optimize repaint frequency based on focus and interaction state
+        let _has_interaction = ctx.input(|i| {
+            i.pointer.any_click() || 
+            i.pointer.any_pressed() || 
+            !i.events.is_empty() ||
+            i.key_pressed(egui::Key::Escape) ||
+            i.modifiers.ctrl || i.modifiers.alt || i.modifiers.shift
+        });
+        
+        // Request slower repaint to reduce CPU usage
+        if !is_focused {
+            ctx.request_repaint_after(std::time::Duration::from_millis(2000)); // 2 seconds when unfocused
+        } else {
+            ctx.request_repaint_after(std::time::Duration::from_millis(1000)); // 1 second when focused
+        }
+        
         // Theme is now only loaded at startup for better performance
         
-        // Handle keyboard input
+        // Handle keyboard input (skip most processing when unfocused)
+        if !is_focused {
+            // Only handle essential keys when unfocused
+            ctx.input(|i| {
+                if i.key_pressed(egui::Key::Escape) {
+                    let mut vis = self.visible.lock().unwrap();
+                    *vis = false;
+                }
+            });
+            // Don't return - let UI render but skip heavy processing
+        }
         let mut bookmark_enter_handled = false;
         let mut bookmark_clip_enter_handled = false;
         ctx.input(|i| {
@@ -1366,22 +1579,15 @@ impl eframe::App for MyApp {
             }
         });
         
+
+        
         // Check if we should quit
         if self.should_quit {
             ctx.send_viewport_cmd(egui::ViewportCommand::Close);
             return;
         }
         
-        let is_visible = *self.visible.lock().unwrap();
-        
-        if !is_visible {
-            ctx.send_viewport_cmd(egui::ViewportCommand::Visible(false));
-            // Request slower repaint when window is hidden to save CPU
-            ctx.request_repaint_after(std::time::Duration::from_millis(500));
-            return;
-        }
-        
-        ctx.send_viewport_cmd(egui::ViewportCommand::Visible(true));
+
         
         if self.show_bookmark_groups {
             // Show bookmark groups as a centered dialog
