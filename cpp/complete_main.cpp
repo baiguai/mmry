@@ -375,7 +375,7 @@ public:
                 
                 line += content;
                 
-                // Add line count if more than 1 line
+                // Add line count if more than one line
                 if (lineCount > 1) {
                     line += " (" + std::to_string(lineCount) + " lines)";
                 }
@@ -562,6 +562,15 @@ public:
         std::cout << "Created default config at: " << configFile << std::endl;
     }
     
+    int countLines(const std::string& content) {
+        if (content.empty()) return 0;
+        int lines = 1;
+        for (char c : content) {
+            if (c == '\n') lines++;
+        }
+        return lines;
+    }
+    
     void copyToClipboard(const std::string& content) {
 #ifdef __linux__
         // Use xclip to copy to clipboard
@@ -707,7 +716,12 @@ public:
                                 if (!items.empty() && selectedItem < getDisplayItemCount()) {
                                     size_t actualIndex = getActualItemIndex(selectedItem);
                                     copyToClipboard(items[actualIndex].content);
-                                    std::cout << "Copied to clipboard: " << items[actualIndex].content.substr(0, 50) << "..." << std::endl;
+                                    int lines = countLines(items[actualIndex].content);
+                                    if (lines > 1) {
+                                        std::cout << "Copied " << lines << " lines to clipboard" << std::endl;
+                                    } else {
+                                        std::cout << "Copied to clipboard: " << items[actualIndex].content.substr(0, 50) << "..." << std::endl;
+                                    }
                                     filterMode = false;
                                     filterText = "";
                                     filteredItems.clear();
@@ -778,7 +792,12 @@ public:
                                 if (!items.empty() && selectedItem < getDisplayItemCount()) {
                                     size_t actualIndex = getActualItemIndex(selectedItem);
                                     copyToClipboard(items[actualIndex].content);
-                                    std::cout << "Copied to clipboard: " << items[actualIndex].content.substr(0, 50) << "..." << std::endl;
+                                    int lines = countLines(items[actualIndex].content);
+                                    if (lines > 1) {
+                                        std::cout << "Copied " << lines << " lines to clipboard" << std::endl;
+                                    } else {
+                                        std::cout << "Copied to clipboard: " << items[actualIndex].content.substr(0, 50) << "..." << std::endl;
+                                    }
                                     hideWindow();
                                 }
                             }
