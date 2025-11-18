@@ -107,12 +107,7 @@ public:
         }
 
         if (helpDialogVisible) {
-            // Help dialog is visible - handle dialog-specific keys
-            if (keysym == XK_Q && (keyEvent->state & ShiftMask)) {
-                // Shift+Q quits application even from help dialog
-                std::cout << "Quitting MMRY..." << std::endl;
-                stop();
-            } else if (keysym == XK_Escape || keysym == XK_question) {
+            if (keysym == XK_Escape || keysym == XK_question) {
                 // Escape or '?' closes help dialog
                 helpDialogVisible = false;
                 drawConsole();
