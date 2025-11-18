@@ -36,6 +36,10 @@ struct ClipboardItem {
 };
 
 class ClipboardManager {
+private:
+    std::atomic<bool> hotkeyGrabbed{false};
+    std::thread hotkeyMonitorThread;
+
 public:
     void handleKeyPress(XEvent* event) {
 #ifdef __linux__
@@ -44,6 +48,25 @@ public:
         XKeyEvent* keyEvent = (XKeyEvent*)event;
         
         XLookupString(keyEvent, buffer, sizeof(buffer), &keysym, nullptr);
+        
+        // Check if this is from the root window (global hotkey)
+        if (event->xany.window == root) {
+            // More robust hotkey detection
+            if (keysym == XK_c || keysym == XK_C) {
+                unsigned int state = keyEvent->state;
+                
+                // Mask out NumLock (Mod2Mask) and CapsLock (LockMask) for comparison
+                state &= ~(Mod2Mask | LockMask);
+                
+                // Check if Ctrl+Alt are pressed (ignore other modifiers)
+                if ((state & ControlMask) && (state & Mod1Mask)) {
+                    std::cout << "Hotkey triggered: Ctrl+Alt+C (state: 0x" 
+                             << std::hex << keyEvent->state << std::dec << ")" << std::endl;
+                    showWindow();
+                    return;
+                }
+            }
+        }
         
         if (keysym == XK_Escape) {
             if (bookmarkDialogVisible) {
@@ -330,8 +353,8 @@ public:
                     bookmarkDialogVisible = false;
                     drawConsole();
                 }
-            } else if (keysym == XK_j || keysym == XK_Down) {
-                // j/Down arrow navigates through bookmark groups
+            } else if ((keysym == XK_j || keysym == XK_Down) && bookmarkDialogInput.empty()) {
+                // j/Down arrow navigates through bookmark groups only when input is empty
                 std::vector<std::string> filteredGroups;
                 for (const auto& group : bookmarkGroups) {
                     if (bookmarkDialogInput.empty() || group.find(bookmarkDialogInput) != std::string::npos) {
@@ -344,8 +367,8 @@ public:
                     updateBookmarkMgmtScrollOffset();
                     drawConsole();
                 }
-            } else if (keysym == XK_k || keysym == XK_Up) {
-                // k/Up arrow navigates backwards through bookmark groups
+            } else if ((keysym == XK_k || keysym == XK_Up) && bookmarkDialogInput.empty()) {
+                // k/Up arrow navigates backwards through bookmark groups only when input is empty
                 std::vector<std::string> filteredGroups;
                 for (const auto& group : bookmarkGroups) {
                     if (bookmarkDialogInput.empty() || group.find(bookmarkDialogInput) != std::string::npos) {
@@ -358,13 +381,13 @@ public:
                     updateBookmarkMgmtScrollOffset();
                     drawConsole();
                 }
-            } else if (keysym == XK_g) {
-                // Go to top (gg)
+            } else if (keysym == XK_g && bookmarkDialogInput.empty()) {
+                // Go to top (gg) only when input is empty
                 selectedBookmarkGroup = 0;
                 bookmarkMgmtScrollOffset = 0;
                 drawConsole();
-            } else if (keysym == XK_G && (keyEvent->state & ShiftMask)) {
-                // Go to bottom
+            } else if (keysym == XK_G && (keyEvent->state & ShiftMask) && bookmarkDialogInput.empty()) {
+                // Go to bottom only when input is empty
                 std::vector<std::string> filteredGroups;
                 for (const auto& group : bookmarkGroups) {
                     if (bookmarkDialogInput.empty() || group.find(bookmarkDialogInput) != std::string::npos) {
@@ -377,7 +400,7 @@ public:
                     updateBookmarkMgmtScrollOffset();
                     drawConsole();
                 }
-            } else if (keysym == XK_D && (keyEvent->state & ShiftMask)) {
+            } else if (keysym == XK_D && (keyEvent->state & ShiftMask) && bookmarkDialogInput.empty()) {
                 // Shift+D deletes selected bookmark group and its clips
                 std::vector<std::string> filteredGroups;
                 for (const auto& group : bookmarkGroups) {
@@ -415,7 +438,7 @@ public:
                     drawConsole();
                 }
             } else {
-                // Text input for bookmark dialog
+                // Text input for bookmark dialog - handle ALL character input first
                 char buffer[10];
                 int count = XLookupString(keyEvent, buffer, sizeof(buffer), nullptr, nullptr);
                 if (count > 0) {
@@ -577,10 +600,10 @@ public:
                     hideWindow();
                 }
             } else {
-                // Handle text input in filter mode
+                // Handle text input in filter mode - exclude vim navigation keys
                 char buffer[10];
                 int count = XLookupString(keyEvent, buffer, sizeof(buffer), nullptr, nullptr);
-                if (count > 0) {
+                if (count > 0 && keysym != XK_j && keysym != XK_k && keysym != XK_g && keysym != XK_G) {
                     filterText += std::string(buffer, count);
                     updateFilteredItems();
                     selectedItem = 0;
@@ -1244,51 +1267,108 @@ private:
     
     void setupHotkeys() {
 #ifdef __linux__
-        // Wait a bit for X11 to be fully initialized
-        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        // First, ensure X11 is fully synchronized
+        XSync(display, False);
+        std::this_thread::sleep_for(std::chrono::milliseconds(200));
         
-        // Try to grab global hotkeys with retry mechanism
-        int grabResult;
-        int retries = 3;
-        bool hotkeyGrabbed = false;
+        // Install X11 error handler to catch grab failures
+        auto oldHandler = XSetErrorHandler([](Display* d, XErrorEvent* e) -> int {
+            if (e->error_code == BadAccess) {
+                std::cerr << "X11 Error: BadAccess when trying to grab key" << std::endl;
+                return 0;
+            }
+            return 0;
+        });
         
-        while (retries > 0 && !hotkeyGrabbed) {
-            // Grab Ctrl+Alt+C globally
-            grabResult = XGrabKey(display, XKeysymToKeycode(display, XK_c), 
-                                 ControlMask | Mod1Mask, root, True, GrabModeAsync, GrabModeAsync);
+        // Try multiple times with exponential backoff
+        const int MAX_RETRIES = 5;
+        bool success = false;
+        
+        for (int retry = 0; retry < MAX_RETRIES && !success; retry++) {
+            if (retry > 0) {
+                std::cerr << "Retry " << retry << " of " << MAX_RETRIES << "..." << std::endl;
+                std::this_thread::sleep_for(std::chrono::milliseconds(500 * retry));
+            }
             
-            if (grabResult == BadAccess) {
-                std::cerr << "Warning: Could not grab Ctrl+Alt+C hotkey (already in use), retrying..." << std::endl;
-                retries--;
-                std::this_thread::sleep_for(std::chrono::milliseconds(500));
+            // First ungrab any existing grabs
+            XUngrabKey(display, AnyKey, AnyModifier, root);
+            XSync(display, False);
+            std::this_thread::sleep_for(std::chrono::milliseconds(100));
+            
+            // Try to grab the key
+            KeyCode keycode = XKeysymToKeycode(display, XK_c);
+            
+            // Grab with all possible combinations of NumLock and CapsLock
+            // since these can interfere with modifier detection
+            unsigned int modifiers[] = {
+                ControlMask | Mod1Mask,                    // Ctrl+Alt
+                ControlMask | Mod1Mask | Mod2Mask,         // Ctrl+Alt+NumLock
+                ControlMask | Mod1Mask | LockMask,         // Ctrl+Alt+CapsLock
+                ControlMask | Mod1Mask | Mod2Mask | LockMask // Ctrl+Alt+NumLock+CapsLock
+            };
+            
+            bool grabFailed = false;
+            for (unsigned int mod : modifiers) {
+                int result = XGrabKey(display, keycode, mod, root, True, 
+                                     GrabModeAsync, GrabModeAsync);
                 
-                // Try to ungrab any existing grabs first
-                XUngrabKey(display, XKeysymToKeycode(display, XK_c), 
-                          ControlMask | Mod1Mask, root);
+                // Force synchronization to detect errors immediately
                 XSync(display, False);
-            } else {
+                
+                if (result == BadAccess) {
+                    grabFailed = true;
+                    break;
+                }
+            }
+            
+            if (!grabFailed) {
+                success = true;
                 hotkeyGrabbed = true;
                 std::cout << "Successfully grabbed Ctrl+Alt+C hotkey" << std::endl;
             }
         }
         
-        if (!hotkeyGrabbed) {
-            std::cerr << "Error: Failed to grab Ctrl+Alt+C hotkey after multiple attempts" << std::endl;
+        // Restore old error handler
+        XSetErrorHandler(oldHandler);
+        
+        if (!success) {
+            std::cerr << "CRITICAL: Failed to grab Ctrl+Alt+C hotkey after " 
+                      << MAX_RETRIES << " attempts!" << std::endl;
+            std::cerr << "Another application may be using this hotkey." << std::endl;
+            std::cerr << "MMRY will still work, but you'll need to focus the window manually." << std::endl;
         }
         
-        // Don't grab Escape globally - let window handle it
-        // This allows Escape to work properly in filter mode
-        
-        XSelectInput(display, root, KeyPressMask);
+        // Select KeyPress events on root window
+        XSelectInput(display, root, KeyPressMask | KeyReleaseMask);
         XSync(display, False);
+        
+        // Start a monitoring thread to periodically verify the hotkey is still grabbed
+        startHotkeyMonitoring();
 #endif
+    }
 
-#ifdef _WIN32
-        // Windows hotkey setup
-#endif
-
-#ifdef __APPLE__
-        // macOS hotkey setup
+    void startHotkeyMonitoring() {
+#ifdef __linux__
+        hotkeyMonitorThread = std::thread([this]() {
+            while (running) {
+                std::this_thread::sleep_for(std::chrono::seconds(5));
+                
+                if (!hotkeyGrabbed) {
+                    continue;
+                }
+                
+                // Periodically try to re-grab the hotkey in case it was lost
+                // This is a safety mechanism for when other applications interfere
+                KeyCode keycode = XKeysymToKeycode(display, XK_c);
+                
+                // Check if we still have the grab by attempting to grab again
+                // If we already have it, this should fail gracefully
+                XGrabKey(display, keycode, ControlMask | Mod1Mask, root, True,
+                        GrabModeAsync, GrabModeAsync);
+                XSync(display, False);
+            }
+        });
+        hotkeyMonitorThread.detach();
 #endif
     }
     
