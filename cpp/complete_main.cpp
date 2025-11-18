@@ -11,6 +11,7 @@
 #include <cstdlib>
 #include <sys/stat.h>
 
+
 #ifdef __linux__
 #include <X11/Xlib.h>
 #include <X11/keysym.h>
@@ -70,6 +71,7 @@ private:
     std::string dataFile;
     size_t maxClips = 500;
     bool encrypted = false;
+    std::string encryptionKey = "";
     std::string theme = "console";
     
     // Navigation
@@ -124,6 +126,81 @@ private:
         } else if (selectedItem >= filteredItems.size()) {
             selectedItem = filteredItems.size() - 1;
         }
+    }
+    
+    // Simple XOR encryption helper functions
+    std::string encrypt(const std::string& data) {
+        if (!encrypted || encryptionKey.empty()) {
+            return data;
+        }
+        
+        std::string encrypted;
+        encrypted.resize(data.length());
+        
+        for (size_t i = 0; i < data.length(); ++i) {
+            encrypted[i] = data[i] ^ encryptionKey[i % encryptionKey.length()];
+        }
+        
+        // Simple base64 encoding
+        const std::string chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+        std::string result;
+        int val = 0, valb = -6;
+        
+        for (char c : encrypted) {
+            val = (val << 8) + (c & 0xff);
+            valb += 8;
+            while (valb >= 0) {
+                result.push_back(chars[(val >> valb) & 0x3f]);
+                valb -= 6;
+            }
+        }
+        
+        if (valb > -6) {
+            result.push_back(chars[((val << 8) >> (valb + 8)) & 0x3f]);
+        }
+        
+        // Pad with '='
+        while (result.length() % 4) {
+            result.push_back('=');
+        }
+        
+        return result;
+    }
+    
+    std::string decrypt(const std::string& data) {
+        if (!encrypted || encryptionKey.empty()) {
+            return data;
+        }
+        
+        // Simple base64 decoding
+        const std::string chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+        std::string decoded;
+        int val = 0, valb = -8;
+        
+        for (char c : data) {
+            if (c == '=') break;
+            
+            size_t pos = chars.find(c);
+            if (pos == std::string::npos) continue;
+            
+            val = (val << 6) + pos;
+            valb += 6;
+            
+            if (valb >= 0) {
+                decoded.push_back((val >> valb) & 0xff);
+                valb -= 8;
+            }
+        }
+        
+        // XOR decrypt
+        std::string decrypted;
+        decrypted.resize(decoded.length());
+        
+        for (size_t i = 0; i < decoded.length(); ++i) {
+            decrypted[i] = decoded[i] ^ encryptionKey[i % encryptionKey.length()];
+        }
+        
+        return decrypted;
     }
     
 public:
@@ -532,6 +609,14 @@ public:
                 else if (line.find("\"encrypted\"") != std::string::npos) {
                     encrypted = line.find("true") != std::string::npos;
                 }
+                // Parse encryption_key
+                else if (line.find("\"encryption_key\"") != std::string::npos) {
+                    size_t start = line.find('"', line.find(':'));
+                    size_t end = line.find('"', start + 1);
+                    if (start != std::string::npos && end != std::string::npos) {
+                        encryptionKey = line.substr(start + 1, end - start - 1);
+                    }
+                }
                 // Parse theme
                 else if (line.find("\"theme\"") != std::string::npos) {
                     size_t start = line.find('"', line.find(':'));
@@ -555,6 +640,7 @@ public:
         outFile << "    \"verbose\": false,\n";
         outFile << "    \"max_clips\": 500,\n";
         outFile << "    \"encrypted\": true,\n";
+        outFile << "    \"encryption_key\": \"mmry_default_key_2024\",\n";
         outFile << "    \"theme\": \"console\"\n";
         outFile << "}\n";
         outFile.close();
@@ -609,10 +695,11 @@ public:
         std::ofstream file(dataFile);
         if (file.is_open()) {
             for (const auto& item : items) {
-                // Store timestamp and content
+                // Store timestamp and content (encrypted if enabled)
                 auto timestamp = std::chrono::duration_cast<std::chrono::seconds>(
                     item.timestamp.time_since_epoch()).count();
-                file << timestamp << "|" << item.content << "\n";
+                std::string contentToSave = encrypt(item.content);
+                file << timestamp << "|" << contentToSave << "\n";
             }
             file.close();
         }
@@ -629,7 +716,30 @@ public:
                     std::string content = line.substr(pos + 1);
                     
                     try {
-                        ClipboardItem item(content);
+                        std::string decryptedContent;
+                        
+                        // Try to decrypt first
+                        try {
+                            decryptedContent = decrypt(content);
+                            // Check if decryption produced reasonable results (no control characters)
+                            bool hasControlChars = false;
+                            for (char c : decryptedContent) {
+                                if (c < 32 && c != '\n' && c != '\r' && c != '\t') {
+                                    hasControlChars = true;
+                                    break;
+                                }
+                            }
+                            
+                            // If decryption produced garbage, assume the content was never encrypted
+                            if (hasControlChars || decryptedContent.empty()) {
+                                decryptedContent = content;
+                            }
+                        } catch (...) {
+                            // If decryption fails, assume content was never encrypted
+                            decryptedContent = content;
+                        }
+                        
+                        ClipboardItem item(decryptedContent);
                         auto timestamp = std::chrono::seconds(std::stoll(timestampStr));
                         item.timestamp = std::chrono::system_clock::time_point(timestamp);
                         
