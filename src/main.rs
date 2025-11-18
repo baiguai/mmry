@@ -1001,6 +1001,7 @@ impl eframe::App for MyApp {
             ctx.send_viewport_cmd(egui::ViewportCommand::InnerSize(egui::vec2(1.0, 1.0)));
             
             // NO repaint when hidden - window is invisible, no need to repaint
+            ctx.request_repaint_after(std::time::Duration::from_secs(60));
             return;
         }
         
@@ -1629,6 +1630,8 @@ impl eframe::App for MyApp {
                 }
             }
         });
+        
+
         
         // Check if we should quit
         if self.should_quit {
