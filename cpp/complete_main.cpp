@@ -170,6 +170,75 @@ public:
                     drawConsole();
                 }
             }
+        } else if (addToBookmarkDialogVisible) {
+            // Add to bookmark dialog is visible - handle dialog-specific keys
+            if (keysym == XK_Escape) {
+                // Escape closes dialog but not window
+                addToBookmarkDialogVisible = false;
+                drawConsole();
+            } else if (keysym == XK_Q && (keyEvent->state & ShiftMask)) {
+                // Shift+Q quits application even from dialog
+                std::cout << "Quitting MMRY..." << std::endl;
+                stop();
+            } else if (keysym == XK_Return) {
+                // Enter adds clip to selected bookmark group
+                if (!bookmarkGroups.empty() && selectedAddBookmarkGroup < bookmarkGroups.size()) {
+                    std::string selectedGroup = bookmarkGroups[selectedAddBookmarkGroup];
+                    
+                    // Check if current clip is already in this group
+                    if (!items.empty() && selectedItem < getDisplayItemCount()) {
+                        size_t actualIndex = getActualItemIndex(selectedItem);
+                        std::string clipContent = items[actualIndex].content;
+                        
+                        // Read existing bookmarks in this group
+                        std::string bookmarkFile = configDir + "/bookmarks_" + selectedGroup + ".txt";
+                        std::ifstream file(bookmarkFile);
+                        std::string line;
+                        bool alreadyExists = false;
+                        
+                        while (std::getline(file, line)) {
+                            std::string decrypted = decrypt(line);
+                            if (decrypted == clipContent) {
+                                alreadyExists = true;
+                                break;
+                            }
+                        }
+                        file.close();
+                        
+                        if (!alreadyExists) {
+                            addClipToBookmarkGroup(selectedGroup, clipContent);
+                            std::cout << "Added clip to bookmark group: " << selectedGroup << std::endl;
+                        } else {
+                            std::cout << "Clip already exists in bookmark group: " << selectedGroup << std::endl;
+                        }
+                    }
+                    
+                    addToBookmarkDialogVisible = false;
+                    drawConsole();
+                }
+            } else if (keysym == XK_j || keysym == XK_Down) {
+                // Move down in bookmark groups
+                if (!bookmarkGroups.empty() && selectedAddBookmarkGroup < bookmarkGroups.size() - 1) {
+                    selectedAddBookmarkGroup++;
+                    drawConsole();
+                }
+            } else if (keysym == XK_k || keysym == XK_Up) {
+                // Move up in bookmark groups
+                if (selectedAddBookmarkGroup > 0) {
+                    selectedAddBookmarkGroup--;
+                    drawConsole();
+                }
+            } else if (keysym == XK_g) {
+                // Go to top
+                selectedAddBookmarkGroup = 0;
+                drawConsole();
+            } else if (keysym == XK_G) {
+                // Go to bottom
+                if (!bookmarkGroups.empty()) {
+                    selectedAddBookmarkGroup = bookmarkGroups.size() - 1;
+                    drawConsole();
+                }
+            }
         } else if (keysym == XK_j || keysym == XK_Down) {
             // Move down
             size_t displayCount = getDisplayItemCount();
@@ -279,6 +348,13 @@ public:
                 bookmarkDialogInput = "";
                 selectedBookmarkGroup = 0;
                 drawConsole();
+            } else if (keysym == XK_m) {
+                // Lowercase m to show add-to-bookmark dialog
+                if (!bookmarkGroups.empty()) {
+                    addToBookmarkDialogVisible = true;
+                    selectedAddBookmarkGroup = 0;
+                    drawConsole();
+                }
             } else if (keysym == XK_Q && (keyEvent->state & ShiftMask)) {
                 // Shift+Q to quit the application
                 std::cout << "Quitting MMRY..." << std::endl;
@@ -427,6 +503,10 @@ private:
     std::string bookmarkDialogInput;
     std::vector<std::string> bookmarkGroups;
     size_t selectedBookmarkGroup = 0;
+    
+    // Add to bookmark dialog state
+    bool addToBookmarkDialogVisible = false;
+    size_t selectedAddBookmarkGroup = 0;
     
     // Helper methods
     size_t getDisplayItemCount() {
@@ -879,6 +959,49 @@ private:
 #endif
     }
     
+    void drawAddToBookmarkDialog() {
+#ifdef __linux__
+        if (!addToBookmarkDialogVisible) return;
+        
+        // Dialog dimensions
+        const int DIALOG_WIDTH = 400;
+        const int DIALOG_HEIGHT = 300;
+        const int DIALOG_X = (WINDOW_WIDTH - DIALOG_WIDTH) / 2;
+        const int DIALOG_Y = (WINDOW_HEIGHT - DIALOG_HEIGHT) / 2;
+        
+        // Draw dialog background
+        XSetForeground(display, gc, backgroundColor);
+        XFillRectangle(display, window, gc, DIALOG_X, DIALOG_Y, DIALOG_WIDTH, DIALOG_HEIGHT);
+        XSetForeground(display, gc, borderColor);
+        XDrawRectangle(display, window, gc, DIALOG_X, DIALOG_Y, DIALOG_WIDTH, DIALOG_HEIGHT);
+        
+        // Draw title
+        std::string title = "Add to Bookmark Group";
+        int titleWidth = XTextWidth(font, title.c_str(), title.length());
+        XDrawString(display, window, gc, DIALOG_X + (DIALOG_WIDTH - titleWidth) / 2, DIALOG_Y + 25, title.c_str(), title.length());
+        
+        // Draw bookmark groups
+        XSetForeground(display, gc, textColor);
+        XDrawString(display, window, gc, DIALOG_X + 20, DIALOG_Y + 60, "Select bookmark group:", 20);
+        
+        int y = DIALOG_Y + 80;
+        int maxGroups = (DIALOG_HEIGHT - 120) / 18; // Approximate groups that fit
+        
+        for (size_t i = 0; i < bookmarkGroups.size() && i < maxGroups; ++i) {
+            std::string displayText = "  " + bookmarkGroups[i];
+            if (i == selectedAddBookmarkGroup) {
+                displayText = "> " + bookmarkGroups[i];
+                // Highlight selected
+                XSetForeground(display, gc, selectionColor);
+                XFillRectangle(display, window, gc, DIALOG_X + 15, y - 12, DIALOG_WIDTH - 30, 15);
+                XSetForeground(display, gc, textColor);
+            }
+            XDrawString(display, window, gc, DIALOG_X + 20, y, displayText.c_str(), displayText.length());
+            y += 18;
+        }
+#endif
+    }
+    
     void drawConsole() {
         if (!visible) return;
         
@@ -989,8 +1112,9 @@ private:
             XDrawString(display, window, gc, 10, y, empty.c_str(), empty.length());
         }
         
-        // Draw bookmark dialog if visible
+        // Draw bookmark dialogs if visible
         drawBookmarkDialog();
+        drawAddToBookmarkDialog();
 #endif
 
 #ifdef _WIN32
