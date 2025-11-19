@@ -887,6 +887,7 @@ private:
     bool encrypted = false;
     std::string encryptionKey = "";
     std::string theme = "console";
+    bool autoStart = false;
     
     // Theme colors
     unsigned long backgroundColor = 0;
@@ -2096,6 +2097,10 @@ private:
                 else if (line.find("\"encrypted\"") != std::string::npos) {
                     encrypted = line.find("true") != std::string::npos;
                 }
+                // Parse encrypted
+                else if (line.find("\"autostart\"") != std::string::npos) {
+                    autoStart = line.find("true") != std::string::npos;
+                }
                 // Parse encryption_key
                 else if (line.find("\"encryption_key\"") != std::string::npos) {
                     size_t start = line.find('"', line.find(':'));
@@ -2128,6 +2133,7 @@ private:
         outFile << "    \"max_clips\": 500,\n";
         outFile << "    \"encrypted\": true,\n";
         outFile << "    \"encryption_key\": \"mmry_default_key_2024\",\n";
+        outFile << "    \"autostart\": false,\n";
         outFile << "    \"theme\": \"console\"\n";
         outFile << "}\n";
         outFile.close();
