@@ -846,36 +846,112 @@ Comment=Autostart for )" << appLabel << R"(
         std::cout << "Press Ctrl+C in terminal to exit" << std::endl;
         
 #ifdef __linux__
-        XEvent event;
+        // --- Reliable X11 global hotkey setup for Ctrl+Alt+C ----------
+        auto grab_global_hotkey = [&](Display* dpy, Window rootWin, KeySym keysym) {
+            if (!dpy) return;
+            // Ensure root receives KeyPress events
+            XSelectInput(dpy, rootWin, KeyPressMask);
+            XFlush(dpy);
+
+            KeyCode kc = XKeysymToKeycode(dpy, keysym);
+
+            // Common modifier masks that may be present (NumLock, CapsLock, ISO Level3)
+            // We'll try combinations to be robust.
+            const unsigned int baseMods[] = {
+                ControlMask | Mod1Mask,                 // Ctrl + Alt
+                ControlMask | Mod1Mask | Mod2Mask,     // + NumLock
+                ControlMask | Mod1Mask | LockMask,     // + CapsLock
+                ControlMask | Mod1Mask | Mod5Mask,     // + Mod5 (often ISO Level3)
+                ControlMask | Mod1Mask | Mod2Mask | LockMask,
+                ControlMask | Mod1Mask | Mod2Mask | Mod5Mask,
+                ControlMask | Mod1Mask | LockMask | Mod5Mask,
+                ControlMask | Mod1Mask | Mod2Mask | LockMask | Mod5Mask
+            };
+
+            for (unsigned int m : baseMods) {
+                // Passive grabs on the root window
+                XGrabKey(dpy, kc, m, rootWin, True, GrabModeAsync, GrabModeAsync);
+                // Also grab with NumLock explicitly OR'd (sometimes necessary)
+                XGrabKey(dpy, kc, m | Mod2Mask, rootWin, True, GrabModeAsync, GrabModeAsync);
+            }
+            XFlush(dpy);
+        };
+
+        auto ungrab_global_hotkey = [&](Display* dpy, Window rootWin, KeySym keysym) {
+            if (!dpy) return;
+            KeyCode kc = XKeysymToKeycode(dpy, keysym);
+            const unsigned int baseMods[] = {
+                ControlMask | Mod1Mask,
+                ControlMask | Mod1Mask | Mod2Mask,
+                ControlMask | Mod1Mask | LockMask,
+                ControlMask | Mod1Mask | Mod5Mask,
+                ControlMask | Mod1Mask | Mod2Mask | LockMask,
+                ControlMask | Mod1Mask | Mod2Mask | Mod5Mask,
+                ControlMask | Mod1Mask | LockMask | Mod5Mask,
+                ControlMask | Mod1Mask | Mod2Mask | LockMask | Mod5Mask
+            };
+            for (unsigned int m : baseMods) {
+                XUngrabKey(dpy, kc, m, rootWin);
+                XUngrabKey(dpy, kc, m | Mod2Mask, rootWin);
+            }
+            XFlush(dpy);
+        };
+
+        // Must call this once after creating display & root
+        grab_global_hotkey(display, root, XK_C);
+
+        // Helpful: determine the grabbed keycode for runtime checks
+        KeyCode grabbed_keycode = XKeysymToKeycode(display, XK_C);
+
+        // --- Event loop: non-blocking, check all pending events -----------
+        // This loop preserves your appWindow handling (Expose, KeyPress handlers, etc.)
         while (running) {
-            XNextEvent(display, &event);
-            
-            // Check if event is from root window (hotkey) or application window
-            if (event.xany.window == root) {
-                // Hotkey event from root window
-                if (event.type == KeyPress) {
-                    KeySym keysym = XLookupKeysym(&event.xkey, 0);
-                    // Check for Ctrl+Alt+C more precisely
-                    if (keysym == XK_c && 
-                        (event.xkey.state & ControlMask) && 
-                        (event.xkey.state & Mod1Mask)) {
-                        // Ctrl+Alt+C pressed - show window
+            // Process all pending X events
+            while (XPending(display)) {
+                XEvent event;
+                XNextEvent(display, &event);
+
+                // If the event is a KeyPress and matches our grabbed keycode
+                if (event.type == KeyPress && event.xkey.keycode == grabbed_keycode) {
+                    // Check ctrl + alt presence (Alt is Mod1Mask on most systems)
+                    // Note: state may include other bits (NumLock, CapsLock) — we're only checking that required bits exist
+                    if ((event.xkey.state & ControlMask) && (event.xkey.state & Mod1Mask)) {
+                        // Hotkey triggered
                         std::cout << "Hotkey triggered: Ctrl+Alt+C" << std::endl;
                         showWindow();
+                        // consume event and continue
+                        continue;
                     }
                 }
-            } else {
-                // Event from application window
-                switch (event.type) {
-                    case Expose:
-                        drawConsole();
-                        break;
-                    case KeyPress:
-                        handleKeyPress(&event);
-                        break;
+
+                // Events for your application window(s)
+                if (event.xany.window == window) {
+                    switch (event.type) {
+                        case Expose:
+                            drawConsole();
+                            break;
+                        case KeyPress:
+                            handleKeyPress(&event);
+                            break;
+                        default:
+                            break;
+                    }
+                } else {
+                    // Events targeted to other windows (including root children)
+                    // For safety, also handle KeyPress on root (in case some setups report it differently)
+                    if (event.type == KeyPress) {
+                        // If not exactly the grabbed keycode we already matched, ignore
+                        // (Other clients may generate key events)
+                    }
                 }
             }
+
+            // Small sleep to avoid busy loop (keeps CPU low)
+            std::this_thread::sleep_for(std::chrono::milliseconds(2));
         }
+
+        // Unregister our grabs on exit
+        ungrab_global_hotkey(display, root, XK_C);
 #endif
 
 #ifdef _WIN32
@@ -2302,7 +2378,26 @@ private:
     }
 };
 
+
+
+
+// Temporary error handler to swallow BadAccess errors
+int ignore_x11_errors(Display* d, XErrorEvent* e) {
+    // 10 = BadAccess
+    if (e->error_code == BadAccess) {
+        return 0; // ignore the error
+    }
+    return 0; // ignore all other errors too
+}
+
+
+
+
+
 int main() {
+    // Install temporary error handler
+    XErrorHandler oldHandler = XSetErrorHandler(ignore_x11_errors);
+
     ClipboardManager manager;
     manager.run();
     return 0;
