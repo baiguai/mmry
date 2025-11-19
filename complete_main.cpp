@@ -10,6 +10,7 @@
 #include <iomanip>
 #include <cstdlib>
 #include <sys/stat.h>
+#include <limits.h>
 
 
 #ifdef __linux__
@@ -53,25 +54,6 @@ public:
             // Shift+Q quits application even from dialog
             std::cout << "Quitting MMRY..." << std::endl;
             stop();
-        }
-        
-        // Check if this is from the root window (global hotkey)
-        if (event->xany.window == root) {
-            // More robust hotkey detection
-            if (keysym == XK_c || keysym == XK_C) {
-                unsigned int state = keyEvent->state;
-                
-                // Mask out NumLock (Mod2Mask) and CapsLock (LockMask) for comparison
-                state &= ~(Mod2Mask | LockMask);
-                
-                // Check if Ctrl+Alt are pressed (ignore other modifiers)
-                if ((state & ControlMask) && (state & Mod1Mask)) {
-                    std::cout << "Hotkey triggered: Ctrl+Alt+C (state: 0x" 
-                             << std::hex << keyEvent->state << std::dec << ")" << std::endl;
-                    showWindow();
-                    return;
-                }
-            }
         }
         
         if (keysym == XK_Escape) {
@@ -589,6 +571,29 @@ public:
                 }
                 return;
             }
+
+            if (keysym == XK_Down) {
+                // Move down
+                size_t displayCount = getDisplayItemCount();
+                if (selectedItem < displayCount - 1) {
+                    selectedItem++;
+                    updateConsoleScrollOffset();
+                    drawConsole();
+                }
+                return;
+            }
+
+            if (keysym == XK_Up) {
+                // Move up
+                if (selectedItem > 0) {
+                    selectedItem--;
+                    updateConsoleScrollOffset();
+                    drawConsole();
+                }
+                return;
+            }
+
+
             // Handle text input in filter mode - exclude vim navigation keys
             char buffer[10];
             int count = XLookupString(keyEvent, buffer, sizeof(buffer), nullptr, nullptr);
@@ -738,6 +743,7 @@ public:
     
     void run() {
         running = true;
+        visible = false;
         
         // Initialize X11
 #ifdef __linux__
@@ -765,6 +771,52 @@ public:
         loadTheme();
         loadFromFile();
         loadBookmarkGroups();
+
+
+        #ifdef _WIN32
+            std::cout << "Running on Windows." << std::endl;
+            // Add Windows-specific auto-start code here
+        #elif __APPLE__
+            std::cout << "Running on macOS." << std::endl;
+            // Add macOS-specific auto-start code here
+        #elif __linux__
+            std::string dir = std::string(getenv("HOME")) + "/.config/autostart";
+            std::string filePath = dir + "/mmry.desktop";
+            std::string appName = "mmry";
+            std::string appLabel = "Mmry";
+
+            // ensure directory exists
+            std::string mkdirCmd = "mkdir -p " + dir;
+            system(mkdirCmd.c_str());
+
+
+            char result[PATH_MAX];
+            ssize_t count = readlink("/proc/self/exe", result, PATH_MAX);
+            if (count != -1) {
+                result[count] = '\0'; // Null-terminate the string
+                std::cout << "Full path: " << result << std::endl;
+            } else {
+                std::cerr << "Error getting path" << std::endl;
+            }
+
+
+
+            std::ofstream file(filePath);
+            file <<
+R"([Desktop Entry]
+Type=Application
+Exec=)" << result << R"(
+Hidden=false
+NoDisplay=false
+X-GNOME-Autostart-enabled=true
+Name=)" << appLabel << R"(
+Comment=Autostart for )" << appLabel << R"(
+)";
+            file.close();
+        #else
+            std::cout << "Unknown operating system." << std::endl;
+        #endif
+
         
         // Start clipboard monitoring after everything is set up
         startClipboardMonitoring();
@@ -776,36 +828,115 @@ public:
         std::cout << "Press Ctrl+C in terminal to exit" << std::endl;
         
 #ifdef __linux__
-        XEvent event;
+        // --- Reliable X11 global hotkey setup for Ctrl+Alt+C ----------
+        auto grab_global_hotkey = [&](Display* dpy, Window rootWin, KeySym keysym) {
+            if (!dpy) {
+                std::cout << "!dpy - returning" << std::endl;
+                return;
+            }
+            // Ensure root receives KeyPress events
+            XSelectInput(dpy, rootWin, KeyPressMask);
+            XFlush(dpy);
+
+            KeyCode kc = XKeysymToKeycode(dpy, keysym);
+
+            // Common modifier masks that may be present (NumLock, CapsLock, ISO Level3)
+            // We'll try combinations to be robust.
+            const unsigned int baseMods[] = {
+                ControlMask | Mod1Mask,                 // Ctrl + Alt
+                ControlMask | Mod1Mask | Mod2Mask,     // + NumLock
+                ControlMask | Mod1Mask | LockMask,     // + CapsLock
+                ControlMask | Mod1Mask | Mod5Mask,     // + Mod5 (often ISO Level3)
+                ControlMask | Mod1Mask | Mod2Mask | LockMask,
+                ControlMask | Mod1Mask | Mod2Mask | Mod5Mask,
+                ControlMask | Mod1Mask | LockMask | Mod5Mask,
+                ControlMask | Mod1Mask | Mod2Mask | LockMask | Mod5Mask
+            };
+
+            for (unsigned int m : baseMods) {
+                // Passive grabs on the root window
+                XGrabKey(dpy, kc, m, rootWin, True, GrabModeAsync, GrabModeAsync);
+                // Also grab with NumLock explicitly OR'd (sometimes necessary)
+                XGrabKey(dpy, kc, m | Mod2Mask, rootWin, True, GrabModeAsync, GrabModeAsync);
+            }
+            XFlush(dpy);
+        };
+
+        auto ungrab_global_hotkey = [&](Display* dpy, Window rootWin, KeySym keysym) {
+            if (!dpy) return;
+            KeyCode kc = XKeysymToKeycode(dpy, keysym);
+            const unsigned int baseMods[] = {
+                ControlMask | Mod1Mask,
+                ControlMask | Mod1Mask | Mod2Mask,
+                ControlMask | Mod1Mask | LockMask,
+                ControlMask | Mod1Mask | Mod5Mask,
+                ControlMask | Mod1Mask | Mod2Mask | LockMask,
+                ControlMask | Mod1Mask | Mod2Mask | Mod5Mask,
+                ControlMask | Mod1Mask | LockMask | Mod5Mask,
+                ControlMask | Mod1Mask | Mod2Mask | LockMask | Mod5Mask
+            };
+            for (unsigned int m : baseMods) {
+                XUngrabKey(dpy, kc, m, rootWin);
+                XUngrabKey(dpy, kc, m | Mod2Mask, rootWin);
+            }
+            XFlush(dpy);
+        };
+
+        // Must call this once after creating display & root
+        grab_global_hotkey(display, root, XK_C);
+
+        // Helpful: determine the grabbed keycode for runtime checks
+        KeyCode grabbed_keycode = XKeysymToKeycode(display, XK_C);
+
+        // --- Event loop: non-blocking, check all pending events -----------
+        // This loop preserves your appWindow handling (Expose, KeyPress handlers, etc.)
         while (running) {
-            XNextEvent(display, &event);
-            
-            // Check if event is from root window (hotkey) or application window
-            if (event.xany.window == root) {
-                // Hotkey event from root window
-                if (event.type == KeyPress) {
-                    KeySym keysym = XLookupKeysym(&event.xkey, 0);
-                    // Check for Ctrl+Alt+C more precisely
-                    if (keysym == XK_c && 
-                        (event.xkey.state & ControlMask) && 
-                        (event.xkey.state & Mod1Mask)) {
-                        // Ctrl+Alt+C pressed - show window
+            // Process all pending X events
+            while (XPending(display)) {
+                XEvent event;
+                XNextEvent(display, &event);
+
+                // If the event is a KeyPress and matches our grabbed keycode
+                if (event.type == KeyPress && event.xkey.keycode == grabbed_keycode) {
+                    // Check ctrl + alt presence (Alt is Mod1Mask on most systems)
+                    // Note: state may include other bits (NumLock, CapsLock) — we're only checking that required bits exist
+                    if ((event.xkey.state & ControlMask) && (event.xkey.state & Mod1Mask)) {
+                        // Hotkey triggered
                         std::cout << "Hotkey triggered: Ctrl+Alt+C" << std::endl;
                         showWindow();
+                        // consume event and continue
+                        continue;
                     }
                 }
-            } else {
-                // Event from application window
-                switch (event.type) {
-                    case Expose:
-                        drawConsole();
-                        break;
-                    case KeyPress:
-                        handleKeyPress(&event);
-                        break;
+
+                // Events for your application window(s)
+                if (event.xany.window == window) {
+                    switch (event.type) {
+                        case Expose:
+                            drawConsole();
+                            break;
+                        case KeyPress:
+                            handleKeyPress(&event);
+                            break;
+                        default:
+                            break;
+                    }
+                } else {
+                    // Events targeted to other windows (including root children)
+                    // For safety, also handle KeyPress on root (in case some setups report it differently)
+                    if (event.type == KeyPress) {
+                        // If not exactly the grabbed keycode we already matched, ignore
+                        // (Other clients may generate key events)
+                    }
                 }
             }
+
+            // Small sleep to avoid busy loop (keeps CPU low)
+            std::this_thread::sleep_for(std::chrono::milliseconds(2));
         }
+
+        // Unregister our grabs on exit
+        ungrab_global_hotkey(display, root, XK_C);
 #endif
 
 #ifdef _WIN32
@@ -864,6 +995,7 @@ private:
     bool encrypted = false;
     std::string encryptionKey = "";
     std::string theme = "console";
+    bool autoStart = false;
     
     // Theme colors
     unsigned long backgroundColor = 0;
@@ -1445,6 +1577,8 @@ private:
     }
     
     void showWindow() {
+        std::cout << "Visible: " << visible << std::endl;
+
         if (!visible) {
 #ifdef __linux__
             XMapWindow(display, window);
@@ -2073,6 +2207,10 @@ private:
                 else if (line.find("\"encrypted\"") != std::string::npos) {
                     encrypted = line.find("true") != std::string::npos;
                 }
+                // Parse encrypted
+                else if (line.find("\"autostart\"") != std::string::npos) {
+                    autoStart = line.find("true") != std::string::npos;
+                }
                 // Parse encryption_key
                 else if (line.find("\"encryption_key\"") != std::string::npos) {
                     size_t start = line.find('"', line.find(':'));
@@ -2105,6 +2243,7 @@ private:
         outFile << "    \"max_clips\": 500,\n";
         outFile << "    \"encrypted\": true,\n";
         outFile << "    \"encryption_key\": \"mmry_default_key_2024\",\n";
+        outFile << "    \"autostart\": false,\n";
         outFile << "    \"theme\": \"console\"\n";
         outFile << "}\n";
         outFile.close();
@@ -2226,7 +2365,26 @@ private:
     }
 };
 
+
+
+
+// Temporary error handler to swallow BadAccess errors
+int ignore_x11_errors(Display* d, XErrorEvent* e) {
+    // 10 = BadAccess
+    if (e->error_code == BadAccess) {
+        return 0; // ignore the error
+    }
+    return 0; // ignore all other errors too
+}
+
+
+
+
+
 int main() {
+    // Install temporary error handler
+    XErrorHandler oldHandler = XSetErrorHandler(ignore_x11_errors);
+
     ClipboardManager manager;
     manager.run();
     return 0;
