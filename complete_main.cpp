@@ -918,6 +918,11 @@ Comment=Autostart for )" << appLabel << R"(
                         case KeyPress:
                             handleKeyPress(&event);
                             break;
+                        case ConfigureNotify:
+                            // Window resize event
+                            updateWindowDimensions(event.xconfigure.width, event.xconfigure.height);
+                            drawConsole();
+                            break;
                         default:
                             break;
                     }
@@ -980,10 +985,13 @@ private:
     std::atomic<bool> visible;
     
     // Window properties
-    const int WINDOW_WIDTH = 800;
-    const int WINDOW_HEIGHT = 600;
+    int windowWidth = 800;
+    int windowHeight = 600;
     const int WINDOW_X = 100;
     const int WINDOW_Y = 100;
+    
+    // Dynamic width adjustment for clip list
+    int clipListWidth = 780; // Default width (windowWidth - 20 for margins)
     
     // Clipboard data
     std::vector<ClipboardItem> items;
@@ -1101,7 +1109,7 @@ private:
     }
     
     void updateConsoleScrollOffset() {
-        const int VISIBLE_ITEMS = (WINDOW_HEIGHT - 60) / 15; // Approximate lines that fit
+        const int VISIBLE_ITEMS = (windowHeight - 60) / 15; // Approximate lines that fit
         
         if (selectedItem < consoleScrollOffset) {
             consoleScrollOffset = selectedItem;
@@ -1136,6 +1144,69 @@ private:
         } else if (selectedAddBookmarkGroup >= addBookmarkScrollOffset + VISIBLE_ITEMS) {
             addBookmarkScrollOffset = selectedAddBookmarkGroup - VISIBLE_ITEMS + 1;
         }
+    }
+    
+    // Dynamic window and layout management functions
+    void updateWindowDimensions(int newWidth, int newHeight) {
+        windowWidth = newWidth;
+        windowHeight = newHeight;
+        updateClipListWidth();
+        updateConsoleScrollOffset();
+    }
+    
+    void updateClipListWidth() {
+        // Calculate clip list width with margins (10px on each side)
+        clipListWidth = windowWidth - 20;
+        
+        // Ensure minimum width for usability
+        if (clipListWidth < 200) {
+            clipListWidth = 200;
+        }
+    }
+    
+    int getClipListWidth() const {
+        return clipListWidth;
+    }
+    
+    int getWindowWidth() const {
+        return windowWidth;
+    }
+    
+    int getWindowHeight() const {
+        return windowHeight;
+    }
+    
+    int calculateMaxContentLength(bool verboseMode) const {
+        // Calculate available width for content (excluding selection indicator and margins)
+        int availableWidth = getClipListWidth() - 30; // 10px left margin + 20px for selection indicator
+        
+        if (verboseMode) {
+            // Verbose mode: "HH:MM:SS | X lines | " prefix takes about 20 chars
+            availableWidth -= 20;
+        }
+        
+        // Estimate character width (assuming monospace font, average width ~8 pixels)
+        int maxChars = availableWidth / 8;
+        
+        // Ensure reasonable minimum and maximum
+        if (maxChars < 20) maxChars = 20;
+        if (maxChars > 200) maxChars = 200;
+        
+        return maxChars;
+    }
+    
+    int calculateDialogContentLength(int dialogWidth) const {
+        // Calculate available width for dialog content (excluding margins)
+        int availableWidth = dialogWidth - 40; // 20px margin on each side
+        
+        // Estimate character width (assuming monospace font, average width ~8 pixels)
+        int maxChars = availableWidth / 8;
+        
+        // Ensure reasonable minimum and maximum
+        if (maxChars < 20) maxChars = 20;
+        if (maxChars > 100) maxChars = 100;
+        
+        return maxChars;
     }
     
     // Simple XOR encryption helper functions
@@ -1426,12 +1497,12 @@ private:
         // Create window with theme colors
         window = XCreateSimpleWindow(display, root, 
                                    WINDOW_X, WINDOW_Y, 
-                                   WINDOW_WIDTH, WINDOW_HEIGHT,
+                                   windowWidth, windowHeight,
                                    2, borderColor, backgroundColor);
         
         // Set window properties
         XStoreName(display, window, "MMRY");
-        XSelectInput(display, window, ExposureMask | KeyPressMask);
+        XSelectInput(display, window, ExposureMask | KeyPressMask | StructureNotifyMask);
         
         // Create graphics context
         gc = XCreateGC(display, window, 0, nullptr);
@@ -1611,8 +1682,8 @@ private:
         // Dialog dimensions
         const int DIALOG_WIDTH = 400;
         const int DIALOG_HEIGHT = 300;
-        const int DIALOG_X = (WINDOW_WIDTH - DIALOG_WIDTH) / 2;
-        const int DIALOG_Y = (WINDOW_HEIGHT - DIALOG_HEIGHT) / 2;
+        const int DIALOG_X = (windowWidth - DIALOG_WIDTH) / 2;
+        const int DIALOG_Y = (windowHeight - DIALOG_HEIGHT) / 2;
         
         // Draw dialog background
         XSetForeground(display, gc, backgroundColor);
@@ -1687,8 +1758,8 @@ private:
         // Dialog dimensions
         const int DIALOG_WIDTH = 400;
         const int DIALOG_HEIGHT = 300;
-        const int DIALOG_X = (WINDOW_WIDTH - DIALOG_WIDTH) / 2;
-        const int DIALOG_Y = (WINDOW_HEIGHT - DIALOG_HEIGHT) / 2;
+        const int DIALOG_X = (windowWidth - DIALOG_WIDTH) / 2;
+        const int DIALOG_Y = (windowHeight - DIALOG_HEIGHT) / 2;
         
         // Draw dialog background
         XSetForeground(display, gc, backgroundColor);
@@ -1739,8 +1810,8 @@ private:
         // Dialog dimensions
         const int DIALOG_WIDTH = 600;
         const int DIALOG_HEIGHT = 500;
-        const int DIALOG_X = (WINDOW_WIDTH - DIALOG_WIDTH) / 2;
-        const int DIALOG_Y = (WINDOW_HEIGHT - DIALOG_HEIGHT) / 2;
+        const int DIALOG_X = (windowWidth - DIALOG_WIDTH) / 2;
+        const int DIALOG_Y = (windowHeight - DIALOG_HEIGHT) / 2;
         
         // Draw dialog background
         XSetForeground(display, gc, backgroundColor);
@@ -1825,8 +1896,8 @@ private:
         // Dialog dimensions
         const int DIALOG_WIDTH = 600;
         const int DIALOG_HEIGHT = 500;
-        const int DIALOG_X = (WINDOW_WIDTH - DIALOG_WIDTH) / 2;
-        const int DIALOG_Y = (WINDOW_HEIGHT - DIALOG_HEIGHT) / 2;
+        const int DIALOG_X = (windowWidth - DIALOG_WIDTH) / 2;
+        const int DIALOG_Y = (windowHeight - DIALOG_HEIGHT) / 2;
         
         // Draw dialog background
         XSetForeground(display, gc, backgroundColor);
@@ -1910,8 +1981,9 @@ private:
                         std::string displayText = bookmarkItems[i];
                         
                         // Truncate if too long
-                        if (displayText.length() > 70) {
-                            displayText = displayText.substr(0, 67) + "...";
+                        int maxContentLength = calculateDialogContentLength(DIALOG_WIDTH);
+                        if (displayText.length() > maxContentLength) {
+                            displayText = displayText.substr(0, maxContentLength - 3) + "...";
                         }
                         
                         // Replace newlines with spaces for display
@@ -1971,7 +2043,7 @@ private:
         
         // Draw clipboard items
         int y = startY;
-        int maxItems = (WINDOW_HEIGHT - startY - 20) / 15; // Approximate lines that fit
+        int maxItems = (windowHeight - startY - 20) / 15; // Approximate lines that fit
         
         size_t displayCount = getDisplayItemCount();
         size_t startIdx = consoleScrollOffset;
@@ -2008,8 +2080,9 @@ private:
                 
                 // Truncate content if too long
                 std::string content = item.content;
-                if (content.length() > 50) {
-                    content = content.substr(0, 47) + "...";
+                int maxContentLength = calculateMaxContentLength(true);
+                if (content.length() > maxContentLength) {
+                    content = content.substr(0, maxContentLength - 3) + "...";
                 }
                 
                 // Replace newlines with spaces for display
@@ -2029,8 +2102,9 @@ private:
                 
                 // Truncate content if too long
                 std::string content = item.content;
-                if (content.length() > 80) {
-                    content = content.substr(0, 77) + "...";
+                int maxContentLength = calculateMaxContentLength(false);
+                if (content.length() > maxContentLength) {
+                    content = content.substr(0, maxContentLength - 3) + "...";
                 }
                 
                 // Replace newlines with spaces for display
@@ -2049,7 +2123,7 @@ private:
             // Highlight selected item with theme selection color
             if (i == selectedItem) {
                 XSetForeground(display, gc, selectionColor);
-                XFillRectangle(display, window, gc, 5, y - 12, WINDOW_WIDTH - 10, 15);
+                XFillRectangle(display, window, gc, 5, y - 12, getClipListWidth(), 15);
                 XSetForeground(display, gc, textColor);
             } else {
                 XSetForeground(display, gc, textColor);
@@ -2063,7 +2137,7 @@ private:
         // Show scroll indicator if needed
         if (displayCount > maxItems) {
             std::string scrollText = "[" + std::to_string(selectedItem + 1) + "/" + std::to_string(displayCount) + "]";
-            XDrawString(display, window, gc, WINDOW_WIDTH - 80, 15, scrollText.c_str(), scrollText.length());
+            XDrawString(display, window, gc, windowWidth - 80, 15, scrollText.c_str(), scrollText.length());
         }
         
         if (displayCount == 0) {
