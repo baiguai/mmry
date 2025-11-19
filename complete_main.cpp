@@ -10,6 +10,7 @@
 #include <iomanip>
 #include <cstdlib>
 #include <sys/stat.h>
+#include <limits.h>
 
 
 #ifdef __linux__
@@ -788,6 +789,52 @@ public:
         loadTheme();
         loadFromFile();
         loadBookmarkGroups();
+
+
+        #ifdef _WIN32
+            std::cout << "Running on Windows." << std::endl;
+            // Add Windows-specific auto-start code here
+        #elif __APPLE__
+            std::cout << "Running on macOS." << std::endl;
+            // Add macOS-specific auto-start code here
+        #elif __linux__
+            std::string dir = std::string(getenv("HOME")) + "/.config/autostart";
+            std::string filePath = dir + "/mmry.desktop";
+            std::string appName = "mmry";
+            std::string appLabel = "Mmry";
+
+            // ensure directory exists
+            std::string mkdirCmd = "mkdir -p " + dir;
+            system(mkdirCmd.c_str());
+
+
+            char result[PATH_MAX];
+            ssize_t count = readlink("/proc/self/exe", result, PATH_MAX);
+            if (count != -1) {
+                result[count] = '\0'; // Null-terminate the string
+                std::cout << "Full path: " << result << std::endl;
+            } else {
+                std::cerr << "Error getting path" << std::endl;
+            }
+
+
+
+            std::ofstream file(filePath);
+            file <<
+R"([Desktop Entry]
+Type=Application
+Exec=)" << result << R"(
+Hidden=false
+NoDisplay=false
+X-GNOME-Autostart-enabled=true
+Name=)" << appLabel << R"(
+Comment=Autostart for )" << appLabel << R"(
+)";
+            file.close();
+        #else
+            std::cout << "Unknown operating system." << std::endl;
+        #endif
+
         
         // Start clipboard monitoring after everything is set up
         startClipboardMonitoring();
