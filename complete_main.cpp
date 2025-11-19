@@ -1771,7 +1771,7 @@ private:
         y += lineHeight;
         XDrawString(display, window, gc, DIALOG_X + 30, y, "Shift+M      - Manage bookmark groups", 37);
         y += lineHeight;
-        XDrawString(display, window, gc, DIALOG_X + 30, y, "m            - Add to bookmark", 30);
+        XDrawString(display, window, gc, DIALOG_X + 30, y, "m            - Add clip to group", 32);
         y += lineHeight;
         XDrawString(display, window, gc, DIALOG_X + 30, y, "`            - View bookmarks", 29);
         y += lineHeight;
