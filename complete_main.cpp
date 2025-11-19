@@ -268,7 +268,7 @@ public:
                         saveBookmarkGroups();
                         
                         // Delete bookmark file
-                        std::string bookmarkFile = configDir + "/bookmarks_" + groupToDelete + ".txt";
+                        std::string bookmarkFile = bookmarksDir + "/bookmarks_" + groupToDelete + ".txt";
                         unlink(bookmarkFile.c_str());
                         
                         std::cout << "Deleted bookmark group and all clips: " << groupToDelete << std::endl;
@@ -333,7 +333,7 @@ public:
                     // Go to bottom
                     if (selectedViewBookmarkGroup < bookmarkGroups.size()) {
                         std::string selectedGroup = bookmarkGroups[selectedViewBookmarkGroup];
-                        std::string bookmarkFile = configDir + "/bookmarks_" + selectedGroup + ".txt";
+                        std::string bookmarkFile = bookmarksDir + "/bookmarks_" + selectedGroup + ".txt";
                         std::ifstream file(bookmarkFile);
                         
                         if (file.is_open()) {
@@ -361,7 +361,7 @@ public:
                     // Shift+D deletes selected clip
                     if (selectedViewBookmarkGroup < bookmarkGroups.size()) {
                         std::string selectedGroup = bookmarkGroups[selectedViewBookmarkGroup];
-                        std::string bookmarkFile = configDir + "/bookmarks_" + selectedGroup + ".txt";
+                        std::string bookmarkFile = bookmarksDir + "/bookmarks_" + selectedGroup + ".txt";
                         std::ifstream file(bookmarkFile);
                         
                         if (file.is_open()) {
@@ -405,7 +405,7 @@ public:
                     // Copy selected bookmark item to clipboard
                     if (selectedViewBookmarkGroup < bookmarkGroups.size()) {
                         std::string selectedGroup = bookmarkGroups[selectedViewBookmarkGroup];
-                        std::string bookmarkFile = configDir + "/bookmarks_" + selectedGroup + ".txt";
+                        std::string bookmarkFile = bookmarksDir + "/bookmarks_" + selectedGroup + ".txt";
                         std::ifstream file(bookmarkFile);
                         
                         if (file.is_open()) {
@@ -469,7 +469,7 @@ public:
                         std::string clipContent = items[actualIndex].content;
                         
                         // Read existing bookmarks in this group
-                        std::string bookmarkFile = configDir + "/bookmarks_" + selectedGroup + ".txt";
+                        std::string bookmarkFile = bookmarksDir + "/bookmarks_" + selectedGroup + ".txt";
                         std::ifstream file(bookmarkFile);
                         std::string line;
                         bool alreadyExists = false;
@@ -990,6 +990,7 @@ private:
     std::string lastClipboardContent;
     bool verboseMode;
     std::string configDir;
+    std::string bookmarksDir;
     std::string dataFile;
     size_t maxClips = 500;
     bool encrypted = false;
@@ -1311,7 +1312,7 @@ private:
     }
     
     void loadBookmarkGroups() {
-        std::string bookmarkFile = configDir + "/bookmarks.txt";
+        std::string bookmarkFile = bookmarksDir + "/bookmarks.txt";
         std::ifstream file(bookmarkFile);
         bookmarkGroups.clear();
         
@@ -1336,7 +1337,7 @@ private:
     }
     
     void saveBookmarkGroups() {
-        std::string bookmarkFile = configDir + "/bookmarks.txt";
+        std::string bookmarkFile = bookmarksDir + "/bookmarks.txt";
         std::ofstream file(bookmarkFile);
         
         if (file.is_open()) {
@@ -1348,7 +1349,7 @@ private:
     }
     
     void addClipToBookmarkGroup(const std::string& groupName, const std::string& content) {
-        std::string bookmarkFile = configDir + "/bookmarks_" + groupName + ".txt";
+        std::string bookmarkFile = bookmarksDir + "/bookmarks_" + groupName + ".txt";
         std::ofstream file(bookmarkFile, std::ios::app);
         
         if (file.is_open()) {
@@ -1380,6 +1381,13 @@ private:
             std::cout << "Created themes directory: " << themesDir << std::endl;
         }
         
+        // Create bookmarks directory if it doesn't exist
+        bookmarksDir = configDir + "/bookmarks";
+        if (stat(bookmarksDir.c_str(), &st) == -1) {
+            mkdir(bookmarksDir.c_str(), 0755);
+            std::cout << "Created bookmarks directory: " << bookmarksDir << std::endl;
+        }
+        
         dataFile = configDir + "/clips.txt";
         
         // Ensure all required files exist
@@ -1401,7 +1409,7 @@ private:
         }
         
         // Check and create bookmarks.txt if needed
-        std::string bookmarksFile = configDir + "/bookmarks.txt";
+        std::string bookmarksFile = bookmarksDir + "/bookmarks.txt";
         if (stat(bookmarksFile.c_str(), &st) == -1) {
             std::ofstream outFile(bookmarksFile);
             if (outFile.is_open()) {
@@ -1876,10 +1884,10 @@ private:
             
         } else {
             // Show bookmark items for selected group
-            if (selectedViewBookmarkGroup < bookmarkGroups.size()) {
-                std::string selectedGroup = bookmarkGroups[selectedViewBookmarkGroup];
-                std::string bookmarkFile = configDir + "/bookmarks_" + selectedGroup + ".txt";
-                std::ifstream file(bookmarkFile);
+                    if (selectedViewBookmarkGroup < bookmarkGroups.size()) {
+                        std::string selectedGroup = bookmarkGroups[selectedViewBookmarkGroup];
+                        std::string bookmarkFile = bookmarksDir + "/bookmarks_" + selectedGroup + ".txt";
+                        std::ifstream file(bookmarkFile);
                 
                 if (file.is_open()) {
                     std::string line;
