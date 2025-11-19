@@ -787,7 +787,8 @@ public:
 
             // ensure directory exists
             std::string mkdirCmd = "mkdir -p " + dir;
-            system(mkdirCmd.c_str());
+            int mkdirResult = system(mkdirCmd.c_str());
+            (void)mkdirResult; // Suppress unused result warning
 
 
             char result[PATH_MAX];
@@ -990,6 +991,10 @@ private:
     const int WINDOW_X = 100;
     const int WINDOW_Y = 100;
     
+    // Minimum window size constraints
+    const int MIN_WINDOW_WIDTH = 425;
+    const int MIN_WINDOW_HEIGHT = 525;
+    
     // Dynamic width adjustment for clip list
     int clipListWidth = 780; // Default width (windowWidth - 20 for margins)
     
@@ -1148,6 +1153,14 @@ private:
     
     // Dynamic window and layout management functions
     void updateWindowDimensions(int newWidth, int newHeight) {
+        // Enforce minimum window size constraints
+        if (newWidth < MIN_WINDOW_WIDTH) {
+            newWidth = MIN_WINDOW_WIDTH;
+        }
+        if (newHeight < MIN_WINDOW_HEIGHT) {
+            newHeight = MIN_WINDOW_HEIGHT;
+        }
+        
         windowWidth = newWidth;
         windowHeight = newHeight;
         updateClipListWidth();
@@ -1195,9 +1208,68 @@ private:
         return maxChars;
     }
     
-    int calculateDialogContentLength(int dialogWidth) const {
-        // Calculate available width for dialog content (excluding margins)
-        int availableWidth = dialogWidth - 40; // 20px margin on each side
+
+    
+    // Dialog positioning and sizing structure
+    struct DialogDimensions {
+        int width;
+        int height;
+        int x;
+        int y;
+        int contentWidth;  // Width available for content (excluding margins)
+        int contentHeight; // Height available for content (excluding margins)
+    };
+    
+    // Modular dialog positioning functions
+    DialogDimensions calculateDialogDimensions(int preferredWidth, int preferredHeight) const {
+        DialogDimensions dims;
+        
+        // Calculate maximum size that fits in window with margins
+        int maxWidth = windowWidth - 40;  // 20px margin on each side
+        int maxHeight = windowHeight - 40; // 20px margin on each side
+        
+        // Ensure minimum usable size
+        int minDialogWidth = 300;
+        int minDialogHeight = 200;
+        
+        // Use preferred size if it fits, otherwise scale down
+        dims.width = std::min(preferredWidth, std::max(minDialogWidth, maxWidth));
+        dims.height = std::min(preferredHeight, std::max(minDialogHeight, maxHeight));
+        
+        // Center dialog in window
+        dims.x = (windowWidth - dims.width) / 2;
+        dims.y = (windowHeight - dims.height) / 2;
+        
+        // Calculate content area (excluding borders and margins)
+        dims.contentWidth = dims.width - 40;  // 20px margin on each side
+        dims.contentHeight = dims.height - 60; // 30px margin top/bottom for title and padding
+        
+        // Ensure minimum content area
+        if (dims.contentWidth < 200) dims.contentWidth = 200;
+        if (dims.contentHeight < 100) dims.contentHeight = 100;
+        
+        return dims;
+    }
+    
+    DialogDimensions getBookmarkDialogDimensions() const {
+        return calculateDialogDimensions(400, 300);
+    }
+    
+    DialogDimensions getAddBookmarkDialogDimensions() const {
+        return calculateDialogDimensions(400, 300);
+    }
+    
+    DialogDimensions getHelpDialogDimensions() const {
+        return calculateDialogDimensions(600, 500);
+    }
+    
+    DialogDimensions getViewBookmarksDialogDimensions() const {
+        return calculateDialogDimensions(600, 500);
+    }
+    
+    int calculateDialogContentLength(const DialogDimensions& dims) const {
+        // Calculate available width for dialog content
+        int availableWidth = dims.contentWidth;
         
         // Estimate character width (assuming monospace font, average width ~8 pixels)
         int maxChars = availableWidth / 8;
@@ -1504,6 +1576,13 @@ private:
         XStoreName(display, window, "MMRY");
         XSelectInput(display, window, ExposureMask | KeyPressMask | StructureNotifyMask);
         
+        // Set minimum window size constraints
+        XSizeHints hints;
+        hints.flags = PMinSize;
+        hints.min_width = MIN_WINDOW_WIDTH;
+        hints.min_height = MIN_WINDOW_HEIGHT;
+        XSetWMNormalHints(display, window, &hints);
+        
         // Create graphics context
         gc = XCreateGC(display, window, 0, nullptr);
         XSetForeground(display, gc, textColor);
@@ -1518,11 +1597,11 @@ private:
         }
         
         // Set window to be always on top and skip taskbar
-        XWMHints hints;
-        hints.flags = InputHint | StateHint;
-        hints.input = True;
-        hints.initial_state = NormalState;
-        XSetWMHints(display, window, &hints);
+        XWMHints wmHints;
+        wmHints.flags = InputHint | StateHint;
+        wmHints.input = True;
+        wmHints.initial_state = NormalState;
+        XSetWMHints(display, window, &wmHints);
         
         // Set window type to dialog
         Atom atom_type = XInternAtom(display, "_NET_WM_WINDOW_TYPE", False);
@@ -1679,40 +1758,37 @@ private:
 #ifdef __linux__
         if (!bookmarkDialogVisible) return;
         
-        // Dialog dimensions
-        const int DIALOG_WIDTH = 400;
-        const int DIALOG_HEIGHT = 300;
-        const int DIALOG_X = (windowWidth - DIALOG_WIDTH) / 2;
-        const int DIALOG_Y = (windowHeight - DIALOG_HEIGHT) / 2;
+        // Get dynamic dialog dimensions
+        DialogDimensions dims = getBookmarkDialogDimensions();
         
         // Draw dialog background
         XSetForeground(display, gc, backgroundColor);
-        XFillRectangle(display, window, gc, DIALOG_X, DIALOG_Y, DIALOG_WIDTH, DIALOG_HEIGHT);
+        XFillRectangle(display, window, gc, dims.x, dims.y, dims.width, dims.height);
         XSetForeground(display, gc, borderColor);
-        XDrawRectangle(display, window, gc, DIALOG_X, DIALOG_Y, DIALOG_WIDTH, DIALOG_HEIGHT);
+        XDrawRectangle(display, window, gc, dims.x, dims.y, dims.width, dims.height);
         
         // Draw title
         std::string title = "Bookmark Groups";
         int titleWidth = XTextWidth(font, title.c_str(), title.length());
-        XDrawString(display, window, gc, DIALOG_X + (DIALOG_WIDTH - titleWidth) / 2, DIALOG_Y + 25, title.c_str(), title.length());
+        XDrawString(display, window, gc, dims.x + (dims.width - titleWidth) / 2, dims.y + 25, title.c_str(), title.length());
         
         // Draw input field
         XSetForeground(display, gc, textColor);
-        XDrawString(display, window, gc, DIALOG_X + 20, DIALOG_Y + 60, "New group name:", 16);
+        XDrawString(display, window, gc, dims.x + 20, dims.y + 60, "New group name:", 16);
         
         // Draw input box
         XSetForeground(display, gc, selectionColor);
-        XFillRectangle(display, window, gc, DIALOG_X + 20, DIALOG_Y + 70, DIALOG_WIDTH - 40, 25);
+        XFillRectangle(display, window, gc, dims.x + 20, dims.y + 70, dims.width - 40, 25);
         XSetForeground(display, gc, textColor);
-        XDrawRectangle(display, window, gc, DIALOG_X + 20, DIALOG_Y + 70, DIALOG_WIDTH - 40, 25);
+        XDrawRectangle(display, window, gc, dims.x + 20, dims.y + 70, dims.width - 40, 25);
         
         // Draw input text
         std::string displayInput = bookmarkDialogInput + "_";
-        XDrawString(display, window, gc, DIALOG_X + 25, DIALOG_Y + 87, displayInput.c_str(), displayInput.length());
+        XDrawString(display, window, gc, dims.x + 25, dims.y + 87, displayInput.c_str(), displayInput.length());
         
         // Draw existing groups
         XSetForeground(display, gc, textColor);
-        XDrawString(display, window, gc, DIALOG_X + 20, DIALOG_Y + 120, "Existing groups:", 15);
+        XDrawString(display, window, gc, dims.x + 20, dims.y + 120, "Existing groups:", 15);
         
         // Filter and display groups
         std::vector<std::string> filteredGroups;
@@ -1722,7 +1798,7 @@ private:
             }
         }
         
-        int y = DIALOG_Y + 140;
+        int y = dims.y + 140;
         const int VISIBLE_ITEMS = 8;
         
         size_t startIdx = bookmarkMgmtScrollOffset;
@@ -1734,17 +1810,17 @@ private:
                 displayText = "> " + filteredGroups[i];
                 // Highlight selected
                 XSetForeground(display, gc, selectionColor);
-                XFillRectangle(display, window, gc, DIALOG_X + 15, y - 12, DIALOG_WIDTH - 30, 15);
+                XFillRectangle(display, window, gc, dims.x + 15, y - 12, dims.width - 30, 15);
                 XSetForeground(display, gc, textColor);
             }
-            XDrawString(display, window, gc, DIALOG_X + 20, y, displayText.c_str(), displayText.length());
+            XDrawString(display, window, gc, dims.x + 20, y, displayText.c_str(), displayText.length());
             y += 18;
         }
         
         // Show scroll indicator if needed
         if (filteredGroups.size() > VISIBLE_ITEMS) {
             std::string scrollText = "[" + std::to_string(selectedBookmarkGroup + 1) + "/" + std::to_string(filteredGroups.size()) + "]";
-            XDrawString(display, window, gc, DIALOG_X + DIALOG_WIDTH - 60, DIALOG_Y + 40, scrollText.c_str(), scrollText.length());
+            XDrawString(display, window, gc, dims.x + dims.width - 60, dims.y + 40, scrollText.c_str(), scrollText.length());
         }
         
 
@@ -1755,28 +1831,25 @@ private:
 #ifdef __linux__
         if (!addToBookmarkDialogVisible) return;
         
-        // Dialog dimensions
-        const int DIALOG_WIDTH = 400;
-        const int DIALOG_HEIGHT = 300;
-        const int DIALOG_X = (windowWidth - DIALOG_WIDTH) / 2;
-        const int DIALOG_Y = (windowHeight - DIALOG_HEIGHT) / 2;
+        // Get dynamic dialog dimensions
+        DialogDimensions dims = getAddBookmarkDialogDimensions();
         
         // Draw dialog background
         XSetForeground(display, gc, backgroundColor);
-        XFillRectangle(display, window, gc, DIALOG_X, DIALOG_Y, DIALOG_WIDTH, DIALOG_HEIGHT);
+        XFillRectangle(display, window, gc, dims.x, dims.y, dims.width, dims.height);
         XSetForeground(display, gc, borderColor);
-        XDrawRectangle(display, window, gc, DIALOG_X, DIALOG_Y, DIALOG_WIDTH, DIALOG_HEIGHT);
+        XDrawRectangle(display, window, gc, dims.x, dims.y, dims.width, dims.height);
         
         // Draw title
         std::string title = "Add to Bookmark Group";
         int titleWidth = XTextWidth(font, title.c_str(), title.length());
-        XDrawString(display, window, gc, DIALOG_X + (DIALOG_WIDTH - titleWidth) / 2, DIALOG_Y + 25, title.c_str(), title.length());
+        XDrawString(display, window, gc, dims.x + (dims.width - titleWidth) / 2, dims.y + 25, title.c_str(), title.length());
         
         // Draw bookmark groups
         XSetForeground(display, gc, textColor);
-        XDrawString(display, window, gc, DIALOG_X + 20, DIALOG_Y + 60, "Select bookmark group:", 20);
+        XDrawString(display, window, gc, dims.x + 20, dims.y + 60, "Select bookmark group:", 20);
         
-        int y = DIALOG_Y + 80;
+        int y = dims.y + 80;
         const int VISIBLE_ITEMS = 8;
         
         size_t startIdx = addBookmarkScrollOffset;
@@ -1788,17 +1861,17 @@ private:
                 displayText = "> " + bookmarkGroups[i];
                 // Highlight selected
                 XSetForeground(display, gc, selectionColor);
-                XFillRectangle(display, window, gc, DIALOG_X + 15, y - 12, DIALOG_WIDTH - 30, 15);
+                XFillRectangle(display, window, gc, dims.x + 15, y - 12, dims.width - 30, 15);
                 XSetForeground(display, gc, textColor);
             }
-            XDrawString(display, window, gc, DIALOG_X + 20, y, displayText.c_str(), displayText.length());
+            XDrawString(display, window, gc, dims.x + 20, y, displayText.c_str(), displayText.length());
             y += 18;
         }
         
         // Show scroll indicator if needed
         if (bookmarkGroups.size() > VISIBLE_ITEMS) {
             std::string scrollText = "[" + std::to_string(selectedAddBookmarkGroup + 1) + "/" + std::to_string(bookmarkGroups.size()) + "]";
-            XDrawString(display, window, gc, DIALOG_X + DIALOG_WIDTH - 60, DIALOG_Y + 40, scrollText.c_str(), scrollText.length());
+            XDrawString(display, window, gc, dims.x + dims.width - 60, dims.y + 40, scrollText.c_str(), scrollText.length());
         }
 #endif
     }
@@ -1807,84 +1880,81 @@ private:
 #ifdef __linux__
         if (!helpDialogVisible) return;
         
-        // Dialog dimensions
-        const int DIALOG_WIDTH = 600;
-        const int DIALOG_HEIGHT = 500;
-        const int DIALOG_X = (windowWidth - DIALOG_WIDTH) / 2;
-        const int DIALOG_Y = (windowHeight - DIALOG_HEIGHT) / 2;
+        // Get dynamic dialog dimensions
+        DialogDimensions dims = getHelpDialogDimensions();
         
         // Draw dialog background
         XSetForeground(display, gc, backgroundColor);
-        XFillRectangle(display, window, gc, DIALOG_X, DIALOG_Y, DIALOG_WIDTH, DIALOG_HEIGHT);
+        XFillRectangle(display, window, gc, dims.x, dims.y, dims.width, dims.height);
         XSetForeground(display, gc, borderColor);
-        XDrawRectangle(display, window, gc, DIALOG_X, DIALOG_Y, DIALOG_WIDTH, DIALOG_HEIGHT);
+        XDrawRectangle(display, window, gc, dims.x, dims.y, dims.width, dims.height);
         
         // Draw title
         std::string title = "MMRY Keyboard Shortcuts";
         int titleWidth = XTextWidth(font, title.c_str(), title.length());
-        XDrawString(display, window, gc, DIALOG_X + (DIALOG_WIDTH - titleWidth) / 2, DIALOG_Y + 25, title.c_str(), title.length());
+        XDrawString(display, window, gc, dims.x + (dims.width - titleWidth) / 2, dims.y + 25, title.c_str(), title.length());
         
         // Draw help content
         XSetForeground(display, gc, textColor);
-        int y = DIALOG_Y + 50;
+        int y = dims.y + 50;
         int lineHeight = 15;
         
         // Main Window shortcuts
-        XDrawString(display, window, gc, DIALOG_X + 20, y, "Main Window:", 11);
+        XDrawString(display, window, gc, dims.x + 20, y, "Main Window:", 11);
         y += lineHeight;
-        XDrawString(display, window, gc, DIALOG_X + 30, y, "j/k          - Navigate items", 29);
+        XDrawString(display, window, gc, dims.x + 30, y, "j/k          - Navigate items", 29);
         y += lineHeight;
-        XDrawString(display, window, gc, DIALOG_X + 30, y, "g/G          - Top/bottom", 25);
+        XDrawString(display, window, gc, dims.x + 30, y, "g/G          - Top/bottom", 25);
         y += lineHeight;
-        XDrawString(display, window, gc, DIALOG_X + 30, y, "Enter        - Copy item", 24);
+        XDrawString(display, window, gc, dims.x + 30, y, "Enter        - Copy item", 24);
         y += lineHeight;
-        XDrawString(display, window, gc, DIALOG_X + 30, y, "/            - Filter mode", 26);
+        XDrawString(display, window, gc, dims.x + 30, y, "/            - Filter mode", 26);
         y += lineHeight;
-        XDrawString(display, window, gc, DIALOG_X + 30, y, "Shift+M      - Manage bookmark groups", 37);
+        XDrawString(display, window, gc, dims.x + 30, y, "Shift+M      - Manage bookmark groups", 37);
         y += lineHeight;
-        XDrawString(display, window, gc, DIALOG_X + 30, y, "m            - Add clip to group", 32);
+        XDrawString(display, window, gc, dims.x + 30, y, "m            - Add clip to group", 32);
         y += lineHeight;
-        XDrawString(display, window, gc, DIALOG_X + 30, y, "`            - View bookmarks", 29);
+        XDrawString(display, window, gc, dims.x + 30, y, "`            - View bookmarks", 29);
         y += lineHeight;
-        XDrawString(display, window, gc, DIALOG_X + 30, y, "?            - This help", 24);
+        XDrawString(display, window, gc, dims.x + 30, y, "?            - This help", 24);
         y += lineHeight;
-        XDrawString(display, window, gc, DIALOG_X + 30, y, "Shift+D      - Delete item", 26);
+        XDrawString(display, window, gc, dims.x + 30, y, "Shift+D      - Delete item", 26);
         y += lineHeight;
-        XDrawString(display, window, gc, DIALOG_X + 30, y, "Shift+Q      - Quit", 19);
+        XDrawString(display, window, gc, dims.x + 30, y, "Shift+Q      - Quit", 19);
         y += lineHeight;
-        XDrawString(display, window, gc, DIALOG_X + 30, y, "Escape       - Hide window", 26);
+        XDrawString(display, window, gc, dims.x + 30, y, "Escape       - Hide window", 26);
         y += lineHeight + 5;
         
         // Filter Mode shortcuts
-        XDrawString(display, window, gc, DIALOG_X + 20, y, "Filter Mode:", 12);
+        XDrawString(display, window, gc, dims.x + 20, y, "Filter Mode:", 12);
         y += lineHeight;
-        XDrawString(display, window, gc, DIALOG_X + 30, y, "Type text    - Filter items", 27);
+        XDrawString(display, window, gc, dims.x + 30, y, "Type text    - Filter items", 27);
         y += lineHeight;
-        XDrawString(display, window, gc, DIALOG_X + 30, y, "Backspace    - Delete char", 26);
+        XDrawString(display, window, gc, dims.x + 30, y, "Backspace    - Delete char", 26);
         y += lineHeight;
-        XDrawString(display, window, gc, DIALOG_X + 30, y, "Enter        - Copy item", 24);
+        XDrawString(display, window, gc, dims.x + 30, y, "Enter        - Copy item", 24);
         y += lineHeight;
-        XDrawString(display, window, gc, DIALOG_X + 30, y, "Escape       - Exit filter", 26);
+        XDrawString(display, window, gc, dims.x + 30, y, "Escape       - Exit filter", 26);
         y += lineHeight + 5;
         
         // Bookmark Dialog shortcuts
-        XDrawString(display, window, gc, DIALOG_X + 20, y, "Bookmark Dialogs:", 17);
+        XDrawString(display, window, gc, dims.x + 20, y, "Bookmark Dialogs:", 17);
         y += lineHeight;
-        XDrawString(display, window, gc, DIALOG_X + 30, y, "All dialogs: up/down or j/k - Navigate", 38);
+        XDrawString(display, window, gc, dims.x + 30, y, "All dialogs: up/down or j/k - Navigate", 38);
         y += lineHeight;
-        XDrawString(display, window, gc, DIALOG_X + 30, y, "Mgmt: Enter - Create/select, Shift+D - Delete", 45);
+        XDrawString(display, window, gc, dims.x + 30, y, "Mgmt: Enter - Create/select, Shift+D - Delete", 45);
         y += lineHeight;
-        XDrawString(display, window, gc, DIALOG_X + 30, y, "Add: Enter - Add to group", 25);
+        XDrawString(display, window, gc, dims.x + 30, y, "Add: Enter - Add to group", 25);
         y += lineHeight;
-        XDrawString(display, window, gc, DIALOG_X + 30, y, "View: g/G - Top/bottom, Enter - Select", 38);
+        XDrawString(display, window, gc, dims.x + 30, y, "View: g/G - Top/bottom, Enter - Select", 38);
         y += lineHeight;
 
         y += lineHeight + 10;
         
         // Global hotkey
-        XDrawString(display, window, gc, DIALOG_X + 20, y, "Global Hotkey:", 14);
+        XDrawString(display, window, gc, dims.x + 20, y, "Global Hotkey:", 14);
         y += lineHeight;
-        XDrawString(display, window, gc, DIALOG_X + 30, y, "Ctrl+Alt+C   - Show/hide window", 31);
+        XDrawString(display, window, gc, dims.x + 30, y, "Ctrl+Alt+C   - Show/hide window", 31);
         
 #endif
     }
@@ -1893,27 +1963,24 @@ private:
 #ifdef __linux__
         if (!viewBookmarksDialogVisible) return;
         
-        // Dialog dimensions
-        const int DIALOG_WIDTH = 600;
-        const int DIALOG_HEIGHT = 500;
-        const int DIALOG_X = (windowWidth - DIALOG_WIDTH) / 2;
-        const int DIALOG_Y = (windowHeight - DIALOG_HEIGHT) / 2;
+        // Get dynamic dialog dimensions
+        DialogDimensions dims = getViewBookmarksDialogDimensions();
         
         // Draw dialog background
         XSetForeground(display, gc, backgroundColor);
-        XFillRectangle(display, window, gc, DIALOG_X, DIALOG_Y, DIALOG_WIDTH, DIALOG_HEIGHT);
+        XFillRectangle(display, window, gc, dims.x, dims.y, dims.width, dims.height);
         XSetForeground(display, gc, borderColor);
-        XDrawRectangle(display, window, gc, DIALOG_X, DIALOG_Y, DIALOG_WIDTH, DIALOG_HEIGHT);
+        XDrawRectangle(display, window, gc, dims.x, dims.y, dims.width, dims.height);
         
         // Draw title
         std::string title = viewBookmarksShowingGroups ? "Select Bookmark Group" : "View Bookmarks: " + bookmarkGroups[selectedViewBookmarkGroup];
         int titleWidth = XTextWidth(font, title.c_str(), title.length());
-        XDrawString(display, window, gc, DIALOG_X + (DIALOG_WIDTH - titleWidth) / 2, DIALOG_Y + 25, title.c_str(), title.length());
+        XDrawString(display, window, gc, dims.x + (dims.width - titleWidth) / 2, dims.y + 25, title.c_str(), title.length());
         
         if (viewBookmarksShowingGroups) {
             // Show bookmark groups list with scrolling
             XSetForeground(display, gc, textColor);
-            int y = DIALOG_Y + 60;
+            int y = dims.y + 60;
             const int VISIBLE_ITEMS = 20;
             
             size_t startIdx = viewBookmarksScrollOffset;
@@ -1927,20 +1994,20 @@ private:
                     displayText = "> " + displayText;
                     // Highlight selected
                     XSetForeground(display, gc, selectionColor);
-                    XFillRectangle(display, window, gc, DIALOG_X + 15, y - 12, DIALOG_WIDTH - 30, 15);
+                    XFillRectangle(display, window, gc, dims.x + 15, y - 12, dims.width - 30, 15);
                     XSetForeground(display, gc, textColor);
                 } else {
                     displayText = "  " + displayText;
                 }
                 
-                XDrawString(display, window, gc, DIALOG_X + 20, y, displayText.c_str(), displayText.length());
+                XDrawString(display, window, gc, dims.x + 20, y, displayText.c_str(), displayText.length());
                 y += 18;
             }
             
             // Show scroll indicator if needed
             if (bookmarkGroups.size() > VISIBLE_ITEMS) {
                 std::string scrollText = "[" + std::to_string(selectedViewBookmarkGroup + 1) + "/" + std::to_string(bookmarkGroups.size()) + "]";
-                XDrawString(display, window, gc, DIALOG_X + DIALOG_WIDTH - 60, DIALOG_Y + 40, scrollText.c_str(), scrollText.length());
+                XDrawString(display, window, gc, dims.x + dims.width - 60, dims.y + 40, scrollText.c_str(), scrollText.length());
             }
             
 
@@ -1971,7 +2038,7 @@ private:
                     file.close();
                     
                     // Draw items with scrolling
-                    int itemY = DIALOG_Y + 60;
+                    int itemY = dims.y + 60;
                     const int VISIBLE_ITEMS = 20;
                     
                     size_t startIdx = viewBookmarksScrollOffset;
@@ -1981,7 +2048,7 @@ private:
                         std::string displayText = bookmarkItems[i];
                         
                         // Truncate if too long
-                        int maxContentLength = calculateDialogContentLength(DIALOG_WIDTH);
+                        int maxContentLength = calculateDialogContentLength(dims);
                         if (displayText.length() > maxContentLength) {
                             displayText = displayText.substr(0, maxContentLength - 3) + "...";
                         }
@@ -1996,24 +2063,24 @@ private:
                             displayText = "> " + displayText;
                             // Highlight selected
                             XSetForeground(display, gc, selectionColor);
-                            XFillRectangle(display, window, gc, DIALOG_X + 15, itemY - 12, DIALOG_WIDTH - 30, 15);
+                            XFillRectangle(display, window, gc, dims.x + 15, itemY - 12, dims.width - 30, 15);
                             XSetForeground(display, gc, textColor);
                         } else {
                             displayText = "  " + displayText;
                         }
                         
-                        XDrawString(display, window, gc, DIALOG_X + 20, itemY, displayText.c_str(), displayText.length());
+                        XDrawString(display, window, gc, dims.x + 20, itemY, displayText.c_str(), displayText.length());
                         itemY += 18;
                     }
                     
                     // Show scroll indicator if needed
                     if (bookmarkItems.size() > VISIBLE_ITEMS) {
                         std::string scrollText = "[" + std::to_string(selectedViewBookmarkItem + 1) + "/" + std::to_string(bookmarkItems.size()) + "]";
-                        XDrawString(display, window, gc, DIALOG_X + DIALOG_WIDTH - 60, DIALOG_Y + 40, scrollText.c_str(), scrollText.length());
+                        XDrawString(display, window, gc, dims.x + dims.width - 60, dims.y + 40, scrollText.c_str(), scrollText.length());
                     }
                     
                     if (bookmarkItems.empty()) {
-                        XDrawString(display, window, gc, DIALOG_X + 20, itemY, "No bookmarks in this group", 26);
+                        XDrawString(display, window, gc, dims.x + 20, itemY, "No bookmarks in this group", 26);
                     }
                 }
             }
@@ -2444,6 +2511,7 @@ private:
 
 // Temporary error handler to swallow BadAccess errors
 int ignore_x11_errors(Display* d, XErrorEvent* e) {
+    (void)d; // Suppress unused parameter warning
     // 10 = BadAccess
     if (e->error_code == BadAccess) {
         return 0; // ignore the error
@@ -2458,6 +2526,7 @@ int ignore_x11_errors(Display* d, XErrorEvent* e) {
 int main() {
     // Install temporary error handler
     XErrorHandler oldHandler = XSetErrorHandler(ignore_x11_errors);
+    (void)oldHandler; // Suppress unused variable warning
 
     ClipboardManager manager;
     manager.run();
