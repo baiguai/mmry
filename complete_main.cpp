@@ -1963,7 +1963,7 @@ private:
         y += lineHeight;
         XDrawString(display, window, gc, dims.x + 30, y, "View: g/G - Top/bottom, Enter - Select", 38);
         y += lineHeight;
-        XDrawString(display, window, gc, DIALOG_X + 30, y, "View: h - Back to groups", 24);
+        XDrawString(display, window, gc, dims.x + 30, y, "View: h - Back to groups", 24);
         y += lineHeight;
 
         y += lineHeight + 10;
