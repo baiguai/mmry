@@ -56,25 +56,6 @@ public:
             stop();
         }
         
-        // Check if this is from the root window (global hotkey)
-        if (event->xany.window == root) {
-            // More robust hotkey detection
-            if (keysym == XK_c || keysym == XK_C) {
-                unsigned int state = keyEvent->state;
-                
-                // Mask out NumLock (Mod2Mask) and CapsLock (LockMask) for comparison
-                state &= ~(Mod2Mask | LockMask);
-                
-                // Check if Ctrl+Alt are pressed (ignore other modifiers)
-                if ((state & ControlMask) && (state & Mod1Mask)) {
-                    std::cout << "Hotkey triggered: Ctrl+Alt+C (state: 0x" 
-                             << std::hex << keyEvent->state << std::dec << ")" << std::endl;
-                    showWindow();
-                    return;
-                }
-            }
-        }
-        
         if (keysym == XK_Escape) {
             if (bookmarkDialogVisible) {
                 // Escape hides dialog but not window
@@ -762,6 +743,7 @@ public:
     
     void run() {
         running = true;
+        visible = false;
         
         // Initialize X11
 #ifdef __linux__
@@ -848,7 +830,10 @@ Comment=Autostart for )" << appLabel << R"(
 #ifdef __linux__
         // --- Reliable X11 global hotkey setup for Ctrl+Alt+C ----------
         auto grab_global_hotkey = [&](Display* dpy, Window rootWin, KeySym keysym) {
-            if (!dpy) return;
+            if (!dpy) {
+                std::cout << "!dpy - returning" << std::endl;
+                return;
+            }
             // Ensure root receives KeyPress events
             XSelectInput(dpy, rootWin, KeyPressMask);
             XFlush(dpy);
@@ -1592,6 +1577,8 @@ private:
     }
     
     void showWindow() {
+        std::cout << "Visible: " << visible << std::endl;
+
         if (!visible) {
 #ifdef __linux__
             XMapWindow(display, window);
