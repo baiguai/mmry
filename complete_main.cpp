@@ -11,6 +11,7 @@
 #include <cstdlib>
 #include <sys/stat.h>
 #include <limits.h>
+#include <signal.h>
 
 
 #ifdef __linux__
@@ -37,9 +38,16 @@ struct ClipboardItem {
 };
 
 class ClipboardManager {
+public:
+    ~ClipboardManager() {
+        std::cout << "ClipboardManager destructor called - cleaning up resources" << std::endl;
+        stop();
+    }
+
 private:
     std::atomic<bool> hotkeyGrabbed{false};
     std::thread hotkeyMonitorThread;
+    std::thread clipboardMonitorThread;
 
 public:
     void handleKeyPress(XEvent* event) {
@@ -53,7 +61,7 @@ public:
         if (keysym == XK_Q && (keyEvent->state & ShiftMask)) {
             // Shift+Q quits application even from dialog
             std::cout << "Quitting MMRY..." << std::endl;
-            stop();
+            running = false; // Let main loop exit naturally to avoid deadlock
         }
         
         if (keysym == XK_Escape) {
@@ -93,6 +101,23 @@ public:
                 // Escape or '?' closes help dialog
                 helpDialogVisible = false;
                 drawConsole();
+                return;
+            }
+
+            if (keysym == XK_j || keysym == XK_Down) {
+                // Scroll down
+                updateHelpDialogScrollOffset(-1);
+                drawConsole();
+                return;
+            }
+
+            if (keysym == XK_k || keysym == XK_Up) {
+                // Scroll up
+                if (helpDialogScrollOffset > 0) {
+                    updateHelpDialogScrollOffset(1);
+                    drawConsole();
+                }
+                return;
             }
 
             return;
@@ -142,40 +167,6 @@ public:
                 return;
             }
 
-            if (keysym == XK_Down) {
-                // j/Down arrow navigates through bookmark groups only when input is empty
-                std::vector<std::string> filteredGroups;
-                for (const auto& group : bookmarkGroups) {
-                    if (bookmarkDialogInput.empty() || group.find(bookmarkDialogInput) != std::string::npos) {
-                        filteredGroups.push_back(group);
-                    }
-                }
-                
-                if (!filteredGroups.empty()) {
-                    selectedBookmarkGroup = (selectedBookmarkGroup + 1) % filteredGroups.size();
-                    updateBookmarkMgmtScrollOffset();
-                    drawConsole();
-                }
-                return;
-            }
-
-            if (keysym == XK_Up) {
-                // k/Up arrow navigates backwards through bookmark groups only when input is empty
-                std::vector<std::string> filteredGroups;
-                for (const auto& group : bookmarkGroups) {
-                    if (bookmarkDialogInput.empty() || group.find(bookmarkDialogInput) != std::string::npos) {
-                        filteredGroups.push_back(group);
-                    }
-                }
-                
-                if (!filteredGroups.empty()) {
-                    selectedBookmarkGroup = (selectedBookmarkGroup == 0) ? filteredGroups.size() - 1 : selectedBookmarkGroup - 1;
-                    updateBookmarkMgmtScrollOffset();
-                    drawConsole();
-                }
-                return;
-            }
-            
             if (keysym == XK_BackSpace) {
                 // Backspace in input field
                 if (!bookmarkDialogInput.empty()) {
@@ -729,6 +720,7 @@ public:
         if (keysym == XK_question) {
             // '?' to show help dialog
             helpDialogVisible = true;
+            helpDialogScrollOffset = 0; // Reset scroll offset when opening help dialog
             drawConsole();
             return;
         }
@@ -967,8 +959,36 @@ Comment=Autostart for )" << appLabel << R"(
 #endif
     }
     
+    void setRunning(bool state) {
+        running = state;
+    }
+    
     void stop() {
         running = false;
+        
+        // Join threads to prevent memory leaks
+        if (hotkeyMonitorThread.joinable()) {
+            hotkeyMonitorThread.join();
+        }
+        if (clipboardMonitorThread.joinable()) {
+            clipboardMonitorThread.join();
+        }
+        
+#ifdef __linux__
+        // Clean up X11 resources
+        if (font) {
+            XFreeFont(display, font);
+            font = nullptr;
+        }
+        if (gc) {
+            XFreeGC(display, gc);
+            gc = nullptr;
+        }
+        if (display) {
+            XCloseDisplay(display);
+            display = nullptr;
+        }
+#endif
     }
     
 private:
@@ -1045,6 +1065,7 @@ private:
     
     // Help dialog state
     bool helpDialogVisible = false;
+    size_t helpDialogScrollOffset = 0;
     
     // View bookmarks dialog state
     bool viewBookmarksDialogVisible = false;
@@ -1122,7 +1143,7 @@ private:
     }
     
     void updateConsoleScrollOffset() {
-        const int VISIBLE_ITEMS = (windowHeight - 60) / 15; // Approximate lines that fit
+        const int VISIBLE_ITEMS = (windowHeight - 60) / 16; // Approximate lines that fit
         
         if (selectedItem < consoleScrollOffset) {
             consoleScrollOffset = selectedItem;
@@ -1156,6 +1177,18 @@ private:
             addBookmarkScrollOffset = selectedAddBookmarkGroup;
         } else if (selectedAddBookmarkGroup >= addBookmarkScrollOffset + VISIBLE_ITEMS) {
             addBookmarkScrollOffset = selectedAddBookmarkGroup - VISIBLE_ITEMS + 1;
+        }
+    }
+
+    void updateHelpDialogScrollOffset(int adjustment) {
+        const int VISIBLE_ITEMS = 50; // Number of items visible in help dialog
+        const int STEP = 10;
+       
+        helpDialogScrollOffset = helpDialogScrollOffset + (adjustment * STEP);
+
+        if (helpDialogScrollOffset > -1)
+        {
+            helpDialogScrollOffset = 0;
         }
     }
     
@@ -1737,7 +1770,6 @@ private:
                 XSync(display, False);
             }
         });
-        hotkeyMonitorThread.detach();
 #endif
     }
     
@@ -1822,7 +1854,7 @@ private:
         for (size_t i = startIdx; i < endIdx; ++i) {
             std::string displayText = "  " + filteredGroups[i];
             if (i == selectedBookmarkGroup) {
-                displayText = "> " + filteredGroups[i];
+                displayText = "  " + filteredGroups[i];
                 // Highlight selected
                 XSetForeground(display, gc, selectionColor);
                 XFillRectangle(display, window, gc, dims.x + 15, y - 12, dims.width - 30, 15);
@@ -1890,7 +1922,12 @@ private:
         }
 #endif
     }
-    
+
+    void drawHelpTopic(int x, int y, int contentTop, int contentBottom, std::string topic) {
+        int topicLen = topic.length();
+        if (y >= contentTop && y < contentBottom) { XDrawString(display, window, gc, x, y, topic.c_str(), topicLen); }
+    }
+
     void drawHelpDialog() {
 #ifdef __linux__
         if (!helpDialogVisible) return;
@@ -1904,74 +1941,99 @@ private:
         XSetForeground(display, gc, borderColor);
         XDrawRectangle(display, window, gc, dims.x, dims.y, dims.width, dims.height);
         
-        // Draw title
-        std::string title = "MMRY Keyboard Shortcuts";
-        int titleWidth = XTextWidth(font, title.c_str(), title.length());
-        XDrawString(display, window, gc, dims.x + (dims.width - titleWidth) / 2, dims.y + 25, title.c_str(), title.length());
-        
         // Draw help content
         XSetForeground(display, gc, textColor);
-        int y = dims.y + 50;
+        int y = dims.y + 20;
+        int contentTop = y;
+        int contentBottom = dims.y + dims.height;
+        int titleLeft = dims.x + 20;
+        int topicLeft = dims.x + 30;
         int lineHeight = 15;
-        
+
+        y = y + helpDialogScrollOffset;
+
+        // !@!
         // Main Window shortcuts
-        XDrawString(display, window, gc, dims.x + 20, y, "Main Window:", 11);
+        drawHelpTopic(titleLeft, y, contentTop, contentBottom, "Main Window:");
         y += lineHeight;
-        XDrawString(display, window, gc, dims.x + 30, y, "j/k          - Navigate items", 29);
+        drawHelpTopic(topicLeft, y, contentTop, contentBottom, "j/k          - Navigate items");
         y += lineHeight;
-        XDrawString(display, window, gc, dims.x + 30, y, "g/G          - Top/bottom", 25);
+        drawHelpTopic(topicLeft, y, contentTop, contentBottom, "g/G          - Top/bottom");
         y += lineHeight;
-        XDrawString(display, window, gc, dims.x + 30, y, "Enter        - Copy item", 24);
+        drawHelpTopic(topicLeft, y, contentTop, contentBottom, "Enter        - Copy item");
         y += lineHeight;
-        XDrawString(display, window, gc, dims.x + 30, y, "/            - Filter mode", 26);
+        drawHelpTopic(topicLeft, y, contentTop, contentBottom, "/            - Filter mode");
         y += lineHeight;
-        XDrawString(display, window, gc, dims.x + 30, y, "Shift+M      - Manage bookmark groups", 37);
+        drawHelpTopic(topicLeft, y, contentTop, contentBottom, "Shift+M      - Manage bookmark groups");
         y += lineHeight;
-        XDrawString(display, window, gc, dims.x + 30, y, "m            - Add clip to group", 32);
+        drawHelpTopic(topicLeft, y, contentTop, contentBottom, "m            - Add clip to group");
         y += lineHeight;
-        XDrawString(display, window, gc, dims.x + 30, y, "`            - View bookmarks", 29);
+        drawHelpTopic(topicLeft, y, contentTop, contentBottom, "`            - View bookmarks");
         y += lineHeight;
-        XDrawString(display, window, gc, dims.x + 30, y, "?            - This help", 24);
+        drawHelpTopic(topicLeft, y, contentTop, contentBottom, "?            - This help");
         y += lineHeight;
-        XDrawString(display, window, gc, dims.x + 30, y, "Shift+D      - Delete item", 26);
+        drawHelpTopic(topicLeft, y, contentTop, contentBottom, "Shift+D      - Delete item");
         y += lineHeight;
-        XDrawString(display, window, gc, dims.x + 30, y, "Shift+Q      - Quit", 19);
+        drawHelpTopic(topicLeft, y, contentTop, contentBottom, "Shift+Q      - Quit");
         y += lineHeight;
-        XDrawString(display, window, gc, dims.x + 30, y, "Escape       - Hide window", 26);
+        drawHelpTopic(topicLeft, y, contentTop, contentBottom, "Escape       - Hide window");
         y += lineHeight + 5;
         
         // Filter Mode shortcuts
-        XDrawString(display, window, gc, dims.x + 20, y, "Filter Mode:", 12);
+        drawHelpTopic(titleLeft, y, contentTop, contentBottom, "Filter Mode:");
         y += lineHeight;
-        XDrawString(display, window, gc, dims.x + 30, y, "Type text    - Filter items", 27);
+        drawHelpTopic(topicLeft, y, contentTop, contentBottom, "Type text    - Filter items");
         y += lineHeight;
-        XDrawString(display, window, gc, dims.x + 30, y, "Backspace    - Delete char", 26);
+        drawHelpTopic(topicLeft, y, contentTop, contentBottom, "Backspace    - Delete char");
         y += lineHeight;
-        XDrawString(display, window, gc, dims.x + 30, y, "Enter        - Copy item", 24);
+        drawHelpTopic(topicLeft, y, contentTop, contentBottom, "Enter        - Copy item");
         y += lineHeight;
-        XDrawString(display, window, gc, dims.x + 30, y, "Escape       - Exit filter", 26);
+        drawHelpTopic(topicLeft, y, contentTop, contentBottom, "Escape       - Exit filter");
         y += lineHeight + 5;
         
-        // Bookmark Dialog shortcuts
-        XDrawString(display, window, gc, dims.x + 20, y, "Bookmark Dialogs:", 17);
+        // Add bookmark group shortcuts
+        drawHelpTopic(titleLeft, y, contentTop, contentBottom, "Add Bookmark Group Dialog:");
         y += lineHeight;
-        XDrawString(display, window, gc, dims.x + 30, y, "All dialogs: up/down or j/k - Navigate", 38);
+        drawHelpTopic(topicLeft, y, contentTop, contentBottom, "Type text    - Define Group Name / Filter Existing");
         y += lineHeight;
-        XDrawString(display, window, gc, dims.x + 30, y, "Mgmt: Enter - Create/select, Shift+D - Delete", 45);
+        drawHelpTopic(topicLeft, y, contentTop, contentBottom, "Backspace    - Delete char");
         y += lineHeight;
-        XDrawString(display, window, gc, dims.x + 30, y, "Add: Enter - Add to group", 25);
+        drawHelpTopic(topicLeft, y, contentTop, contentBottom, "Enter        - Add group");
         y += lineHeight;
-        XDrawString(display, window, gc, dims.x + 30, y, "View: g/G - Top/bottom, Enter - Select", 38);
-        y += lineHeight;
-        XDrawString(display, window, gc, dims.x + 30, y, "View: h - Back to groups", 24);
-        y += lineHeight;
+        drawHelpTopic(topicLeft, y, contentTop, contentBottom, "Escape       - Exit dialog");
+        y += lineHeight + 5;
 
-        y += lineHeight + 10;
-        
-        // Global hotkey
-        XDrawString(display, window, gc, dims.x + 20, y, "Global Hotkey:", 14);
+        // Add clip to group shortcuts
+        drawHelpTopic(titleLeft, y, contentTop, contentBottom, "Add Bookmark Group Dialog:");
         y += lineHeight;
-        XDrawString(display, window, gc, dims.x + 30, y, "Ctrl+Alt+C   - Show/hide window", 31);
+        drawHelpTopic(topicLeft, y, contentTop, contentBottom, "j/k          - Navigate group");
+        y += lineHeight;
+        drawHelpTopic(topicLeft, y, contentTop, contentBottom, "g/G          - Top/bottom");
+        y += lineHeight;
+        drawHelpTopic(topicLeft, y, contentTop, contentBottom, "Enter        - Add clip to group");
+        y += lineHeight;
+        drawHelpTopic(topicLeft, y, contentTop, contentBottom, "Escape       - Exit dialog");
+        y += lineHeight + 5;
+
+        // View/Edit/Use bookmarks
+        drawHelpTopic(titleLeft, y, contentTop, contentBottom, "View/Delete/Use Bookmarks Dialog");
+        y += lineHeight;
+        drawHelpTopic(topicLeft, y, contentTop, contentBottom, "j/k          - Navigate groups/clips");
+        y += lineHeight;
+        drawHelpTopic(topicLeft, y, contentTop, contentBottom, "g/G          - Top/bottom");
+        y += lineHeight;
+        drawHelpTopic(topicLeft, y, contentTop, contentBottom, "Enter        - View group clips/copy clip");
+        y += lineHeight;
+        drawHelpTopic(topicLeft, y, contentTop, contentBottom, "h            - Back to groups list");
+        y += lineHeight;
+        drawHelpTopic(topicLeft, y, contentTop, contentBottom, "Escape       - Exit dialog");
+        y += lineHeight + 10;
+
+
+        // Global hotkey
+        drawHelpTopic(topicLeft, y, contentTop, contentBottom, "Global Hotkey:");
+        y += lineHeight;
+        drawHelpTopic(topicLeft, y, contentTop, contentBottom, "Ctrl+Alt+C   - Show/hide window");
         
 #endif
     }
@@ -2122,12 +2184,12 @@ private:
             // Draw filter input
             std::string filterDisplay = "/" + filterText;
             XDrawString(display, window, gc, 10, startY, filterDisplay.c_str(), filterDisplay.length());
-            startY += 20;
+            startY += 25;
         }
         
         // Draw clipboard items
         int y = startY;
-        int maxItems = (windowHeight - startY - 20) / 15; // Approximate lines that fit
+        int maxItems = (windowHeight - startY - 25) / 15; // Approximate lines that fit
         
         size_t displayCount = getDisplayItemCount();
         size_t startIdx = consoleScrollOffset;
@@ -2215,7 +2277,7 @@ private:
             
             XDrawString(display, window, gc, 10, y, line.c_str(), line.length());
             
-            y += 15;
+            y += 18;
         }
         
         // Show scroll indicator if needed
@@ -2247,12 +2309,12 @@ private:
     
     void startClipboardMonitoring() {
         // Start a separate thread for clipboard monitoring
-        std::thread([this]() {
+        clipboardMonitorThread = std::thread([this]() {
             while (running) {
                 checkClipboard();
                 std::this_thread::sleep_for(std::chrono::milliseconds(200));
             }
-        }).detach();
+        });
     }
     
     void checkClipboard() {
@@ -2540,12 +2602,33 @@ int ignore_x11_errors(Display* d, XErrorEvent* e) {
 
 
 
+#include <signal.h>
+
+// Global pointer for signal handling
+ClipboardManager* g_manager = nullptr;
+
+void signal_handler(int signal) {
+    std::cout << "\nReceived signal " << signal << ", cleaning up..." << std::endl;
+    if (g_manager) {
+        // Just set running to false, don't join in signal handler
+        g_manager->setRunning(false);
+    }
+    exit(0);
+}
+
 int main() {
+    // Install signal handlers for graceful shutdown
+    signal(SIGTERM, signal_handler);
+    signal(SIGINT, signal_handler);
+    
     // Install temporary error handler
     XErrorHandler oldHandler = XSetErrorHandler(ignore_x11_errors);
     (void)oldHandler; // Suppress unused variable warning
 
     ClipboardManager manager;
+    g_manager = &manager;
     manager.run();
+    g_manager = nullptr;
     return 0;
 }
+
