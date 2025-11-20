@@ -1017,6 +1017,7 @@ private:
     int windowHeight = 600;
     const int WINDOW_X = 100;
     const int WINDOW_Y = 100;
+    const int LINE_HEIGHT = 22;
     
     // Minimum window size constraints
     const int MIN_WINDOW_WIDTH = 425;
@@ -1143,19 +1144,35 @@ private:
     }
     
     void updateConsoleScrollOffset() {
-        // TODO: Remove all the hardcoded values
-        int visibleItems = (windowHeight - 60) / 16; // Approximate lines that fit
-        int maxItems = (windowHeight - 10) / 15;
+        const int SCROLL_INDICATOR_HEIGHT = 15; // Height reserved for scroll indicator
+        
+        // Calculate starting Y position (accounting for filter mode)
+        int startY = filterMode ? 45 : 20;
+        
+        // Calculate available height for items
+        int availableHeight = windowHeight - startY - 10; // 10px bottom margin
+        
         size_t displayCount = getDisplayItemCount();
-
-        if (displayCount > maxItems) {
-            visibleItems = visibleItems - 1;
+        
+        // Calculate how many items can fit
+        int maxVisibleItems = availableHeight / LINE_HEIGHT;
+        
+        // If we have more items than fit, reserve space for scroll indicator
+        if (displayCount > maxVisibleItems) {
+            availableHeight -= SCROLL_INDICATOR_HEIGHT;
+            maxVisibleItems = availableHeight / LINE_HEIGHT;
         }
         
+        // Ensure we show at least 1 item
+        if (maxVisibleItems < 1) {
+            maxVisibleItems = 1;
+        }
+        
+        // Update scroll offset to keep selected item visible
         if (selectedItem < consoleScrollOffset) {
             consoleScrollOffset = selectedItem;
-        } else if (selectedItem >= consoleScrollOffset + visibleItems) {
-            consoleScrollOffset = selectedItem - visibleItems + 1;
+        } else if (selectedItem >= consoleScrollOffset + maxVisibleItems) {
+            consoleScrollOffset = selectedItem - maxVisibleItems + 1;
         }
     }
     
@@ -2197,8 +2214,18 @@ private:
         // Draw clipboard items
         // TODO: Remove all the hardcoded values
         int y = startY;
-        int maxItems = (windowHeight - startY - 25) / 15;
         size_t displayCount = getDisplayItemCount();
+        const int SCROLL_INDICATOR_HEIGHT = 15;
+        int availableHeight = windowHeight - startY - 10;
+
+        // If we need a scroll indicator, account for its space
+        if (displayCount > (availableHeight / LINE_HEIGHT)) {
+            availableHeight -= SCROLL_INDICATOR_HEIGHT;
+        }
+
+        int maxItems = availableHeight / LINE_HEIGHT;
+        if (maxItems < 1) maxItems = 1;
+
         size_t startIdx = consoleScrollOffset;
         size_t endIdx = std::min(startIdx + maxItems, displayCount);
 
@@ -2292,7 +2319,7 @@ private:
             
             XDrawString(display, window, gc, 10, y, line.c_str(), line.length());
             
-            y += 18;
+            y += LINE_HEIGHT;
         }
         
         if (displayCount == 0) {
