@@ -1017,7 +1017,7 @@ private:
     int windowHeight = 600;
     const int WINDOW_X = 100;
     const int WINDOW_Y = 100;
-    const int LINE_HEIGHT = 22;
+    const int LINE_HEIGHT = 25;
     
     // Minimum window size constraints
     const int MIN_WINDOW_WIDTH = 425;
