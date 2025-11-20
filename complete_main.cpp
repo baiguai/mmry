@@ -2385,16 +2385,41 @@ private:
         if (!content.empty() && content != lastClipboardContent) {
             lastClipboardContent = content;
             
-            // Check for duplicates
+            // Check for duplicates and move to top if found
             bool isDuplicate = false;
-            for (const auto& item : items) {
-                if (item.content == content) {
+            size_t duplicateIndex = 0;
+            for (size_t i = 0; i < items.size(); i++) {
+                if (items[i].content == content) {
                     isDuplicate = true;
+                    duplicateIndex = i;
                     break;
                 }
             }
             
-            if (!isDuplicate) {
+            if (isDuplicate) {
+                // Move existing clip to top
+                std::string clipContent = items[duplicateIndex].content;
+                items.erase(items.begin() + duplicateIndex);
+                items.emplace(items.begin(), clipContent);
+                
+                // Reset selection to top when item is moved
+                selectedItem = 0;
+                
+                // Update filtered items if in filter mode
+                if (filterMode) {
+                    updateFilteredItems();
+                }
+                
+                saveToFile();
+                
+                std::cout << "Existing clip moved to top" << std::endl;
+                
+                // Refresh display if window is visible
+                if (visible) {
+                    drawConsole();
+                }
+            } else {
+                // Add new clip
                 items.emplace(items.begin(), content);
                 if (items.size() > maxClips) { // Keep only last maxClips items
                     items.pop_back();
