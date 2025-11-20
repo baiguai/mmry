@@ -1143,12 +1143,19 @@ private:
     }
     
     void updateConsoleScrollOffset() {
-        const int VISIBLE_ITEMS = (windowHeight - 60) / 16; // Approximate lines that fit
+        // TODO: Remove all the hardcoded values
+        int visibleItems = (windowHeight - 60) / 16; // Approximate lines that fit
+        int maxItems = (windowHeight - 10) / 15;
+        size_t displayCount = getDisplayItemCount();
+
+        if (displayCount > maxItems) {
+            visibleItems = visibleItems - 1;
+        }
         
         if (selectedItem < consoleScrollOffset) {
             consoleScrollOffset = selectedItem;
-        } else if (selectedItem >= consoleScrollOffset + VISIBLE_ITEMS) {
-            consoleScrollOffset = selectedItem - VISIBLE_ITEMS + 1;
+        } else if (selectedItem >= consoleScrollOffset + visibleItems) {
+            consoleScrollOffset = selectedItem - visibleItems + 1;
         }
     }
     
@@ -2188,12 +2195,20 @@ private:
         }
         
         // Draw clipboard items
+        // TODO: Remove all the hardcoded values
         int y = startY;
-        int maxItems = (windowHeight - startY - 25) / 15; // Approximate lines that fit
-        
+        int maxItems = (windowHeight - startY - 25) / 15;
         size_t displayCount = getDisplayItemCount();
         size_t startIdx = consoleScrollOffset;
         size_t endIdx = std::min(startIdx + maxItems, displayCount);
+
+        // Adjust for the scroll indicator
+        if (displayCount > maxItems) {
+            std::string scrollText = "[" + std::to_string(selectedItem + 1) + "/" + std::to_string(displayCount) + "]";
+            XDrawString(display, window, gc, windowWidth - 80, 15, scrollText.c_str(), scrollText.length());
+            y = y + 15;
+            maxItems = maxItems - 1;  // Reduce max items to account for scroll indicator space
+        }
         
         for (size_t i = startIdx; i < endIdx; ++i) {
             size_t actualIndex = getActualItemIndex(i);
@@ -2278,12 +2293,6 @@ private:
             XDrawString(display, window, gc, 10, y, line.c_str(), line.length());
             
             y += 18;
-        }
-        
-        // Show scroll indicator if needed
-        if (displayCount > maxItems) {
-            std::string scrollText = "[" + std::to_string(selectedItem + 1) + "/" + std::to_string(displayCount) + "]";
-            XDrawString(display, window, gc, windowWidth - 80, 15, scrollText.c_str(), scrollText.length());
         }
         
         if (displayCount == 0) {
