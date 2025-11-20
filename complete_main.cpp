@@ -142,40 +142,6 @@ public:
                 return;
             }
 
-            if (keysym == XK_Down) {
-                // j/Down arrow navigates through bookmark groups only when input is empty
-                std::vector<std::string> filteredGroups;
-                for (const auto& group : bookmarkGroups) {
-                    if (bookmarkDialogInput.empty() || group.find(bookmarkDialogInput) != std::string::npos) {
-                        filteredGroups.push_back(group);
-                    }
-                }
-                
-                if (!filteredGroups.empty()) {
-                    selectedBookmarkGroup = (selectedBookmarkGroup + 1) % filteredGroups.size();
-                    updateBookmarkMgmtScrollOffset();
-                    drawConsole();
-                }
-                return;
-            }
-
-            if (keysym == XK_Up) {
-                // k/Up arrow navigates backwards through bookmark groups only when input is empty
-                std::vector<std::string> filteredGroups;
-                for (const auto& group : bookmarkGroups) {
-                    if (bookmarkDialogInput.empty() || group.find(bookmarkDialogInput) != std::string::npos) {
-                        filteredGroups.push_back(group);
-                    }
-                }
-                
-                if (!filteredGroups.empty()) {
-                    selectedBookmarkGroup = (selectedBookmarkGroup == 0) ? filteredGroups.size() - 1 : selectedBookmarkGroup - 1;
-                    updateBookmarkMgmtScrollOffset();
-                    drawConsole();
-                }
-                return;
-            }
-            
             if (keysym == XK_BackSpace) {
                 // Backspace in input field
                 if (!bookmarkDialogInput.empty()) {
@@ -1122,7 +1088,7 @@ private:
     }
     
     void updateConsoleScrollOffset() {
-        const int VISIBLE_ITEMS = (windowHeight - 60) / 15; // Approximate lines that fit
+        const int VISIBLE_ITEMS = (windowHeight - 60) / 16; // Approximate lines that fit
         
         if (selectedItem < consoleScrollOffset) {
             consoleScrollOffset = selectedItem;
@@ -1822,7 +1788,7 @@ private:
         for (size_t i = startIdx; i < endIdx; ++i) {
             std::string displayText = "  " + filteredGroups[i];
             if (i == selectedBookmarkGroup) {
-                displayText = "> " + filteredGroups[i];
+                displayText = "  " + filteredGroups[i];
                 // Highlight selected
                 XSetForeground(display, gc, selectionColor);
                 XFillRectangle(display, window, gc, dims.x + 15, y - 12, dims.width - 30, 15);
@@ -2122,12 +2088,12 @@ private:
             // Draw filter input
             std::string filterDisplay = "/" + filterText;
             XDrawString(display, window, gc, 10, startY, filterDisplay.c_str(), filterDisplay.length());
-            startY += 20;
+            startY += 25;
         }
         
         // Draw clipboard items
         int y = startY;
-        int maxItems = (windowHeight - startY - 20) / 15; // Approximate lines that fit
+        int maxItems = (windowHeight - startY - 25) / 15; // Approximate lines that fit
         
         size_t displayCount = getDisplayItemCount();
         size_t startIdx = consoleScrollOffset;
@@ -2215,7 +2181,7 @@ private:
             
             XDrawString(display, window, gc, 10, y, line.c_str(), line.length());
             
-            y += 15;
+            y += 18;
         }
         
         // Show scroll indicator if needed
