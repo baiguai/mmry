@@ -692,12 +692,37 @@ public:
             // Copy selected item to clipboard and hide window
             if (!items.empty() && selectedItem < getDisplayItemCount()) {
                 size_t actualIndex = getActualItemIndex(selectedItem);
-                copyToClipboard(items[actualIndex].content);
-                int lines = countLines(items[actualIndex].content);
+                std::string clipContent = items[actualIndex].content;
+                
+                copyToClipboard(clipContent);
+                
+                // Update timestamp and move to top if not already at top
+                if (actualIndex != 0) {
+                    // Remove from current position
+                    items.erase(items.begin() + actualIndex);
+                    
+                    // Create new item with current timestamp and insert at top
+                    items.emplace(items.begin(), ClipboardItem(clipContent));
+                    
+                    // Reset selection to top
+                    selectedItem = 0;
+                    
+                    // Update filtered items if in filter mode
+                    if (filterMode) {
+                        updateFilteredItems();
+                    }
+                    
+                    // Save to file with updated timestamp
+                    saveToFile();
+                    
+                    std::cout << "Clip moved to top after copying" << std::endl;
+                }
+                
+                int lines = countLines(clipContent);
                 if (lines > 1) {
                     std::cout << "Copied " << lines << " lines to clipboard" << std::endl;
                 } else {
-                    std::cout << "Copied to clipboard: " << items[actualIndex].content.substr(0, 50) << "..." << std::endl;
+                    std::cout << "Copied to clipboard: " << clipContent.substr(0, 50) << "..." << std::endl;
                 }
                 hideWindow();
             }
