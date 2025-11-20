@@ -1910,7 +1910,7 @@ private:
         XSetForeground(display, gc, textColor);
         int y = dims.y + 20;
         int contentTop = y;
-        int contentBottom = dims.height + 40;
+        int contentBottom = dims.y + dims.height;
         int titleLeft = dims.x + 20;
         int topicLeft = dims.x + 30;
         int lineHeight = 15;
