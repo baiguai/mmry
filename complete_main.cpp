@@ -11,6 +11,7 @@
 #include <cstdlib>
 #include <sys/stat.h>
 #include <limits.h>
+#include <signal.h>
 
 
 #ifdef __linux__
@@ -37,9 +38,16 @@ struct ClipboardItem {
 };
 
 class ClipboardManager {
+public:
+    ~ClipboardManager() {
+        std::cout << "ClipboardManager destructor called - cleaning up resources" << std::endl;
+        stop();
+    }
+
 private:
     std::atomic<bool> hotkeyGrabbed{false};
     std::thread hotkeyMonitorThread;
+    std::thread clipboardMonitorThread;
 
 public:
     void handleKeyPress(XEvent* event) {
@@ -53,7 +61,7 @@ public:
         if (keysym == XK_Q && (keyEvent->state & ShiftMask)) {
             // Shift+Q quits application even from dialog
             std::cout << "Quitting MMRY..." << std::endl;
-            stop();
+            running = false; // Let main loop exit naturally to avoid deadlock
         }
         
         if (keysym == XK_Escape) {
@@ -951,8 +959,36 @@ Comment=Autostart for )" << appLabel << R"(
 #endif
     }
     
+    void setRunning(bool state) {
+        running = state;
+    }
+    
     void stop() {
         running = false;
+        
+        // Join threads to prevent memory leaks
+        if (hotkeyMonitorThread.joinable()) {
+            hotkeyMonitorThread.join();
+        }
+        if (clipboardMonitorThread.joinable()) {
+            clipboardMonitorThread.join();
+        }
+        
+#ifdef __linux__
+        // Clean up X11 resources
+        if (font) {
+            XFreeFont(display, font);
+            font = nullptr;
+        }
+        if (gc) {
+            XFreeGC(display, gc);
+            gc = nullptr;
+        }
+        if (display) {
+            XCloseDisplay(display);
+            display = nullptr;
+        }
+#endif
     }
     
 private:
@@ -1734,7 +1770,6 @@ private:
                 XSync(display, False);
             }
         });
-        hotkeyMonitorThread.detach();
 #endif
     }
     
@@ -2274,12 +2309,12 @@ private:
     
     void startClipboardMonitoring() {
         // Start a separate thread for clipboard monitoring
-        std::thread([this]() {
+        clipboardMonitorThread = std::thread([this]() {
             while (running) {
                 checkClipboard();
                 std::this_thread::sleep_for(std::chrono::milliseconds(200));
             }
-        }).detach();
+        });
     }
     
     void checkClipboard() {
@@ -2567,13 +2602,33 @@ int ignore_x11_errors(Display* d, XErrorEvent* e) {
 
 
 
+#include <signal.h>
+
+// Global pointer for signal handling
+ClipboardManager* g_manager = nullptr;
+
+void signal_handler(int signal) {
+    std::cout << "\nReceived signal " << signal << ", cleaning up..." << std::endl;
+    if (g_manager) {
+        // Just set running to false, don't join in signal handler
+        g_manager->setRunning(false);
+    }
+    exit(0);
+}
+
 int main() {
+    // Install signal handlers for graceful shutdown
+    signal(SIGTERM, signal_handler);
+    signal(SIGINT, signal_handler);
+    
     // Install temporary error handler
     XErrorHandler oldHandler = XSetErrorHandler(ignore_x11_errors);
     (void)oldHandler; // Suppress unused variable warning
 
     ClipboardManager manager;
+    g_manager = &manager;
     manager.run();
+    g_manager = nullptr;
     return 0;
 }
 
