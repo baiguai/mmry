@@ -1190,13 +1190,14 @@ private:
         
         // Calculate how many items can fit
         int maxVisibleItems = availableHeight / LINE_HEIGHT;
-        if (maxVisibleItems > 0) maxVisibleItems += 1;
         
         // If we have more items than fit, reserve space for scroll indicator
         if (displayCount > maxVisibleItems) {
             availableHeight -= SCROLL_INDICATOR_HEIGHT;
             maxVisibleItems = availableHeight / LINE_HEIGHT;
         }
+
+        if (maxVisibleItems > 0) maxVisibleItems += 1;
         
         // Ensure we show at least 1 item
         if (maxVisibleItems < 1) {
