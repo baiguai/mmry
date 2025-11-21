@@ -1182,6 +1182,7 @@ private:
         
         // Calculate how many items can fit
         int maxVisibleItems = availableHeight / LINE_HEIGHT;
+        if (maxVisibleItems > 0) maxVisibleItems += 1;
         
         // If we have more items than fit, reserve space for scroll indicator
         if (displayCount > maxVisibleItems) {
@@ -2250,6 +2251,7 @@ private:
         }
 
         int maxItems = availableHeight / LINE_HEIGHT;
+        if (maxItems > 0) maxItems += 1;
         if (maxItems < 1) maxItems = 1;
 
         size_t startIdx = consoleScrollOffset;
