@@ -1213,7 +1213,7 @@ private:
     }
     
     void updateBookmarkMgmtScrollOffset() {
-        const int VISIBLE_ITEMS = 8; // Number of groups visible in bookmark management dialog
+        const int VISIBLE_ITEMS = 10; // Number of groups visible in bookmark management dialog
         
         // Filter groups for scroll calculation
         std::vector<std::string> filteredGroups;
@@ -1231,7 +1231,7 @@ private:
     }
     
     void updateAddBookmarkScrollOffset() {
-        const int VISIBLE_ITEMS = 8; // Number of groups visible in add bookmark dialog
+        const int VISIBLE_ITEMS = 10; // Number of groups visible in add bookmark dialog
         
         if (selectedAddBookmarkGroup < addBookmarkScrollOffset) {
             addBookmarkScrollOffset = selectedAddBookmarkGroup;
@@ -1923,13 +1923,6 @@ private:
             XDrawString(display, window, gc, dims.x + 20, y, displayText.c_str(), displayText.length());
             y += 18;
         }
-        
-        // Show scroll indicator if needed
-        if (filteredGroups.size() > VISIBLE_ITEMS) {
-            std::string scrollText = "[" + std::to_string(selectedBookmarkGroup + 1) + "/" + std::to_string(filteredGroups.size()) + "]";
-            XDrawString(display, window, gc, dims.x + dims.width - 60, dims.y + 40, scrollText.c_str(), scrollText.length());
-        }
-        
 
 #endif
     }
@@ -1957,7 +1950,7 @@ private:
         XDrawString(display, window, gc, dims.x + 20, dims.y + 60, "Select bookmark group:", 20);
         
         int y = dims.y + 80;
-        const int VISIBLE_ITEMS = 8;
+        const int VISIBLE_ITEMS = 10;
         
         size_t startIdx = addBookmarkScrollOffset;
         size_t endIdx = std::min(startIdx + VISIBLE_ITEMS, bookmarkGroups.size());
@@ -1973,12 +1966,6 @@ private:
             }
             XDrawString(display, window, gc, dims.x + 20, y, displayText.c_str(), displayText.length());
             y += 18;
-        }
-        
-        // Show scroll indicator if needed
-        if (bookmarkGroups.size() > VISIBLE_ITEMS) {
-            std::string scrollText = "[" + std::to_string(selectedAddBookmarkGroup + 1) + "/" + std::to_string(bookmarkGroups.size()) + "]";
-            XDrawString(display, window, gc, dims.x + dims.width - 60, dims.y + 40, scrollText.c_str(), scrollText.length());
         }
 #endif
     }
@@ -2153,14 +2140,6 @@ private:
                 y += 18;
             }
             
-            // Show scroll indicator if needed
-            if (bookmarkGroups.size() > VISIBLE_ITEMS) {
-                std::string scrollText = "[" + std::to_string(selectedViewBookmarkGroup + 1) + "/" + std::to_string(bookmarkGroups.size()) + "]";
-                XDrawString(display, window, gc, dims.x + dims.width - 60, dims.y + 40, scrollText.c_str(), scrollText.length());
-            }
-            
-
-            
         } else {
             // Show bookmark items for selected group
                     if (selectedViewBookmarkGroup < bookmarkGroups.size()) {
@@ -2220,12 +2199,6 @@ private:
                         
                         XDrawString(display, window, gc, dims.x + 20, itemY, displayText.c_str(), displayText.length());
                         itemY += 18;
-                    }
-                    
-                    // Show scroll indicator if needed
-                    if (bookmarkItems.size() > VISIBLE_ITEMS) {
-                        std::string scrollText = "[" + std::to_string(selectedViewBookmarkItem + 1) + "/" + std::to_string(bookmarkItems.size()) + "]";
-                        XDrawString(display, window, gc, dims.x + dims.width - 60, dims.y + 40, scrollText.c_str(), scrollText.length());
                     }
                     
                     if (bookmarkItems.empty()) {
