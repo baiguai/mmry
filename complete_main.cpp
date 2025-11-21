@@ -51,6 +51,7 @@ private:
 
 public:
     void handleKeyPress(XEvent* event) {
+        // !@!
 #ifdef __linux__
         KeySym keysym;
         char buffer[10];
@@ -117,6 +118,13 @@ public:
                     updateHelpDialogScrollOffset(1);
                     drawConsole();
                 }
+                return;
+            }
+
+            if (keysym == XK_g) {
+                // Scroll up
+                helpDialogScrollOffset = 0;
+                drawConsole();
                 return;
             }
 
@@ -1995,11 +2003,12 @@ private:
         // Draw help content
         XSetForeground(display, gc, textColor);
         int y = dims.y + 20;
-        int contentTop = y;
-        int contentBottom = dims.y + dims.height;
-        int titleLeft = dims.x + 20;
-        int topicLeft = dims.x + 30;
-        int lineHeight = 15;
+        const int contentTop = y;
+        const int contentBottom = dims.y + dims.height;
+        const int titleLeft = dims.x + 20;
+        const int topicLeft = dims.x + 30;
+        const int lineHeight = 15;
+        const int gap = 10;
 
         y = y + helpDialogScrollOffset;
 
@@ -2028,8 +2037,17 @@ private:
         drawHelpTopic(topicLeft, y, contentTop, contentBottom, "Shift+Q      - Quit");
         y += lineHeight;
         drawHelpTopic(topicLeft, y, contentTop, contentBottom, "Escape       - Hide window");
-        y += lineHeight + 5;
+        y += lineHeight + gap;
         
+        // Help
+        drawHelpTopic(titleLeft, y, contentTop, contentBottom, "Help Window:");
+        y += lineHeight;
+        drawHelpTopic(topicLeft, y, contentTop, contentBottom, "j/k          - Navigate topics");
+        y += lineHeight;
+        drawHelpTopic(topicLeft, y, contentTop, contentBottom, "g            - Top");
+        y += lineHeight + gap;
+
+
         // Filter Mode shortcuts
         drawHelpTopic(titleLeft, y, contentTop, contentBottom, "Filter Mode:");
         y += lineHeight;
@@ -2040,7 +2058,7 @@ private:
         drawHelpTopic(topicLeft, y, contentTop, contentBottom, "Enter        - Copy item");
         y += lineHeight;
         drawHelpTopic(topicLeft, y, contentTop, contentBottom, "Escape       - Exit filter");
-        y += lineHeight + 5;
+        y += lineHeight + gap;
         
         // Add bookmark group shortcuts
         drawHelpTopic(titleLeft, y, contentTop, contentBottom, "Add Bookmark Group Dialog:");
@@ -2052,7 +2070,7 @@ private:
         drawHelpTopic(topicLeft, y, contentTop, contentBottom, "Enter        - Add group");
         y += lineHeight;
         drawHelpTopic(topicLeft, y, contentTop, contentBottom, "Escape       - Exit dialog");
-        y += lineHeight + 5;
+        y += lineHeight + gap;
 
         // Add clip to group shortcuts
         drawHelpTopic(titleLeft, y, contentTop, contentBottom, "Add Bookmark Group Dialog:");
@@ -2064,7 +2082,7 @@ private:
         drawHelpTopic(topicLeft, y, contentTop, contentBottom, "Enter        - Add clip to group");
         y += lineHeight;
         drawHelpTopic(topicLeft, y, contentTop, contentBottom, "Escape       - Exit dialog");
-        y += lineHeight + 5;
+        y += lineHeight + gap;
 
         // View/Edit/Use bookmarks
         drawHelpTopic(titleLeft, y, contentTop, contentBottom, "View/Delete/Use Bookmarks Dialog");
@@ -2078,11 +2096,11 @@ private:
         drawHelpTopic(topicLeft, y, contentTop, contentBottom, "h            - Back to groups list");
         y += lineHeight;
         drawHelpTopic(topicLeft, y, contentTop, contentBottom, "Escape       - Exit dialog");
-        y += lineHeight + 10;
+        y += lineHeight + gap + 5;
 
 
         // Global hotkey
-        drawHelpTopic(topicLeft, y, contentTop, contentBottom, "Global Hotkey:");
+        drawHelpTopic(titleLeft, y, contentTop, contentBottom, "Global Hotkey:");
         y += lineHeight;
         drawHelpTopic(topicLeft, y, contentTop, contentBottom, "Ctrl+Alt+C   - Show/hide window");
         
@@ -2432,7 +2450,7 @@ private:
             lastClipboardContent = content;
             size_t duplicateIndex = 0;
             
-            // Check for duplicates
+            // Check for duplicates and move to top if found
             bool isDuplicate = false;
             for (size_t i = 0; i < items.size(); i++) {
                 if (items[i].content == content) {
