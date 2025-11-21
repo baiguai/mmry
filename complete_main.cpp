@@ -225,7 +225,7 @@ public:
                     // Move down in groups
                     if (selectedViewBookmarkGroup < bookmarkGroups.size() - 1) {
                         selectedViewBookmarkGroup++;
-                        updateScrollOffset();
+                        updateViewBmScrollOffset();
                         drawConsole();
                     }
                     return;
@@ -235,7 +235,7 @@ public:
                     // Move up in groups
                     if (selectedViewBookmarkGroup > 0) {
                         selectedViewBookmarkGroup--;
-                        updateScrollOffset();
+                        updateViewBmScrollOffset();
                         drawConsole();
                     }
                     return;
@@ -252,7 +252,7 @@ public:
                 if (keysym == XK_G && (keyEvent->state & ShiftMask)) {
                     // Go to bottom
                     selectedViewBookmarkGroup = bookmarkGroups.size() - 1;
-                    updateScrollOffset();
+                    updateViewBmScrollOffset();
                     drawConsole();
                     return;
                 }
@@ -305,7 +305,7 @@ public:
                 if (keysym == XK_j || keysym == XK_Down) {
                     // Move down in bookmark items
                     selectedViewBookmarkItem++;
-                    updateScrollOffset();
+                    updateViewBmScrollOffset();
                     drawConsole();
                     return;
                 }
@@ -314,7 +314,7 @@ public:
                     // Move up in bookmark items
                     if (selectedViewBookmarkItem > 0) {
                         selectedViewBookmarkItem--;
-                        updateScrollOffset();
+                        updateViewBmScrollOffset();
                         drawConsole();
                     }
                     return;
@@ -348,7 +348,7 @@ public:
                             
                             if (itemCount > 0) {
                                 selectedViewBookmarkItem = itemCount - 1;
-                                updateScrollOffset();
+                                updateViewBmScrollOffset();
                                 drawConsole();
                             }
                         }
@@ -1159,9 +1159,9 @@ private:
         }
     }
     
-    void updateScrollOffset() {
+    void updateViewBmScrollOffset() {
         const int VISIBLE_ITEMS = 20; // Number of items visible in dialog
-        
+
         if (viewBookmarksShowingGroups) {
             // Scrolling for groups
             if (selectedViewBookmarkGroup < viewBookmarksScrollOffset) {
@@ -1211,24 +1211,6 @@ private:
             consoleScrollOffset = selectedItem;
         } else if (selectedItem >= consoleScrollOffset + maxVisibleItems) {
             consoleScrollOffset = selectedItem - maxVisibleItems + 1;
-        }
-    }
-    
-    void updateBookmarkMgmtScrollOffset() {
-        const int VISIBLE_ITEMS = 10; // Number of groups visible in bookmark management dialog
-        
-        // Filter groups for scroll calculation
-        std::vector<std::string> filteredGroups;
-        for (const auto& group : bookmarkGroups) {
-            if (bookmarkDialogInput.empty() || group.find(bookmarkDialogInput) != std::string::npos) {
-                filteredGroups.push_back(group);
-            }
-        }
-        
-        if (selectedBookmarkGroup < bookmarkMgmtScrollOffset) {
-            bookmarkMgmtScrollOffset = selectedBookmarkGroup;
-        } else if (selectedBookmarkGroup >= bookmarkMgmtScrollOffset + VISIBLE_ITEMS) {
-            bookmarkMgmtScrollOffset = selectedBookmarkGroup - VISIBLE_ITEMS + 1;
         }
     }
     
@@ -1864,7 +1846,7 @@ private:
     void drawBookmarkDialog() {
 #ifdef __linux__
         if (!bookmarkDialogVisible) return;
-        
+
         // Get dynamic dialog dimensions
         DialogDimensions dims = getBookmarkDialogDimensions();
         
@@ -1907,7 +1889,7 @@ private:
         
         int y = dims.y + 140;
         const int VISIBLE_ITEMS = 8;
-        
+
         size_t startIdx = bookmarkMgmtScrollOffset;
         size_t endIdx = std::min(startIdx + VISIBLE_ITEMS, filteredGroups.size());
         
@@ -2117,7 +2099,7 @@ private:
             XSetForeground(display, gc, textColor);
             int y = dims.y + 60;
             const int VISIBLE_ITEMS = 20;
-            
+
             size_t startIdx = viewBookmarksScrollOffset;
             size_t endIdx = std::min(startIdx + VISIBLE_ITEMS, bookmarkGroups.size());
             
