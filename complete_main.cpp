@@ -684,12 +684,38 @@ public:
             // Copy selected item to clipboard and hide window
             if (!items.empty() && selectedItem < getDisplayItemCount()) {
                 size_t actualIndex = getActualItemIndex(selectedItem);
-                copyToClipboard(items[actualIndex].content);
-                int lines = countLines(items[actualIndex].content);
+                std::string clipContent = items[actualIndex].content;
+
+                copyToClipboard(clipContent);
+
+                // Update timestamp and move to top if not already at top
+                if (actualIndex != 0) {
+                    // Remove from current position
+                    items.erase(items.begin() + actualIndex);
+
+                    // Create new item with current timestamp and insert at top
+                    items.emplace(items.begin(), ClipboardItem(clipContent));
+
+                    // Reset selection to top
+                    selectedItem = 0;
+
+                    // Update filtered items if in filter mode
+                    if (filterMode) {
+                        updateFilteredItems();
+                    }
+
+                    // Save to file with updated timestamp
+                    saveToFile();
+
+                    std::cout << "Clip moved to top after copying" << std::endl;
+                }
+
+                int lines = countLines(clipContent);
+
                 if (lines > 1) {
                     std::cout << "Copied " << lines << " lines to clipboard" << std::endl;
                 } else {
-                    std::cout << "Copied to clipboard: " << items[actualIndex].content.substr(0, 50) << "..." << std::endl;
+                    std::cout << "Copied to clipboard: " << clipContent.substr(0, 50) << "..." << std::endl;
                 }
                 hideWindow();
             }
@@ -2402,38 +2428,65 @@ private:
         
         if (!content.empty() && content != lastClipboardContent) {
             lastClipboardContent = content;
+            size_t duplicateIndex = 0;
             
             // Check for duplicates
             bool isDuplicate = false;
-            for (const auto& item : items) {
-                if (item.content == content) {
+            for (size_t i = 0; i < items.size(); i++) {
+                if (items[i].content == content) {
                     isDuplicate = true;
+                    duplicateIndex = i;
                     break;
                 }
             }
-            
-            if (!isDuplicate) {
-                items.emplace(items.begin(), content);
-                if (items.size() > maxClips) { // Keep only last maxClips items
-                    items.pop_back();
-                }
-                
-                // Reset selection to top when new item is added
+          
+            if (isDuplicate) {
+                // Move existing clip to top
+                std::string clipContent = items[duplicateIndex].content;
+                items.erase(items.begin() + duplicateIndex);
+                items.emplace(items.begin(), clipContent);
+
+                // Reset selection to top when item is moved
                 selectedItem = 0;
-                
+
                 // Update filtered items if in filter mode
                 if (filterMode) {
                     updateFilteredItems();
                 }
-                
+
                 saveToFile();
-                
-                std::cout << "New clipboard item added" << std::endl;
-                
+
+                std::cout << "Existing clip moved to top" << std::endl;
+
                 // Refresh display if window is visible
                 if (visible) {
                     drawConsole();
                 }
+
+                return;
+            }
+
+
+            items.emplace(items.begin(), content);
+            if (items.size() > maxClips) { // Keep only last maxClips items
+                items.pop_back();
+            }
+            
+            // Reset selection to top when new item is added
+            selectedItem = 0;
+            
+            // Update filtered items if in filter mode
+            if (filterMode) {
+                updateFilteredItems();
+            }
+            
+            saveToFile();
+            
+            std::cout << "New clipboard item added" << std::endl;
+            
+            // Refresh display if window is visible
+            if (visible) {
+                drawConsole();
             }
         }
     }
