@@ -3,6 +3,8 @@
 #include <thread>
 #include <atomic>
 #include <string>
+#include <regex>
+#include <algorithm>
 #include <vector>
 #include <chrono>
 #include <fstream>
@@ -1110,6 +1112,480 @@ private:
     size_t viewBookmarksScrollOffset = 0; // For scrolling long lists
     
     // Helper methods
+
+    // Custom Trimming
+    ////////////////////////////////////////////////////////////////////////////
+    std::string smartTrim(const std::string& text, size_t maxLength) {
+        if (isPath(text)) {
+            return trimMiddle(text, maxLength);
+        }
+
+        return text.substr(0, maxLength - 3) + "...";
+    }
+
+
+    bool isPath(const std::string& text) {
+        if (isUrl(text) || isFilePath(text)) {
+            return true;
+        }
+        return false;
+    }
+
+    bool isUrl(const std::string& text) {
+        // Check for common URL patterns
+        return (text.substr(0, 7) == "http://" || 
+                text.substr(0, 8) == "https://" ||
+                text.substr(0, 6) == "ftp://" ||
+                text.substr(0, 7) == "sftp://" ||
+                text.substr(0, 4) == "www.");
+    }
+    
+    class PathDetector {
+    public:
+        static bool isFilePath(const std::string& text) {
+            if (text.empty() || text.length() > 4096) return false;
+            
+            // Trim whitespace
+            std::string trimmed = trim(text);
+            if (trimmed.empty()) return false;
+            
+            // Quick checks for obvious paths
+            if (isAbsolutePath(trimmed)) return true;
+            
+            // Check for path separators
+            if (hasPathSeparators(trimmed)) return true;
+            
+            // Check for file extensions with proper context
+            if (hasValidFileExtension(trimmed)) return true;
+            
+            // Use regex for more complex patterns
+            if (matchesPathPattern(trimmed)) return true;
+            
+            return false;
+        }
+
+    private:
+        static std::string trim(const std::string& str) {
+            size_t start = str.find_first_not_of(" \t\n\r");
+            if (start == std::string::npos) return "";
+            size_t end = str.find_last_not_of(" \t\n\r");
+            return str.substr(start, end - start + 1);
+        }
+        
+        static bool isAbsolutePath(const std::string& text) {
+            // Unix/Linux/macOS absolute path
+            if (text[0] == '/') return true;
+            
+            // Windows absolute path (C:\, D:\, etc.)
+            if (text.length() >= 3 && 
+                std::isalpha(text[0]) && 
+                text[1] == ':' && 
+                (text[2] == '\\' || text[2] == '/')) {
+                return true;
+            }
+            
+            // Windows UNC path (\\server\share)
+            if (text.length() >= 2 && text[0] == '\\' && text[1] == '\\') {
+                return true;
+            }
+            
+            return false;
+        }
+        
+        static bool hasPathSeparators(const std::string& text) {
+            // Count separators
+            size_t slashCount = std::count(text.begin(), text.end(), '/');
+            size_t backslashCount = std::count(text.begin(), text.end(), '\\');
+            
+            // If has backslashes, likely Windows path
+            if (backslashCount > 0) return true;
+            
+            // Unix-style relative paths (./file or ../file or dir/file)
+            if (slashCount > 0) {
+                if (text.find("./") == 0 || text.find("../") == 0) return true;
+                // Check if it looks like a path (has directory structure)
+                if (slashCount >= 1 && text.find(' ') == std::string::npos) return true;
+            }
+            
+            return false;
+        }
+        
+        static bool hasValidFileExtension(const std::string& text) {
+            size_t lastDot = text.find_last_of('.');
+            size_t lastSlash = text.find_last_of("/\\");
+            
+            // Extension must be after last path separator
+            if (lastDot == std::string::npos || 
+                lastDot == 0 || 
+                lastDot == text.length() - 1) {
+                return false;
+            }
+            
+            // Make sure dot is after the last separator (not in directory name)
+            if (lastSlash != std::string::npos && lastDot < lastSlash) {
+                return false;
+            }
+            
+            std::string ext = text.substr(lastDot + 1);
+            
+            // Extension should be reasonable length and alphanumeric
+            if (ext.length() < 1 || ext.length() > 10) return false;
+            
+            // Check if extension is alphanumeric
+            bool validExt = std::all_of(ext.begin(), ext.end(), 
+                [](char c) { return std::isalnum(c); });
+            
+            if (!validExt) return false;
+            
+            // Must have at least one character before the dot
+            std::string basename = text.substr(0, lastDot);
+            if (lastSlash != std::string::npos) {
+                basename = basename.substr(lastSlash + 1);
+            }
+            
+            // Avoid matching things like "version 2.0" or "item.no"
+            if (basename.empty() || basename.find(' ') != std::string::npos) {
+                return false;
+            }
+            
+            // Check against common extensions (expanded list)
+            std::string extLower = ext;
+            std::transform(extLower.begin(), extLower.end(), extLower.begin(), ::tolower);
+            
+            static const std::vector<std::string> commonExts = {
+                // Code
+                "c", "cpp", "cc", "cxx", "h", "hpp", "hxx", "cs", "java", "py", "rb", "go",
+                "js", "ts", "jsx", "tsx", "php", "swift", "kt", "rs", "scala", "r", "m", "mm",
+                // Web
+                "html", "htm", "css", "scss", "sass", "less", "xml", "json", "yaml", "yml",
+                // Documents
+                "txt", "md", "doc", "docx", "pdf", "rtf", "odt", "tex", "log",
+                // Spreadsheets
+                "xls", "xlsx", "csv", "ods",
+                // Presentations
+                "ppt", "pptx", "odp",
+                // Images
+                "jpg", "jpeg", "png", "gif", "bmp", "svg", "ico", "webp", "tiff", "tif",
+                // Audio
+                "mp3", "wav", "ogg", "flac", "aac", "m4a", "wma",
+                // Video
+                "mp4", "avi", "mkv", "mov", "wmv", "flv", "webm",
+                // Archives
+                "zip", "rar", "7z", "tar", "gz", "bz2", "xz", "tgz",
+                // Executables
+                "exe", "dll", "so", "dylib", "app", "dmg", "deb", "rpm", "msi",
+                // Config
+                "ini", "cfg", "conf", "config", "properties", "toml",
+                // Scripts
+                "sh", "bash", "bat", "cmd", "ps1", "vbs",
+                // Data
+                "db", "sqlite", "sql", "dat", "bin"
+            };
+            
+            return std::find(commonExts.begin(), commonExts.end(), extLower) != commonExts.end();
+        }
+        
+        static bool matchesPathPattern(const std::string& text) {
+            // Regex patterns for different path types
+            static const std::regex patterns[] = {
+                // Unix absolute: /path/to/file or /path/to/dir/
+                std::regex(R"(^/([a-zA-Z0-9_\-\.]+/?)+$)"),
+                
+                // Unix relative: ./file, ../file, dir/file
+                std::regex(R"(^\.{1,2}/([a-zA-Z0-9_\-\.]+/?)+$)"),
+                
+                // Windows absolute: C:\path\to\file
+                std::regex(R"(^[a-zA-Z]:[/\\]([a-zA-Z0-9_\-\. ]+[/\\]?)+$)"),
+                
+                // Windows UNC: \\server\share\path
+                std::regex(R"(^\\\\[a-zA-Z0-9_\-\.]+\\([a-zA-Z0-9_\-\. ]+\\?)+$)"),
+                
+                // Relative with subdirs: folder/subfolder/file.ext
+                std::regex(R"(^[a-zA-Z0-9_\-\.]+(/[a-zA-Z0-9_\-\.]+)+(\.[a-zA-Z0-9]{1,10})?$)"),
+                
+                // Home directory: ~/path/to/file
+                std::regex(R"(^~(/[a-zA-Z0-9_\-\.]+)+$)")
+            };
+            
+            for (const auto& pattern : patterns) {
+                if (std::regex_match(text, pattern)) {
+                    return true;
+                }
+            }
+            
+            return false;
+        }
+    };
+
+    // Convenience function
+    bool isFilePath(const std::string& text) {
+        return PathDetector::isFilePath(text);
+    }
+    
+    class StringTrimmer {
+    public:
+        static std::string trimMiddle(const std::string& text, size_t maxLength) {
+            if (text.length() <= maxLength) {
+                return text;
+            }
+            
+            // Minimum sensible length for ellipsis trimming
+            if (maxLength < 4) {
+                return text.substr(0, maxLength);
+            }
+            
+            // For very short lengths, just use end trimming
+            if (maxLength <= 10) {
+                return text.substr(0, maxLength - 3) + "...";
+            }
+            
+            const std::string ellipsis = "...";
+            const size_t ellipsisLen = ellipsis.length();
+            
+            // Try smart trimming for URLs and file paths
+            if (isUrl(text)) {
+                return trimUrlMiddle(text, maxLength, ellipsisLen);
+            } else if (isFilePath(text)) {
+                return trimPathMiddle(text, maxLength, ellipsisLen);
+            }
+            
+            // Default: balanced trim
+            return trimBalanced(text, maxLength, ellipsisLen);
+        }
+
+    private:
+        static std::string trimUrlMiddle(const std::string& url, size_t maxLength, size_t ellipsisLen) {
+            // Try to preserve: protocol + domain + filename/endpoint
+            size_t protocolEnd = url.find("://");
+            
+            if (protocolEnd == std::string::npos) {
+                return trimBalanced(url, maxLength, ellipsisLen);
+            }
+            
+            protocolEnd += 3; // Include "://"
+            
+            // Safety check
+            if (protocolEnd >= url.length()) {
+                return trimBalanced(url, maxLength, ellipsisLen);
+            }
+            
+            // Find domain end (first slash after protocol)
+            size_t domainEnd = url.find('/', protocolEnd);
+            size_t queryStart = url.find('?');
+            size_t fragmentStart = url.find('#');
+            
+            // Find the last meaningful part (filename or endpoint)
+            size_t lastSlash = url.find_last_of('/');
+            
+            // Calculate important sections
+            std::string protocol = url.substr(0, protocolEnd);
+            std::string domain = (domainEnd != std::string::npos) 
+                ? url.substr(protocolEnd, domainEnd - protocolEnd)
+                : url.substr(protocolEnd);
+            
+            // Get last path segment (filename/endpoint)
+            std::string lastSegment;
+            if (lastSlash != std::string::npos && lastSlash + 1 < url.length()) {
+                size_t segmentEnd = std::min({
+                    queryStart != std::string::npos ? queryStart : url.length(),
+                    fragmentStart != std::string::npos ? fragmentStart : url.length(),
+                    url.length()
+                });
+                
+                if (segmentEnd > lastSlash) {
+                    lastSegment = url.substr(lastSlash, segmentEnd - lastSlash);
+                }
+            }
+            
+            // Strategy: protocol + domain + ... + lastSegment
+            size_t prefixLen = protocol.length() + domain.length();
+            size_t suffixLen = lastSegment.length();
+            
+            // Check if we can fit protocol + domain + ... + last segment
+            if (prefixLen + ellipsisLen + suffixLen <= maxLength && 
+                !lastSegment.empty() &&
+                domainEnd != std::string::npos && 
+                lastSlash != std::string::npos &&
+                lastSlash > domainEnd) {
+                return protocol + domain + "..." + lastSegment;
+            }
+            
+            // Check if we can fit protocol + domain + ...
+            if (prefixLen + ellipsisLen <= maxLength && domainEnd != std::string::npos) {
+                size_t remainingSpace = maxLength - prefixLen - ellipsisLen;
+                if (remainingSpace > 0 && remainingSpace <= url.length()) {
+                    std::string suffix = url.substr(url.length() - remainingSpace);
+                    return protocol + domain + "..." + suffix;
+                }
+                return protocol + domain + "...";
+            }
+            
+            // If domain itself is too long, trim it
+            if (protocol.length() + ellipsisLen < maxLength) {
+                size_t domainSpace = maxLength - protocol.length() - ellipsisLen;
+                
+                if (domainSpace < domain.length() && domainSpace > 0) {
+                    return protocol + domain.substr(0, domainSpace) + "...";
+                }
+            }
+            
+            // Fallback to balanced trim
+            return trimBalanced(url, maxLength, ellipsisLen);
+        }
+        
+        static std::string trimPathMiddle(const std::string& path, size_t maxLength, size_t ellipsisLen) {
+            // Strategy: preserve root + first dir(s) + ... + last dir(s)
+            
+            // Get root/prefix
+            std::string prefix;
+            size_t prefixEnd = 0;
+            
+            if (path[0] == '/') {
+                // Unix absolute path - keep "/"
+                prefix = "/";
+                prefixEnd = 1;
+            } else if (path.length() >= 2 && path[1] == ':') {
+                // Windows drive letter - keep "C:\" or "C:/"
+                prefix = path.substr(0, std::min(size_t(3), path.length()));
+                prefixEnd = prefix.length();
+            } else if (path.length() >= 2 && path[0] == '\\' && path[1] == '\\') {
+                // UNC path - keep "\\server"
+                size_t nextSep = path.find_first_of("\\/", 2);
+                if (nextSep != std::string::npos) {
+                    prefix = path.substr(0, nextSep);
+                    prefixEnd = nextSep;
+                } else {
+                    prefix = path.substr(0, std::min(size_t(20), path.length()));
+                    prefixEnd = prefix.length();
+                }
+            } else if (path.find("./") == 0 || path.find("../") == 0) {
+                // Relative path - keep "./" or "../"
+                size_t firstSep = path.find_first_of("/\\");
+                if (firstSep != std::string::npos) {
+                    prefix = path.substr(0, firstSep + 1);
+                    prefixEnd = firstSep + 1;
+                } else {
+                    prefix = path;
+                    prefixEnd = path.length();
+                }
+            } else if (path.find("~/") == 0) {
+                // Home directory
+                prefix = "~/";
+                prefixEnd = 2;
+            }
+            
+            // Find all separators after prefix
+            std::vector<size_t> separators;
+            for (size_t i = prefixEnd; i < path.length(); ++i) {
+                if (path[i] == '/' || path[i] == '\\') {
+                    separators.push_back(i);
+                }
+            }
+            
+            if (separators.empty()) {
+                // No separators after prefix, return as-is or trim balanced
+                if (path.length() <= maxLength) {
+                    return path;
+                }
+                return trimBalanced(path, maxLength, ellipsisLen);
+            }
+            
+            // Try to preserve: prefix + first_dirs + ... + last_dirs
+            // Example: /home/baiguai/...images/raw
+            
+            // Get first 1-2 components after prefix
+            size_t firstComponentsEnd = separators[0]; // At least first component
+            if (separators.size() > 1) {
+                firstComponentsEnd = separators[1]; // Try to get 2 components
+            }
+            std::string firstPart = path.substr(0, firstComponentsEnd);
+            
+            // Get last 2-3 components
+            size_t lastComponentsStart = separators[separators.size() - 1];
+            if (separators.size() >= 2) {
+                lastComponentsStart = separators[separators.size() - 2];
+            }
+            if (separators.size() >= 3) {
+                lastComponentsStart = separators[separators.size() - 3];
+            }
+            std::string lastPart = path.substr(lastComponentsStart);
+            
+            // Try: firstPart + ... + lastPart
+            if (firstPart.length() + ellipsisLen + lastPart.length() <= maxLength) {
+                return firstPart + "..." + lastPart;
+            }
+            
+            // If that's too long, try just first component + ... + last 2 components
+            if (separators.size() >= 2) {
+                firstComponentsEnd = separators[0];
+                firstPart = path.substr(0, firstComponentsEnd);
+                
+                lastComponentsStart = separators[separators.size() - 2];
+                lastPart = path.substr(lastComponentsStart);
+                
+                if (firstPart.length() + ellipsisLen + lastPart.length() <= maxLength) {
+                    return firstPart + "..." + lastPart;
+                }
+            }
+            
+            // Fall back to: prefix + ... + last components
+            size_t suffixStart = separators[separators.size() - 1];
+            if (separators.size() >= 2) {
+                suffixStart = separators[separators.size() - 2];
+            }
+            if (separators.size() >= 3) {
+                suffixStart = separators[separators.size() - 3];
+            }
+            std::string suffix = path.substr(suffixStart);
+            
+            if (prefix.length() + ellipsisLen + suffix.length() <= maxLength) {
+                return prefix + "..." + suffix;
+            }
+            
+            // If still too long, just keep prefix + ... + last component
+            suffix = path.substr(separators[separators.size() - 1]);
+            if (prefix.length() + ellipsisLen + suffix.length() <= maxLength) {
+                return prefix + "..." + suffix;
+            }
+            
+            // Last resort: trim suffix to fit
+            size_t remainingSpace = maxLength - prefix.length() - ellipsisLen;
+            if (remainingSpace > 0 && remainingSpace <= suffix.length()) {
+                return prefix + "..." + suffix.substr(suffix.length() - remainingSpace);
+            }
+            
+            // Fallback to balanced trim
+            return trimBalanced(path, maxLength, ellipsisLen);
+        }
+        
+        static std::string trimBalanced(const std::string& text, size_t maxLength, size_t ellipsisLen) {
+            size_t availableSpace = maxLength - ellipsisLen;
+            size_t keepStart = availableSpace / 2;
+            size_t keepEnd = availableSpace - keepStart;
+            
+            return text.substr(0, keepStart) + "..." + text.substr(text.length() - keepEnd);
+        }
+        
+        // Placeholder functions - replace with your actual implementations
+        static bool isUrl(const std::string& text) {
+            return text.find("://") != std::string::npos;
+        }
+        
+        static bool isFilePath(const std::string& text) {
+            // Use your actual isFilePath implementation
+            return text.find('/') != std::string::npos || 
+                   text.find('\\') != std::string::npos ||
+                   (text.length() >= 3 && text[1] == ':');
+        }
+    };
+
+    // Convenience function
+    std::string trimMiddle(const std::string& text, size_t maxLength) {
+        return StringTrimmer::trimMiddle(text, maxLength);
+    }
+    ////////////////////////////////////////////////////////////////////////////
+
+
     size_t getDisplayItemCount() {
         if (filterMode) {
             return filteredItems.size();
@@ -2004,93 +2480,95 @@ private:
         // Main Window shortcuts
         drawHelpTopic(titleLeft, y, contentTop, contentBottom, "Main Window:");
         y += lineHeight;
-        drawHelpTopic(topicLeft, y, contentTop, contentBottom, "j/k          - Navigate items");
+        drawHelpTopic(topicLeft, y, contentTop, contentBottom, "j/k            - Navigate items");
         y += lineHeight;
-        drawHelpTopic(topicLeft, y, contentTop, contentBottom, "g/G          - Top/bottom");
+        drawHelpTopic(topicLeft, y, contentTop, contentBottom, "g/G            - Top/bottom");
         y += lineHeight;
-        drawHelpTopic(topicLeft, y, contentTop, contentBottom, "Enter        - Copy item");
+        drawHelpTopic(topicLeft, y, contentTop, contentBottom, "Enter          - Copy item");
         y += lineHeight;
-        drawHelpTopic(topicLeft, y, contentTop, contentBottom, "/            - Filter mode");
+        drawHelpTopic(topicLeft, y, contentTop, contentBottom, "/              - Filter mode");
         y += lineHeight;
-        drawHelpTopic(topicLeft, y, contentTop, contentBottom, "Shift+M      - Manage bookmark groups");
+        drawHelpTopic(topicLeft, y, contentTop, contentBottom, "Shift+M        - Manage bookmark groups");
         y += lineHeight;
-        drawHelpTopic(topicLeft, y, contentTop, contentBottom, "m            - Add clip to group");
+        drawHelpTopic(topicLeft, y, contentTop, contentBottom, "m              - Add clip to group");
         y += lineHeight;
-        drawHelpTopic(topicLeft, y, contentTop, contentBottom, "`            - View bookmarks");
+        drawHelpTopic(topicLeft, y, contentTop, contentBottom, "`              - View bookmarks");
         y += lineHeight;
-        drawHelpTopic(topicLeft, y, contentTop, contentBottom, "?            - This help");
+        drawHelpTopic(topicLeft, y, contentTop, contentBottom, "?              - This help");
         y += lineHeight;
-        drawHelpTopic(topicLeft, y, contentTop, contentBottom, "Shift+D      - Delete item");
+        drawHelpTopic(topicLeft, y, contentTop, contentBottom, "Shift+D        - Delete item");
         y += lineHeight;
-        drawHelpTopic(topicLeft, y, contentTop, contentBottom, "Shift+Q      - Quit");
+        drawHelpTopic(topicLeft, y, contentTop, contentBottom, "Shift+Q        - Quit");
         y += lineHeight;
-        drawHelpTopic(topicLeft, y, contentTop, contentBottom, "Escape       - Hide window");
+        drawHelpTopic(topicLeft, y, contentTop, contentBottom, "Escape         - Hide window");
         y += lineHeight + gap;
         
         // Help
         drawHelpTopic(titleLeft, y, contentTop, contentBottom, "Help Window:");
         y += lineHeight;
-        drawHelpTopic(topicLeft, y, contentTop, contentBottom, "j/k          - Navigate topics");
+        drawHelpTopic(topicLeft, y, contentTop, contentBottom, "j/k            - Navigate topics");
         y += lineHeight;
-        drawHelpTopic(topicLeft, y, contentTop, contentBottom, "g            - Top");
+        drawHelpTopic(topicLeft, y, contentTop, contentBottom, "g              - Top");
         y += lineHeight + gap;
 
 
         // Filter Mode shortcuts
         drawHelpTopic(titleLeft, y, contentTop, contentBottom, "Filter Mode:");
         y += lineHeight;
-        drawHelpTopic(topicLeft, y, contentTop, contentBottom, "Type text    - Filter items");
+        drawHelpTopic(topicLeft, y, contentTop, contentBottom, "Type text      - Filter items");
         y += lineHeight;
-        drawHelpTopic(topicLeft, y, contentTop, contentBottom, "Backspace    - Delete char");
+        drawHelpTopic(topicLeft, y, contentTop, contentBottom, "Backspace      - Delete char");
         y += lineHeight;
-        drawHelpTopic(topicLeft, y, contentTop, contentBottom, "Enter        - Copy item");
+        drawHelpTopic(topicLeft, y, contentTop, contentBottom, "Up/down arrow  - Navigate items");
         y += lineHeight;
-        drawHelpTopic(topicLeft, y, contentTop, contentBottom, "Escape       - Exit filter");
+        drawHelpTopic(topicLeft, y, contentTop, contentBottom, "Enter          - Copy item");
+        y += lineHeight;
+        drawHelpTopic(topicLeft, y, contentTop, contentBottom, "Escape         - Exit filter");
         y += lineHeight + gap;
         
         // Add bookmark group shortcuts
         drawHelpTopic(titleLeft, y, contentTop, contentBottom, "Add Bookmark Group Dialog:");
         y += lineHeight;
-        drawHelpTopic(topicLeft, y, contentTop, contentBottom, "Type text    - Define Group Name / Filter Existing");
+        drawHelpTopic(topicLeft, y, contentTop, contentBottom, "Type text      - Define Group Name / Filter Existing");
         y += lineHeight;
-        drawHelpTopic(topicLeft, y, contentTop, contentBottom, "Backspace    - Delete char");
+        drawHelpTopic(topicLeft, y, contentTop, contentBottom, "Backspace      - Delete char");
         y += lineHeight;
-        drawHelpTopic(topicLeft, y, contentTop, contentBottom, "Enter        - Add group");
+        drawHelpTopic(topicLeft, y, contentTop, contentBottom, "Enter          - Create group");
         y += lineHeight;
-        drawHelpTopic(topicLeft, y, contentTop, contentBottom, "Escape       - Exit dialog");
+        drawHelpTopic(topicLeft, y, contentTop, contentBottom, "Escape         - Exit dialog");
         y += lineHeight + gap;
 
         // Add clip to group shortcuts
-        drawHelpTopic(titleLeft, y, contentTop, contentBottom, "Add Bookmark Group Dialog:");
+        drawHelpTopic(titleLeft, y, contentTop, contentBottom, "Add Clip to Group Dialog:");
         y += lineHeight;
-        drawHelpTopic(topicLeft, y, contentTop, contentBottom, "j/k          - Navigate group");
+        drawHelpTopic(topicLeft, y, contentTop, contentBottom, "j/k            - Navigate group");
         y += lineHeight;
-        drawHelpTopic(topicLeft, y, contentTop, contentBottom, "g/G          - Top/bottom");
+        drawHelpTopic(topicLeft, y, contentTop, contentBottom, "g/G            - Top/bottom");
         y += lineHeight;
-        drawHelpTopic(topicLeft, y, contentTop, contentBottom, "Enter        - Add clip to group");
+        drawHelpTopic(topicLeft, y, contentTop, contentBottom, "Enter          - Add clip to group");
         y += lineHeight;
-        drawHelpTopic(topicLeft, y, contentTop, contentBottom, "Escape       - Exit dialog");
+        drawHelpTopic(topicLeft, y, contentTop, contentBottom, "Escape         - Exit dialog");
         y += lineHeight + gap;
 
         // View/Edit/Use bookmarks
         drawHelpTopic(titleLeft, y, contentTop, contentBottom, "View/Delete/Use Bookmarks Dialog");
         y += lineHeight;
-        drawHelpTopic(topicLeft, y, contentTop, contentBottom, "j/k          - Navigate groups/clips");
+        drawHelpTopic(topicLeft, y, contentTop, contentBottom, "j/k            - Navigate groups/clips");
         y += lineHeight;
-        drawHelpTopic(topicLeft, y, contentTop, contentBottom, "g/G          - Top/bottom");
+        drawHelpTopic(topicLeft, y, contentTop, contentBottom, "g/G            - Top/bottom");
         y += lineHeight;
-        drawHelpTopic(topicLeft, y, contentTop, contentBottom, "Enter        - View group clips/copy clip");
+        drawHelpTopic(topicLeft, y, contentTop, contentBottom, "Enter          - View group clips/copy clip");
         y += lineHeight;
-        drawHelpTopic(topicLeft, y, contentTop, contentBottom, "h            - Back to groups list");
+        drawHelpTopic(topicLeft, y, contentTop, contentBottom, "h              - Back to groups list");
         y += lineHeight;
-        drawHelpTopic(topicLeft, y, contentTop, contentBottom, "Escape       - Exit dialog");
+        drawHelpTopic(topicLeft, y, contentTop, contentBottom, "Escape         - Exit dialog");
         y += lineHeight + gap + 5;
 
 
         // Global hotkey
         drawHelpTopic(titleLeft, y, contentTop, contentBottom, "Global Hotkey:");
         y += lineHeight;
-        drawHelpTopic(topicLeft, y, contentTop, contentBottom, "Ctrl+Alt+C   - Show/hide window");
+        drawHelpTopic(topicLeft, y, contentTop, contentBottom, "Ctrl+Alt+C     - Show/hide window");
         
 #endif
     }
@@ -2178,7 +2656,7 @@ private:
                         // Truncate if too long
                         int maxContentLength = calculateDialogContentLength(dims);
                         if (displayText.length() > maxContentLength) {
-                            displayText = displayText.substr(0, maxContentLength - 3) + "...";
+                            displayText = smartTrim(displayText, maxContentLength);
                         }
                         
                         // Replace newlines with spaces for display
@@ -2290,7 +2768,7 @@ private:
                 std::string content = item.content;
                 int maxContentLength = calculateMaxContentLength(true);
                 if (content.length() > maxContentLength) {
-                    content = content.substr(0, maxContentLength - 3) + "...";
+                    content = smartTrim(content, maxContentLength);
                 }
                 
                 // Replace newlines with spaces for display
@@ -2312,7 +2790,7 @@ private:
                 std::string content = item.content;
                 int maxContentLength = calculateMaxContentLength(false);
                 if (content.length() > maxContentLength) {
-                    content = content.substr(0, maxContentLength - 3) + "...";
+                    content = smartTrim(content, maxContentLength);
                 }
                 
                 // Replace newlines with spaces for display
