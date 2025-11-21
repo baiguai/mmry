@@ -1322,38 +1322,266 @@ private:
         return PathDetector::isFilePath(text);
     }
     
+    class StringTrimmer {
+    public:
+        static std::string trimMiddle(const std::string& text, size_t maxLength) {
+            if (text.length() <= maxLength) {
+                return text;
+            }
+            
+            // Minimum sensible length for ellipsis trimming
+            if (maxLength < 4) {
+                return text.substr(0, maxLength);
+            }
+            
+            // For very short lengths, just use end trimming
+            if (maxLength <= 10) {
+                return text.substr(0, maxLength - 3) + "...";
+            }
+            
+            const std::string ellipsis = "...";
+            const size_t ellipsisLen = ellipsis.length();
+            
+            // Try smart trimming for URLs and file paths
+            if (isUrl(text)) {
+                return trimUrlMiddle(text, maxLength, ellipsisLen);
+            } else if (isFilePath(text)) {
+                return trimPathMiddle(text, maxLength, ellipsisLen);
+            }
+            
+            // Default: balanced trim
+            return trimBalanced(text, maxLength, ellipsisLen);
+        }
+
+    private:
+        static std::string trimUrlMiddle(const std::string& url, size_t maxLength, size_t ellipsisLen) {
+            // Try to preserve: protocol + domain + filename/endpoint
+            size_t protocolEnd = url.find("://");
+            
+            if (protocolEnd == std::string::npos) {
+                return trimBalanced(url, maxLength, ellipsisLen);
+            }
+            
+            protocolEnd += 3; // Include "://"
+            
+            // Safety check
+            if (protocolEnd >= url.length()) {
+                return trimBalanced(url, maxLength, ellipsisLen);
+            }
+            
+            // Find domain end (first slash after protocol)
+            size_t domainEnd = url.find('/', protocolEnd);
+            size_t queryStart = url.find('?');
+            size_t fragmentStart = url.find('#');
+            
+            // Find the last meaningful part (filename or endpoint)
+            size_t lastSlash = url.find_last_of('/');
+            
+            // Calculate important sections
+            std::string protocol = url.substr(0, protocolEnd);
+            std::string domain = (domainEnd != std::string::npos) 
+                ? url.substr(protocolEnd, domainEnd - protocolEnd)
+                : url.substr(protocolEnd);
+            
+            // Get last path segment (filename/endpoint)
+            std::string lastSegment;
+            if (lastSlash != std::string::npos && lastSlash + 1 < url.length()) {
+                size_t segmentEnd = std::min({
+                    queryStart != std::string::npos ? queryStart : url.length(),
+                    fragmentStart != std::string::npos ? fragmentStart : url.length(),
+                    url.length()
+                });
+                
+                if (segmentEnd > lastSlash) {
+                    lastSegment = url.substr(lastSlash, segmentEnd - lastSlash);
+                }
+            }
+            
+            // Strategy: protocol + domain + ... + lastSegment
+            size_t prefixLen = protocol.length() + domain.length();
+            size_t suffixLen = lastSegment.length();
+            
+            // Check if we can fit protocol + domain + ... + last segment
+            if (prefixLen + ellipsisLen + suffixLen <= maxLength && 
+                !lastSegment.empty() &&
+                domainEnd != std::string::npos && 
+                lastSlash != std::string::npos &&
+                lastSlash > domainEnd) {
+                return protocol + domain + "..." + lastSegment;
+            }
+            
+            // Check if we can fit protocol + domain + ...
+            if (prefixLen + ellipsisLen <= maxLength && domainEnd != std::string::npos) {
+                size_t remainingSpace = maxLength - prefixLen - ellipsisLen;
+                if (remainingSpace > 0 && remainingSpace <= url.length()) {
+                    std::string suffix = url.substr(url.length() - remainingSpace);
+                    return protocol + domain + "..." + suffix;
+                }
+                return protocol + domain + "...";
+            }
+            
+            // If domain itself is too long, trim it
+            if (protocol.length() + ellipsisLen < maxLength) {
+                size_t domainSpace = maxLength - protocol.length() - ellipsisLen;
+                
+                if (domainSpace < domain.length() && domainSpace > 0) {
+                    return protocol + domain.substr(0, domainSpace) + "...";
+                }
+            }
+            
+            // Fallback to balanced trim
+            return trimBalanced(url, maxLength, ellipsisLen);
+        }
+        
+        static std::string trimPathMiddle(const std::string& path, size_t maxLength, size_t ellipsisLen) {
+            // Strategy: preserve root + first dir(s) + ... + last dir(s)
+            
+            // Get root/prefix
+            std::string prefix;
+            size_t prefixEnd = 0;
+            
+            if (path[0] == '/') {
+                // Unix absolute path - keep "/"
+                prefix = "/";
+                prefixEnd = 1;
+            } else if (path.length() >= 2 && path[1] == ':') {
+                // Windows drive letter - keep "C:\" or "C:/"
+                prefix = path.substr(0, std::min(size_t(3), path.length()));
+                prefixEnd = prefix.length();
+            } else if (path.length() >= 2 && path[0] == '\\' && path[1] == '\\') {
+                // UNC path - keep "\\server"
+                size_t nextSep = path.find_first_of("\\/", 2);
+                if (nextSep != std::string::npos) {
+                    prefix = path.substr(0, nextSep);
+                    prefixEnd = nextSep;
+                } else {
+                    prefix = path.substr(0, std::min(size_t(20), path.length()));
+                    prefixEnd = prefix.length();
+                }
+            } else if (path.find("./") == 0 || path.find("../") == 0) {
+                // Relative path - keep "./" or "../"
+                size_t firstSep = path.find_first_of("/\\");
+                if (firstSep != std::string::npos) {
+                    prefix = path.substr(0, firstSep + 1);
+                    prefixEnd = firstSep + 1;
+                } else {
+                    prefix = path;
+                    prefixEnd = path.length();
+                }
+            } else if (path.find("~/") == 0) {
+                // Home directory
+                prefix = "~/";
+                prefixEnd = 2;
+            }
+            
+            // Find all separators after prefix
+            std::vector<size_t> separators;
+            for (size_t i = prefixEnd; i < path.length(); ++i) {
+                if (path[i] == '/' || path[i] == '\\') {
+                    separators.push_back(i);
+                }
+            }
+            
+            if (separators.empty()) {
+                // No separators after prefix, return as-is or trim balanced
+                if (path.length() <= maxLength) {
+                    return path;
+                }
+                return trimBalanced(path, maxLength, ellipsisLen);
+            }
+            
+            // Try to preserve: prefix + first_dirs + ... + last_dirs
+            // Example: /home/baiguai/...images/raw
+            
+            // Get first 1-2 components after prefix
+            size_t firstComponentsEnd = separators[0]; // At least first component
+            if (separators.size() > 1) {
+                firstComponentsEnd = separators[1]; // Try to get 2 components
+            }
+            std::string firstPart = path.substr(0, firstComponentsEnd);
+            
+            // Get last 2-3 components
+            size_t lastComponentsStart = separators[separators.size() - 1];
+            if (separators.size() >= 2) {
+                lastComponentsStart = separators[separators.size() - 2];
+            }
+            if (separators.size() >= 3) {
+                lastComponentsStart = separators[separators.size() - 3];
+            }
+            std::string lastPart = path.substr(lastComponentsStart);
+            
+            // Try: firstPart + ... + lastPart
+            if (firstPart.length() + ellipsisLen + lastPart.length() <= maxLength) {
+                return firstPart + "..." + lastPart;
+            }
+            
+            // If that's too long, try just first component + ... + last 2 components
+            if (separators.size() >= 2) {
+                firstComponentsEnd = separators[0];
+                firstPart = path.substr(0, firstComponentsEnd);
+                
+                lastComponentsStart = separators[separators.size() - 2];
+                lastPart = path.substr(lastComponentsStart);
+                
+                if (firstPart.length() + ellipsisLen + lastPart.length() <= maxLength) {
+                    return firstPart + "..." + lastPart;
+                }
+            }
+            
+            // Fall back to: prefix + ... + last components
+            size_t suffixStart = separators[separators.size() - 1];
+            if (separators.size() >= 2) {
+                suffixStart = separators[separators.size() - 2];
+            }
+            if (separators.size() >= 3) {
+                suffixStart = separators[separators.size() - 3];
+            }
+            std::string suffix = path.substr(suffixStart);
+            
+            if (prefix.length() + ellipsisLen + suffix.length() <= maxLength) {
+                return prefix + "..." + suffix;
+            }
+            
+            // If still too long, just keep prefix + ... + last component
+            suffix = path.substr(separators[separators.size() - 1]);
+            if (prefix.length() + ellipsisLen + suffix.length() <= maxLength) {
+                return prefix + "..." + suffix;
+            }
+            
+            // Last resort: trim suffix to fit
+            size_t remainingSpace = maxLength - prefix.length() - ellipsisLen;
+            if (remainingSpace > 0 && remainingSpace <= suffix.length()) {
+                return prefix + "..." + suffix.substr(suffix.length() - remainingSpace);
+            }
+            
+            // Fallback to balanced trim
+            return trimBalanced(path, maxLength, ellipsisLen);
+        }
+        
+        static std::string trimBalanced(const std::string& text, size_t maxLength, size_t ellipsisLen) {
+            size_t availableSpace = maxLength - ellipsisLen;
+            size_t keepStart = availableSpace / 2;
+            size_t keepEnd = availableSpace - keepStart;
+            
+            return text.substr(0, keepStart) + "..." + text.substr(text.length() - keepEnd);
+        }
+        
+        // Placeholder functions - replace with your actual implementations
+        static bool isUrl(const std::string& text) {
+            return text.find("://") != std::string::npos;
+        }
+        
+        static bool isFilePath(const std::string& text) {
+            // Use your actual isFilePath implementation
+            return text.find('/') != std::string::npos || 
+                   text.find('\\') != std::string::npos ||
+                   (text.length() >= 3 && text[1] == ':');
+        }
+    };
+
+    // Convenience function
     std::string trimMiddle(const std::string& text, size_t maxLength) {
-        if (text.length() <= maxLength) {
-            return text;
-        }
-        
-        // For very short lengths, just use end trimming
-        if (maxLength <= 10) {
-            return text.substr(0, maxLength - 3) + "...";
-        }
-        
-        // Calculate how much to keep from start and end
-        size_t keepStart = (maxLength - 3) / 2;
-        size_t keepEnd = maxLength - 3 - keepStart;
-        
-        // For URLs and file paths, try to keep important parts
-        if (isUrl(text)) {
-            // Try to keep protocol and domain
-            size_t domainEnd = text.find('/', text.find("://") + 3);
-            if (domainEnd != std::string::npos && domainEnd < maxLength - 10) {
-                keepStart = domainEnd;
-                keepEnd = maxLength - 3 - keepStart;
-            }
-        } else if (isFilePath(text)) {
-            // Try to keep the filename at the end
-            size_t lastSlash = text.find_last_of("/\\");
-            if (lastSlash != std::string::npos && text.length() - lastSlash < maxLength - 10) {
-                keepEnd = text.length() - lastSlash;
-                keepStart = maxLength - 3 - keepEnd;
-            }
-        }
-        
-        return text.substr(0, keepStart) + "..." + text.substr(text.length() - keepEnd);
+        return StringTrimmer::trimMiddle(text, maxLength);
     }
     ////////////////////////////////////////////////////////////////////////////
 
