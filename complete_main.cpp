@@ -1046,12 +1046,14 @@ private:
     std::atomic<bool> running;
     std::atomic<bool> visible;
     
+    // !@!
     // Window properties
     int windowWidth = 800;
     int windowHeight = 600;
     const int WINDOW_X = 100;
     const int WINDOW_Y = 100;
-    const int LINE_HEIGHT = 25;
+    const int CONSOLE_LINE_HEIGHT = 25;
+    const int ADD_BM_VISIBLE_ITEMS = 10;
     
     // Minimum window size constraints
     const int MIN_WINDOW_WIDTH = 425;
@@ -1189,12 +1191,12 @@ private:
         size_t displayCount = getDisplayItemCount();
         
         // Calculate how many items can fit
-        int maxVisibleItems = availableHeight / LINE_HEIGHT;
+        int maxVisibleItems = availableHeight / CONSOLE_LINE_HEIGHT;
         
         // If we have more items than fit, reserve space for scroll indicator
         if (displayCount > maxVisibleItems) {
             availableHeight -= SCROLL_INDICATOR_HEIGHT;
-            maxVisibleItems = availableHeight / LINE_HEIGHT;
+            maxVisibleItems = availableHeight / CONSOLE_LINE_HEIGHT;
         }
 
         if (maxVisibleItems > 0) maxVisibleItems += 1;
@@ -1231,12 +1233,10 @@ private:
     }
     
     void updateAddBookmarkScrollOffset() {
-        const int VISIBLE_ITEMS = 10; // Number of groups visible in add bookmark dialog
-        
         if (selectedAddBookmarkGroup < addBookmarkScrollOffset) {
             addBookmarkScrollOffset = selectedAddBookmarkGroup;
-        } else if (selectedAddBookmarkGroup >= addBookmarkScrollOffset + VISIBLE_ITEMS) {
-            addBookmarkScrollOffset = selectedAddBookmarkGroup - VISIBLE_ITEMS + 1;
+        } else if (selectedAddBookmarkGroup >= addBookmarkScrollOffset + ADD_BM_VISIBLE_ITEMS) {
+            addBookmarkScrollOffset = selectedAddBookmarkGroup - ADD_BM_VISIBLE_ITEMS + 1;
         }
     }
 
@@ -1950,10 +1950,9 @@ private:
         XDrawString(display, window, gc, dims.x + 20, dims.y + 60, "Select bookmark group:", 20);
         
         int y = dims.y + 80;
-        const int VISIBLE_ITEMS = 10;
         
         size_t startIdx = addBookmarkScrollOffset;
-        size_t endIdx = std::min(startIdx + VISIBLE_ITEMS, bookmarkGroups.size());
+        size_t endIdx = std::min(startIdx + ADD_BM_VISIBLE_ITEMS, bookmarkGroups.size());
         
         for (size_t i = startIdx; i < endIdx; ++i) {
             std::string displayText = "  " + bookmarkGroups[i];
@@ -2238,11 +2237,11 @@ private:
         int availableHeight = windowHeight - startY - 10;
 
         // If we need a scroll indicator, account for its space
-        if (displayCount > (availableHeight / LINE_HEIGHT)) {
+        if (displayCount > (availableHeight / CONSOLE_LINE_HEIGHT)) {
             availableHeight -= SCROLL_INDICATOR_HEIGHT;
         }
 
-        int maxItems = availableHeight / LINE_HEIGHT;
+        int maxItems = availableHeight / CONSOLE_LINE_HEIGHT;
         if (maxItems > 0) maxItems += 1;
         if (maxItems < 1) maxItems = 1;
 
@@ -2339,7 +2338,7 @@ private:
             
             XDrawString(display, window, gc, 10, y, line.c_str(), line.length());
             
-            y += LINE_HEIGHT;
+            y += CONSOLE_LINE_HEIGHT;
         }
         
         if (displayCount == 0) {
