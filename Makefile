@@ -17,7 +17,7 @@ build:
 	fi
 	@echo "Building..."
 	@cd build && make
-	@echo "✅ Build complete! Executable: build/bin/mmry_cpp"
+	@echo "✅ Build complete! Executable: build/bin/mmry"
 
 # Clean build artifacts
 clean:
@@ -27,20 +27,20 @@ clean:
 
 # Install (copy to system location)
 install: build
-	@echo "Installing mmry_cpp to /usr/local/bin..."
-	@sudo cp build/bin/mmry_cpp /usr/local/bin/
+	@echo "Installing mmry to /usr/local/bin..."
+	@sudo cp build/bin/mmry /usr/local/bin/
 	@echo "✅ Installation complete!"
 
 # Uninstall
 uninstall:
-	@echo "Removing mmry_cpp from /usr/local/bin..."
-	@sudo rm -f /usr/local/bin/mmry_cpp
+	@echo "Removing mmry from /usr/local/bin..."
+	@sudo rm -f /usr/local/bin/mmry
 	@echo "✅ Uninstallation complete!"
 
 # Run the application
 run: build
 	@echo "Starting MMRY..."
-	@./build/bin/mmry_cpp
+	@./build/bin/mmry
 
 # Test the build
 test: build

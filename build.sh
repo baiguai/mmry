@@ -27,15 +27,15 @@ echo "Compiling..."
 make
 
 # Check if build was successful
-if [ -f "bin/mmry_cpp" ]; then
+if [ -f "bin/mmry" ]; then
     echo "✅ Build successful!"
-    echo "Executable: $(pwd)/bin/mmry_cpp"
+    echo "Executable: $(pwd)/bin/mmry"
     echo ""
     echo "To run MMRY:"
-    echo "  ./bin/mmry_cpp"
+    echo "  ./bin/mmry"
     echo ""
     echo "Or from the parent directory:"
-    echo "  ./build/bin/mmry_cpp"
+    echo "  ./build/bin/mmry"
 else
     echo "❌ Build failed!"
     exit 1
