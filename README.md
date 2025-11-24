@@ -41,23 +41,6 @@ cmake ..
 make
 ```
 
-## Project Structure
-
-```
-mmry/
-├── complete_main.cpp          # Main source file
-├── CMakeLists.txt            # CMake configuration
-├── Makefile                  # Make wrapper around CMake
-├── build.sh                  # Build script
-├── run.sh                    # Build and run script
-├── tests/                    # Test suite
-│   ├── test_*.sh            # Individual test files
-│   └── ...
-└── build/                    # Build output directory
-    └── bin/
-        └── mmry_cpp          # Compiled executable
-```
-
 ## Portability
 
 This project uses **relative paths** throughout, making it fully portable:
@@ -114,7 +97,3 @@ Individual tests can be run:
 - X11 libraries (Linux)
 - Cocoa/CoreFoundation (macOS)
 - User32/Kernel32/GDI32 (Windows)
-
-## License
-
-[Your license here]
