@@ -12,7 +12,7 @@ echo "Building MMRY..."
 ./build.sh
 
 # Check if build was successful
-if [ ! -f "build/bin/mmry_cpp" ]; then
+if [ ! -f "build/bin/mmry" ]; then
     echo "❌ Build failed! Cannot start MMRY."
     exit 1
 fi
@@ -35,4 +35,4 @@ echo "Starting application..."
 echo "----------------------------------------"
 
 # Run the application
-./build/bin/mmry_cpp
+./build/bin/mmry
