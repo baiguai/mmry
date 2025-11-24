@@ -1,5 +1,9 @@
 #include <iostream>
 #include <unistd.h>
+#include <sys/file.h>
+#include <fcntl.h>
+#include <cstring>
+#include <cerrno>
 #include <thread>
 #include <atomic>
 #include <string>
@@ -38,6 +42,69 @@ struct ClipboardItem {
     ClipboardItem(const std::string& content) 
         : content(content), timestamp(std::chrono::system_clock::now()) {}
 };
+
+
+class SingleInstance {
+private:
+#ifdef _WIN32
+    HANDLE mutex;
+#else
+    int lockFile;
+    std::string lockPath;
+#endif
+
+public:
+    SingleInstance(const std::string& appName) {
+#ifdef _WIN32
+        // Windows: Use a named mutex
+        std::string mutexName = "Global\\" + appName + "_SingleInstance";
+        mutex = CreateMutexA(NULL, FALSE, mutexName.c_str());
+        
+        if (GetLastError() == ERROR_ALREADY_EXISTS) {
+            CloseHandle(mutex);
+            mutex = NULL;
+        }
+#else
+        // Unix/Linux/macOS: Use a lock file
+        lockPath = "/tmp/" + appName + ".lock";
+        lockFile = open(lockPath.c_str(), O_CREAT | O_RDWR, 0666);
+        
+        if (lockFile == -1) {
+            lockFile = -1;
+            return;
+        }
+        
+        // Try to acquire exclusive lock
+        if (flock(lockFile, LOCK_EX | LOCK_NB) == -1) {
+            close(lockFile);
+            lockFile = -1;
+        }
+#endif
+    }
+
+    ~SingleInstance() {
+#ifdef _WIN32
+        if (mutex) {
+            CloseHandle(mutex);
+        }
+#else
+        if (lockFile != -1) {
+            flock(lockFile, LOCK_UN);
+            close(lockFile);
+            unlink(lockPath.c_str());
+        }
+#endif
+    }
+
+    bool isAnotherInstanceRunning() const {
+#ifdef _WIN32
+        return (mutex == NULL);
+#else
+        return (lockFile == -1);
+#endif
+    }
+};
+
 
 class ClipboardManager {
 public:
@@ -3181,6 +3248,12 @@ int main() {
     // Install signal handlers for graceful shutdown
     signal(SIGTERM, signal_handler);
     signal(SIGINT, signal_handler);
+
+    SingleInstance guard("MyUniqueAppName");
+    if (guard.isAnotherInstanceRunning()) {
+        std::cerr << "Another instance is already running. Exiting." << std::endl;
+        return 1;
+    }
     
     // Install temporary error handler
     XErrorHandler oldHandler = XSetErrorHandler(ignore_x11_errors);
