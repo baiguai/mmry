@@ -27,7 +27,7 @@ def read_theme_file(file_path):
 def generate_theme_name(filename):
     """Generate a readable name from filename."""
     name = filename.replace('.json', '').replace('_theme', '')
-    return ' '.join(word.capitalize() for word in name.split('_'))
+    return name;
 
 def generate_html(themes_dir, output_file):
     """Generate the HTML gallery."""
@@ -182,8 +182,15 @@ def generate_html(themes_dir, output_file):
             
             const info = document.createElement('div');
             info.className = 'theme-info';
+            
+            // Extract theme name for config (without .json extension)
+            const configThemeName = theme.file.replace('.json', '');
+            
             info.innerHTML = `
                 <div style="font-weight: bold; margin-bottom: 8px;">${{theme.file}}</div>
+                <div style="background: #f0f0f0; padding: 8px; border-radius: 4px; margin-bottom: 8px; font-family: monospace; font-size: 11px;">
+                    <strong>Config theme:</strong> "${{configThemeName}}"
+                </div>
                 <div class="color-info">
                     <div class="color-item">
                         <div class="color-box" style="background: ${{theme.data.backgroundColor}}"></div>
