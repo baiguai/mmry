@@ -25,6 +25,7 @@
 #include <X11/keysym.h>
 #include <X11/Xutil.h>
 #include <X11/Xatom.h>
+#include <X11/extensions/Xfixes.h>
 #endif
 
 #ifdef _WIN32
@@ -115,8 +116,8 @@ public:
 
 private:
     std::atomic<bool> hotkeyGrabbed{false};
-    std::thread hotkeyMonitorThread;
-    std::thread clipboardMonitorThread;
+
+
 
 public:
     void handleKeyPress(XEvent* event) {
@@ -856,6 +857,14 @@ public:
         }
         screen = DefaultScreen(display);
         root = RootWindow(display, screen);
+
+        if (!XFixesQueryExtension(display, &xfixes_event_base, &xfixes_error_base)) {
+            std::cerr << "XFixes extension not available" << std::endl;
+            // Fallback to polling or exit? For now, we exit.
+            XCloseDisplay(display);
+            return;
+        }
+
         clipboardAtom = XInternAtom(display, "CLIPBOARD", False);
         utf8Atom = XInternAtom(display, "UTF8_STRING", False);
         textAtom = XInternAtom(display, "TEXT", False);
@@ -882,47 +891,46 @@ public:
             std::cout << "Running on macOS." << std::endl;
             // Add macOS-specific auto-start code here
         #elif __linux__
-            std::string dir = std::string(getenv("HOME")) + "/.config/autostart";
-            std::string filePath = dir + "/mmry.desktop";
-            std::string appName = "mmry";
-            std::string appLabel = "Mmry";
+            if (autoStart) {
+                std::string dir = std::string(getenv("HOME")) + "/.config/autostart";
+                std::string filePath = dir + "/mmry.desktop";
+                std::string appName = "mmry";
+                std::string appLabel = "Mmry";
 
-            // ensure directory exists
-            std::string mkdirCmd = "mkdir -p " + dir;
-            int mkdirResult = system(mkdirCmd.c_str());
-            (void)mkdirResult; // Suppress unused result warning
+                // ensure directory exists
+                std::string mkdirCmd = "mkdir -p " + dir;
+                int mkdirResult = system(mkdirCmd.c_str());
+                (void)mkdirResult; // Suppress unused result warning
 
 
-            char result[PATH_MAX];
-            ssize_t count = readlink("/proc/self/exe", result, PATH_MAX);
-            if (count != -1) {
-                result[count] = '\0'; // Null-terminate the string
-                std::cout << "Full path: " << result << std::endl;
-            } else {
-                std::cerr << "Error getting path" << std::endl;
+                char result[PATH_MAX];
+                ssize_t count = readlink("/proc/self/exe", result, PATH_MAX);
+                if (count != -1) {
+                    result[count] = '\0'; // Null-terminate the string
+                    std::cout << "Full path: " << result << std::endl;
+                } else {
+                    std::cerr << "Error getting path" << std::endl;
+                }
+
+
+
+                std::ofstream file(filePath);
+                file <<
+    R"([Desktop Entry]
+    Type=Application
+    Exec=)" << result << R"(
+    Hidden=false
+    NoDisplay=false
+    X-GNOME-Autostart-enabled=true
+    Name=)" << appLabel << R"(
+    Comment=Autostart for )" << appLabel << R"(
+    )";
+                file.close();
             }
-
-
-
-            std::ofstream file(filePath);
-            file <<
-R"([Desktop Entry]
-Type=Application
-Exec=)" << result << R"(
-Hidden=false
-NoDisplay=false
-X-GNOME-Autostart-enabled=true
-Name=)" << appLabel << R"(
-Comment=Autostart for )" << appLabel << R"(
-)";
-            file.close();
         #else
             std::cout << "Unknown operating system." << std::endl;
         #endif
 
-        
-        // Start clipboard monitoring after everything is set up
-        startClipboardMonitoring();
         
         std::cout << "MMRY Clipboard Manager started" << std::endl;
         std::cout << "Config directory: " << configDir << std::endl;
@@ -943,8 +951,6 @@ Comment=Autostart for )" << appLabel << R"(
 
             KeyCode kc = XKeysymToKeycode(dpy, keysym);
 
-            // Common modifier masks that may be present (NumLock, CapsLock, ISO Level3)
-            // We'll try combinations to be robust.
             const unsigned int baseMods[] = {
                 ControlMask | Mod1Mask,                 // Ctrl + Alt
                 ControlMask | Mod1Mask | Mod2Mask,     // + NumLock
@@ -991,56 +997,57 @@ Comment=Autostart for )" << appLabel << R"(
         // Helpful: determine the grabbed keycode for runtime checks
         KeyCode grabbed_keycode = XKeysymToKeycode(display, XK_C);
 
-        // --- Event loop: non-blocking, check all pending events -----------
-        // This loop preserves your appWindow handling (Expose, KeyPress handlers, etc.)
+        // Listen for clipboard changes
+        XFixesSelectSelectionInput(display, root, clipboardAtom, XFixesSetSelectionOwnerNotifyMask);
+        
+        // --- Event loop: blocking, waits for next event -----------
         while (running) {
-            // Process all pending X events
-            while (XPending(display)) {
-                XEvent event;
-                XNextEvent(display, &event);
+            XEvent event;
+            XNextEvent(display, &event);
 
-                // If the event is a KeyPress and matches our grabbed keycode
-                if (event.type == KeyPress && event.xkey.keycode == grabbed_keycode) {
-                    // Check ctrl + alt presence (Alt is Mod1Mask on most systems)
-                    // Note: state may include other bits (NumLock, CapsLock) — we're only checking that required bits exist
-                    if ((event.xkey.state & ControlMask) && (event.xkey.state & Mod1Mask)) {
-                        // Hotkey triggered
-                        std::cout << "Hotkey triggered: Ctrl+Alt+C" << std::endl;
-                        showWindow();
-                        // consume event and continue
-                        continue;
-                    }
+            // Handle clipboard change event
+            if (event.type == xfixes_event_base + XFixesSelectionNotify) {
+                XFixesSelectionNotifyEvent *selection_event = (XFixesSelectionNotifyEvent*)&event;
+                if (selection_event->selection == clipboardAtom) {
+                    requestClipboardContent();
                 }
+                continue;
+            }
 
-                // Events for your application window(s)
-                if (event.xany.window == window) {
-                    switch (event.type) {
-                        case Expose:
-                            drawConsole();
-                            break;
-                        case KeyPress:
-                            handleKeyPress(&event);
-                            break;
-                        case ConfigureNotify:
-                            // Window resize event
-                            updateWindowDimensions(event.xconfigure.width, event.xconfigure.height);
-                            drawConsole();
-                            break;
-                        default:
-                            break;
-                    }
-                } else {
-                    // Events targeted to other windows (including root children)
-                    // For safety, also handle KeyPress on root (in case some setups report it differently)
-                    if (event.type == KeyPress) {
-                        // If not exactly the grabbed keycode we already matched, ignore
-                        // (Other clients may generate key events)
-                    }
+            // Handle clipboard content arrival
+            if (event.type == SelectionNotify) {
+                handleSelectionNotify(&event);
+                continue;
+            }
+            
+            // Handle global hotkey
+            if (event.type == KeyPress && event.xkey.keycode == grabbed_keycode) {
+                if ((event.xkey.state & ControlMask) && (event.xkey.state & Mod1Mask)) {
+                    // Hotkey triggered
+                    std::cout << "Hotkey triggered: Ctrl+Alt+C" << std::endl;
+                    showWindow();
+                    continue;
                 }
             }
 
-            // Small sleep to avoid busy loop (keeps CPU low)
-            std::this_thread::sleep_for(std::chrono::milliseconds(2));
+            // Events for the application window
+            if (event.xany.window == window) {
+                switch (event.type) {
+                    case Expose:
+                        drawConsole();
+                        break;
+                    case KeyPress:
+                        handleKeyPress(&event);
+                        break;
+                    case ConfigureNotify:
+                        // Window resize event
+                        updateWindowDimensions(event.xconfigure.width, event.xconfigure.height);
+                        drawConsole();
+                        break;
+                    default:
+                        break;
+                }
+            }
         }
 
         // Unregister our grabs on exit
@@ -1070,12 +1077,8 @@ Comment=Autostart for )" << appLabel << R"(
         running = false;
         
         // Join threads to prevent memory leaks
-        if (hotkeyMonitorThread.joinable()) {
-            hotkeyMonitorThread.join();
-        }
-        if (clipboardMonitorThread.joinable()) {
-            clipboardMonitorThread.join();
-        }
+
+
         
 #ifdef __linux__
         // Clean up X11 resources
@@ -1102,37 +1105,39 @@ private:
     int screen;
     GC gc;
     XFontStruct* font;
-    Atom clipboardAtom;
-    Atom utf8Atom;
-    Atom textAtom;
-#endif
-
-#ifdef _WIN32
-    HWND hwnd;
-    HFONT font;
-#endif
-
-    std::atomic<bool> running;
-    std::atomic<bool> visible;
+        Atom clipboardAtom;
+        Atom utf8Atom;
+        Atom textAtom;
+        int xfixes_event_base;
+        int xfixes_error_base;
+    #endif
     
-    // Window properties
-    int windowWidth = 800;
-    int windowHeight = 600;
-    const int WINDOW_X = 100;
-    const int WINDOW_Y = 100;
-    const int LINE_HEIGHT = 25;
+    #ifdef _WIN32
+        HWND hwnd;
+        HFONT font;
+    #endif
     
-    // Minimum window size constraints
-    const int MIN_WINDOW_WIDTH = 425;
-    const int MIN_WINDOW_HEIGHT = 525;
-    
-    // Dynamic width adjustment for clip list
-    int clipListWidth = 780; // Default width (windowWidth - 20 for margins)
-    
-    // Clipboard data
-    std::vector<ClipboardItem> items;
-    std::string lastClipboardContent;
-    bool verboseMode;
+        std::atomic<bool> running;
+        std::atomic<bool> visible;
+        
+        // Window properties
+        int windowWidth = 800;
+        int windowHeight = 600;
+        const int WINDOW_X = 100;
+        const int WINDOW_Y = 100;
+        const int LINE_HEIGHT = 25;
+        
+        // Minimum window size constraints
+        const int MIN_WINDOW_WIDTH = 425;
+        const int MIN_WINDOW_HEIGHT = 525;
+        
+        // Dynamic width adjustment for clip list
+        int clipListWidth = 780; // Default width (windowWidth - 20 for margins)
+        
+        // Clipboard data
+        std::vector<ClipboardItem> items;
+        std::string lastClipboardContent;
+        bool verboseMode;
     std::string configDir;
     std::string bookmarksDir;
     std::string dataFile;
@@ -2346,35 +2351,9 @@ private:
         // Select KeyPress events on root window
         XSelectInput(display, root, KeyPressMask | KeyReleaseMask);
         XSync(display, False);
-        
-        // Start a monitoring thread to periodically verify the hotkey is still grabbed
-        startHotkeyMonitoring();
 #endif
     }
 
-    void startHotkeyMonitoring() {
-#ifdef __linux__
-        hotkeyMonitorThread = std::thread([this]() {
-            while (running) {
-                std::this_thread::sleep_for(std::chrono::seconds(5));
-                
-                if (!hotkeyGrabbed) {
-                    continue;
-                }
-                
-                // Periodically try to re-grab the hotkey in case it was lost
-                // This is a safety mechanism for when other applications interfere
-                KeyCode keycode = XKeysymToKeycode(display, XK_c);
-                
-                // Check if we still have the grab by attempting to grab again
-                // If we already have it, this should fail gracefully
-                XGrabKey(display, keycode, ControlMask | Mod1Mask, root, True,
-                        GrabModeAsync, GrabModeAsync);
-                XSync(display, False);
-            }
-        });
-#endif
-    }
     
     void showWindow() {
         std::cout << "Visible: " << visible << std::endl;
@@ -2908,125 +2887,117 @@ private:
 #endif
     }
     
-    void startClipboardMonitoring() {
-        // Start a separate thread for clipboard monitoring
-        clipboardMonitorThread = std::thread([this]() {
-            while (running) {
-                checkClipboard();
-                std::this_thread::sleep_for(std::chrono::milliseconds(200));
-            }
-        });
-    }
+
     
-    void checkClipboard() {
-        std::string content;
-        
+    void requestClipboardContent() {
 #ifdef __linux__
-        // Linux: use xclip command
-        FILE* pipe = popen("xclip -selection clipboard -o 2>/dev/null", "r");
-        if (!pipe) return;
-        
-        char buffer[4096];
-        while (fgets(buffer, sizeof(buffer), pipe) != nullptr) {
-            content += buffer;
-        }
-        pclose(pipe);
+        // Request clipboard content as UTF8_STRING
+        XConvertSelection(display, clipboardAtom, utf8Atom, clipboardAtom, window, CurrentTime);
 #endif
+    }
 
-#ifdef _WIN32
-        // Windows: use Windows API
-        if (OpenClipboard(nullptr)) {
-            HANDLE hData = GetClipboardData(CF_TEXT);
-            if (hData) {
-                char* text = static_cast<char*>(GlobalLock(hData));
-                if (text) {
-                    content = text;
-                    GlobalUnlock(hData);
-                }
-            }
-            CloseClipboard();
+    void handleSelectionNotify(XEvent* event) {
+#ifdef __linux__
+        if (event->xselection.property == None) {
+            // If UTF8_STRING is not available, try plain TEXT
+            XConvertSelection(display, clipboardAtom, XA_STRING, clipboardAtom, window, CurrentTime);
+            return;
         }
-#endif
 
-#ifdef __APPLE__
-        // macOS: use pbpaste command
-        FILE* pipe = popen("pbpaste 2>/dev/null", "r");
-        if (!pipe) return;
-        
-        char buffer[4096];
-        while (fgets(buffer, sizeof(buffer), pipe) != nullptr) {
-            content += buffer;
+        Atom target = event->xselection.target;
+        if (target != utf8Atom && target != XA_STRING) {
+            // We are not interested in other formats
+            return;
         }
-        pclose(pipe);
+
+        Atom type;
+        int format;
+        unsigned long nitems, bytes_after;
+        unsigned char* data = nullptr;
+
+        XGetWindowProperty(display, window, clipboardAtom, 0, LONG_MAX, False, AnyPropertyType,
+                           &type, &format, &nitems, &bytes_after, &data);
+
+        if (data) {
+            std::string content(reinterpret_cast<char*>(data), nitems);
+            XFree(data);
+            processClipboardContent(content);
+        }
 #endif
-        
+    }
+
+    void processClipboardContent(const std::string& content) {
         // Trim trailing newlines
-        while (!content.empty() && (content.back() == '\n' || content.back() == '\r')) {
-            content.pop_back();
+        std::string trimmed_content = content;
+        while (!trimmed_content.empty() && (trimmed_content.back() == '\n' || trimmed_content.back() == '\r')) {
+            trimmed_content.pop_back();
         }
+
+        if (trimmed_content.empty() || trimmed_content == lastClipboardContent) {
+            return;
+        }
+
+        lastClipboardContent = trimmed_content;
+
+        // The rest of the logic from checkClipboard
+        size_t duplicateIndex = 0;
         
-        if (!content.empty() && content != lastClipboardContent) {
-            lastClipboardContent = content;
-            size_t duplicateIndex = 0;
-            
-            // Check for duplicates and move to top if found
-            bool isDuplicate = false;
-            for (size_t i = 0; i < items.size(); i++) {
-                if (items[i].content == content) {
-                    isDuplicate = true;
-                    duplicateIndex = i;
-                    break;
-                }
+        // Check for duplicates and move to top if found
+        bool isDuplicate = false;
+        for (size_t i = 0; i < items.size(); i++) {
+            if (items[i].content == trimmed_content) {
+                isDuplicate = true;
+                duplicateIndex = i;
+                break;
             }
-          
-            if (isDuplicate) {
-                // Move existing clip to top
-                std::string clipContent = items[duplicateIndex].content;
-                items.erase(items.begin() + duplicateIndex);
-                items.emplace(items.begin(), clipContent);
+        }
+      
+        if (isDuplicate) {
+            // Move existing clip to top
+            std::string clipContent = items[duplicateIndex].content;
+            items.erase(items.begin() + duplicateIndex);
+            items.emplace(items.begin(), clipContent);
 
-                // Reset selection to top when item is moved
-                selectedItem = 0;
-
-                // Update filtered items if in filter mode
-                if (filterMode) {
-                    updateFilteredItems();
-                }
-
-                saveToFile();
-
-                std::cout << "Existing clip moved to top" << std::endl;
-
-                // Refresh display if window is visible
-                if (visible) {
-                    drawConsole();
-                }
-
-                return;
-            }
-
-
-            items.emplace(items.begin(), content);
-            if (items.size() > maxClips) { // Keep only last maxClips items
-                items.pop_back();
-            }
-            
-            // Reset selection to top when new item is added
+            // Reset selection to top when item is moved
             selectedItem = 0;
-            
+
             // Update filtered items if in filter mode
             if (filterMode) {
                 updateFilteredItems();
             }
-            
+
             saveToFile();
-            
-            std::cout << "New clipboard item added" << std::endl;
-            
+
+            std::cout << "Existing clip moved to top" << std::endl;
+
             // Refresh display if window is visible
             if (visible) {
                 drawConsole();
             }
+
+            return;
+        }
+
+        items.emplace(items.begin(), trimmed_content);
+        if (items.size() > maxClips) {
+            items.pop_back();
+        }
+        
+        // Reset selection to top when new item is added
+        selectedItem = 0;
+        
+        // Update filtered items if in filter mode
+        if (filterMode) {
+            updateFilteredItems();
+        }
+        
+        saveToFile();
+        
+        std::cout << "New clipboard item added" << std::endl;
+        
+        // Refresh display if window is visible
+        if (visible) {
+            drawConsole();
         }
     }
     
