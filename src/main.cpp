@@ -2022,29 +2022,63 @@ private:
     }
     
     void loadTheme() {
-        std::string themeFile = configDir + "/themes/" + theme + ".json";
-        std::ifstream file(themeFile);
+        // Try multiple locations for theme files
+        std::vector<std::string> themePaths = {
+            configDir + "/themes/" + theme + "_theme.json",
+            configDir + "/themes/" + theme + ".json",
+            "themes/" + theme + "_theme.json",
+            "themes/" + theme + ".json"
+        };
         
         // Set default colors (console theme)
         backgroundColor = 0x000000; // Black
-        textColor = 0xFFFFFF;      // White
-        selectionColor = 0x404040;  // Dim gray
-        borderColor = 0xFFFFFF;    // White
+        textColor = 0x00FF00;      // Green (console theme)
+        selectionColor = 0x333333;  // Dark gray
+        borderColor = 0x00FF00;    // Green
         
-        if (!file.is_open()) {
-            // Try to create default theme file
-            createDefaultThemeFile();
+        std::ifstream file;
+        bool foundTheme = false;
+        
+        // Try each possible path
+        for (const auto& themePath : themePaths) {
+            file.open(themePath);
+            if (file.is_open()) {
+                std::cout << "Loading theme from: " << themePath << std::endl;
+                foundTheme = true;
+                break;
+            }
+        }
+        
+        if (!foundTheme) {
+            std::cout << "Theme file not found for theme: " << theme << ", using default colors" << std::endl;
             return;
         }
         
         std::string line;
-        std::string currentSection;
         while (std::getline(file, line)) {
             // Remove whitespace
             line.erase(0, line.find_first_not_of(" \t"));
             line.erase(line.find_last_not_of(" \t") + 1);
             
-            if (line.find("\"background\"") != std::string::npos) {
+            // Parse key=value format (your current theme file format)
+            if (line.find("backgroundColor=") != std::string::npos) {
+                std::string color = line.substr(line.find('=') + 1);
+                backgroundColor = hexToRgb(color);
+            }
+            else if (line.find("textColor=") != std::string::npos) {
+                std::string color = line.substr(line.find('=') + 1);
+                textColor = hexToRgb(color);
+            }
+            else if (line.find("selectionColor=") != std::string::npos) {
+                std::string color = line.substr(line.find('=') + 1);
+                selectionColor = hexToRgb(color);
+            }
+            else if (line.find("borderColor=") != std::string::npos) {
+                std::string color = line.substr(line.find('=') + 1);
+                borderColor = hexToRgb(color);
+            }
+            // Also support JSON format for future compatibility
+            else if (line.find("\"background\"") != std::string::npos) {
                 size_t start = line.find('"', line.find(':'));
                 size_t end = line.find('"', start + 1);
                 if (start != std::string::npos && end != std::string::npos) {
