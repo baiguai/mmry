@@ -629,6 +629,26 @@ public:
                 return;
             }
 
+            if (keysym == XK_Delete) {
+                if (!items.empty() && selectedItem < getDisplayItemCount()) {
+                    size_t actualIndex = getActualItemIndex(selectedItem);
+                    items.erase(items.begin() + actualIndex);
+                    
+                    // Update filtered items after deletion
+                    updateFilteredItems();
+                    
+                    // Adjust selection if needed
+                    if (selectedItem >= getDisplayItemCount() && selectedItem > 0) {
+                        selectedItem--;
+                    }
+                    
+                    // Save changes and redraw
+                    saveToFile();
+                    drawConsole();
+                }
+                return;
+            }
+
             if (keysym == XK_Return) {
                 // Copy selected item to clipboard and hide window
                 if (!items.empty() && selectedItem < getDisplayItemCount()) {
@@ -2600,6 +2620,8 @@ private:
         drawHelpTopic(topicLeft, y, contentTop, contentBottom, "Backspace      - Delete char");
         y += lineHeight;
         drawHelpTopic(topicLeft, y, contentTop, contentBottom, "Up/down arrow  - Navigate items");
+        y += lineHeight;
+        drawHelpTopic(topicLeft, y, contentTop, contentBottom, "Delete         - Delete item");
         y += lineHeight;
         drawHelpTopic(topicLeft, y, contentTop, contentBottom, "Enter          - Copy item");
         y += lineHeight;

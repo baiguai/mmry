@@ -28,7 +28,7 @@ make
 
 # Check if build was successful
 if [ -f "bin/mmry" ]; then
-    echo "✅ Build successful!"
+    echo "-- Build successful --"
     echo "Executable: $(pwd)/bin/mmry"
     echo ""
     echo "To run MMRY:"
@@ -37,6 +37,6 @@ if [ -f "bin/mmry" ]; then
     echo "Or from the parent directory:"
     echo "  ./build/bin/mmry"
 else
-    echo "❌ Build failed!"
+    echo "! failed !"
     exit 1
 fi
