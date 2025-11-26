@@ -629,6 +629,26 @@ public:
                 return;
             }
 
+            if (keysym == XK_Delete) {
+                if (!items.empty() && selectedItem < getDisplayItemCount()) {
+                    size_t actualIndex = getActualItemIndex(selectedItem);
+                    items.erase(items.begin() + actualIndex);
+                    
+                    // Update filtered items after deletion
+                    updateFilteredItems();
+                    
+                    // Adjust selection if needed
+                    if (selectedItem >= getDisplayItemCount() && selectedItem > 0) {
+                        selectedItem--;
+                    }
+                    
+                    // Save changes and redraw
+                    saveToFile();
+                    drawConsole();
+                }
+                return;
+            }
+
             if (keysym == XK_Return) {
                 // Copy selected item to clipboard and hide window
                 if (!items.empty() && selectedItem < getDisplayItemCount()) {
