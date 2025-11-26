@@ -2621,6 +2621,8 @@ private:
         y += lineHeight;
         drawHelpTopic(topicLeft, y, contentTop, contentBottom, "Up/down arrow  - Navigate items");
         y += lineHeight;
+        drawHelpTopic(topicLeft, y, contentTop, contentBottom, "Delete         - Delete item");
+        y += lineHeight;
         drawHelpTopic(topicLeft, y, contentTop, contentBottom, "Enter          - Copy item");
         y += lineHeight;
         drawHelpTopic(topicLeft, y, contentTop, contentBottom, "Escape         - Exit filter");
