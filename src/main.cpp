@@ -2523,9 +2523,8 @@ private:
         
         // Draw bookmark groups
         XSetForeground(display, gc, textColor);
-        XDrawString(display, window, gc, dims.x + 20, dims.y + 60, "Select bookmark group:", 20);
         
-        int y = dims.y + 80;
+        int y = dims.y + 50;
         const int VISIBLE_ITEMS = 10;
         
         size_t startIdx = addBookmarkScrollOffset;
