@@ -1,0 +1,10 @@
+{
+    "name": "Console",
+    "description": "Default console theme with black background and white text",
+    "colors": {
+        "background": "#000000",
+        "text": "#FFFFFF",
+        "selection": "#404040",
+        "border": "#FFFFFF"
+    }
+}
