@@ -1,4 +1,10 @@
-"backgroundColor": "#0d0d15",
-"textColor": "#8b5cf6",
-"selectionColor": "#1a1a24",
-"borderColor": "#7c3aed"
+{
+  "name": "Binary Eclipse",
+  "description": "Binary Eclipse theme with dark colors",
+  "colors": {
+    "background": "#0d0d15",
+    "text": "#8b5cf6",
+    "selection": "#1a1a24",
+    "border": "#7c3aed"
+  }
+}

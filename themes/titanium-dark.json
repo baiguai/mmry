@@ -1,4 +1,10 @@
-"backgroundColor": "#14181e",
-"textColor": "#c5cdd5",
-"selectionColor": "#242a33",
-"borderColor": "#404852"
+{
+  "name": "Titanium Dark",
+  "description": "Titanium Dark theme with dark colors",
+  "colors": {
+    "background": "#14181e",
+    "text": "#c5cdd5",
+    "selection": "#242a33",
+    "border": "#404852"
+  }
+}

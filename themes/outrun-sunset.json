@@ -1,4 +1,10 @@
-"backgroundColor": "#1a0f2e",
-"textColor": "#f72585",
-"selectionColor": "#2d1b47",
-"borderColor": "#7209b7"
+{
+  "name": "Outrun Sunset",
+  "description": "Outrun Sunset theme with dark colors",
+  "colors": {
+    "background": "#1a0f2e",
+    "text": "#f72585",
+    "selection": "#2d1b47",
+    "border": "#7209b7"
+  }
+}

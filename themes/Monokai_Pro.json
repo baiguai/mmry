@@ -1,6 +1,6 @@
 {
   "name": "Monokai Pro",
-  "type": "dark",
+  "description": "Monokai Pro theme with dark colors",
   "colors": {
     "accent": "#ffd866",
     "bg": "#2D2A2E",

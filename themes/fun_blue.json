@@ -1,0 +1,10 @@
+{
+  "name": "Fun Blue",
+  "description": "Fun Blue theme with dark colors",
+  "colors": {
+    "background": "#3498db",
+    "text": "#ffffff",
+    "selection": "#2980b9",
+    "border": "#2980b9"
+  }
+}

@@ -2189,88 +2189,82 @@ private:
     }
     
     void loadTheme() {
-        // Try multiple locations for theme files
-        std::vector<std::string> themePaths = {
-            configDir + "/themes/" + theme + "_theme.json",
-            configDir + "/themes/" + theme + ".json",
-            "themes/" + theme + "_theme.json",
-            "themes/" + theme + ".json"
-        };
-        
         // Set default colors (console theme)
         backgroundColor = 0x000000; // Black
         textColor = 0x00FF00;      // Green (console theme)
         selectionColor = 0x333333;  // Dark gray
         borderColor = 0x00FF00;    // Green
         
-        std::ifstream file;
-        bool foundTheme = false;
+        // Try user config directory first, then fallback to local themes
+        std::string themePath = configDir + "/themes/" + theme + ".json";
+        std::ifstream file(themePath);
         
-        // Try each possible path
-        for (const auto& themePath : themePaths) {
+        if (!file.is_open()) {
+            // Fallback to local themes directory
+            themePath = "themes/" + theme + ".json";
             file.open(themePath);
-            if (file.is_open()) {
-                std::cout << "Loading theme from: " << themePath << std::endl;
-                foundTheme = true;
-                break;
-            }
         }
         
-        if (!foundTheme) {
+        if (!file.is_open()) {
             std::cout << "Theme file not found for theme: " << theme << ", using default colors" << std::endl;
             return;
         }
         
+        std::cout << "Loading theme from: " << themePath << std::endl;
+        
+        // Parse JSON theme file
         std::string line;
+        bool inColorsSection = false;
         while (std::getline(file, line)) {
             // Remove whitespace
             line.erase(0, line.find_first_not_of(" \t"));
             line.erase(line.find_last_not_of(" \t") + 1);
             
-            // Parse key=value format (your current theme file format)
-            if (line.find("backgroundColor=") != std::string::npos) {
-                std::string color = line.substr(line.find('=') + 1);
-                backgroundColor = hexToRgb(color);
+            // Skip empty lines and comments
+            if (line.empty() || line[0] == '/' || line[0] == '#') {
+                continue;
             }
-            else if (line.find("textColor=") != std::string::npos) {
-                std::string color = line.substr(line.find('=') + 1);
-                textColor = hexToRgb(color);
+            
+            // Check if we're entering the colors section
+            if (line.find("\"colors\"") != std::string::npos) {
+                inColorsSection = true;
+                continue;
             }
-            else if (line.find("selectionColor=") != std::string::npos) {
-                std::string color = line.substr(line.find('=') + 1);
-                selectionColor = hexToRgb(color);
+            
+            // Check if we're exiting the colors section
+            if (inColorsSection && line.find("}") != std::string::npos) {
+                break;
             }
-            else if (line.find("borderColor=") != std::string::npos) {
-                std::string color = line.substr(line.find('=') + 1);
-                borderColor = hexToRgb(color);
-            }
-            // Also support JSON format for future compatibility
-            else if (line.find("\"background\"") != std::string::npos) {
-                size_t start = line.find('"', line.find(':'));
-                size_t end = line.find('"', start + 1);
-                if (start != std::string::npos && end != std::string::npos) {
-                    backgroundColor = hexToRgb(line.substr(start + 1, end - start - 1));
+            
+            // Parse color values (only in JSON format)
+            if (inColorsSection) {
+                if (line.find("\"background\"") != std::string::npos) {
+                    size_t start = line.find('"', line.find(':'));
+                    size_t end = line.find('"', start + 1);
+                    if (start != std::string::npos && end != std::string::npos) {
+                        backgroundColor = hexToRgb(line.substr(start + 1, end - start - 1));
+                    }
                 }
-            }
-            else if (line.find("\"text\"") != std::string::npos) {
-                size_t start = line.find('"', line.find(':'));
-                size_t end = line.find('"', start + 1);
-                if (start != std::string::npos && end != std::string::npos) {
-                    textColor = hexToRgb(line.substr(start + 1, end - start - 1));
+                else if (line.find("\"text\"") != std::string::npos) {
+                    size_t start = line.find('"', line.find(':'));
+                    size_t end = line.find('"', start + 1);
+                    if (start != std::string::npos && end != std::string::npos) {
+                        textColor = hexToRgb(line.substr(start + 1, end - start - 1));
+                    }
                 }
-            }
-            else if (line.find("\"selection\"") != std::string::npos) {
-                size_t start = line.find('"', line.find(':'));
-                size_t end = line.find('"', start + 1);
-                if (start != std::string::npos && end != std::string::npos) {
-                    selectionColor = hexToRgb(line.substr(start + 1, end - start - 1));
+                else if (line.find("\"selection\"") != std::string::npos) {
+                    size_t start = line.find('"', line.find(':'));
+                    size_t end = line.find('"', start + 1);
+                    if (start != std::string::npos && end != std::string::npos) {
+                        selectionColor = hexToRgb(line.substr(start + 1, end - start - 1));
+                    }
                 }
-            }
-            else if (line.find("\"border\"") != std::string::npos) {
-                size_t start = line.find('"', line.find(':'));
-                size_t end = line.find('"', start + 1);
-                if (start != std::string::npos && end != std::string::npos) {
-                    borderColor = hexToRgb(line.substr(start + 1, end - start - 1));
+                else if (line.find("\"border\"") != std::string::npos) {
+                    size_t start = line.find('"', line.find(':'));
+                    size_t end = line.find('"', start + 1);
+                    if (start != std::string::npos && end != std::string::npos) {
+                        borderColor = hexToRgb(line.substr(start + 1, end - start - 1));
+                    }
                 }
             }
         }
@@ -2285,21 +2279,22 @@ private:
             mkdir(themesDir.c_str(), 0755);
         }
         
-        // Create default console theme file
+        // Create default console theme file with valid JSON
         std::string themeFile = themesDir + "/console.json";
         std::ofstream outFile(themeFile);
         if (outFile.is_open()) {
             outFile << "{\n";
-            outFile << "    \"name\": \"Console\",\n";
-            outFile << "    \"description\": \"Default console theme with black background and white text\",\n";
-            outFile << "    \"colors\": {\n";
-            outFile << "        \"background\": \"#000000\",\n";
-            outFile << "        \"text\": \"#FFFFFF\",\n";
-            outFile << "        \"selection\": \"#404040\",\n";
-            outFile << "        \"border\": \"#FFFFFF\"\n";
-            outFile << "    }\n";
+            outFile << "  \"name\": \"Console\",\n";
+            outFile << "  \"description\": \"Default console theme with black background and green text\",\n";
+            outFile << "  \"colors\": {\n";
+            outFile << "    \"background\": \"#000000\",\n";
+            outFile << "    \"text\": \"#00FF00\",\n";
+            outFile << "    \"selection\": \"#333333\",\n";
+            outFile << "    \"border\": \"#00FF00\"\n";
+            outFile << "  }\n";
             outFile << "}\n";
             outFile.close();
+            std::cout << "Created default theme file: " << themeFile << std::endl;
         }
     }
     

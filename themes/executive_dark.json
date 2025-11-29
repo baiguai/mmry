@@ -1,0 +1,10 @@
+{
+  "name": "Executive Dark",
+  "description": "Executive Dark theme with dark colors",
+  "colors": {
+    "background": "#1c1c1c",
+    "text": "#f0f0f0",
+    "selection": "#333333",
+    "border": "#666666"
+  }
+}

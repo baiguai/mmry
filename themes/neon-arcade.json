@@ -1,4 +1,10 @@
-"backgroundColor": "#0d0520",
-"textColor": "#ff2975",
-"selectionColor": "#1a0a3d",
-"borderColor": "#00d4ff"
+{
+  "name": "Neon Arcade",
+  "description": "Neon Arcade theme with dark colors",
+  "colors": {
+    "background": "#0d0520",
+    "text": "#ff2975",
+    "selection": "#1a0a3d",
+    "border": "#00d4ff"
+  }
+}

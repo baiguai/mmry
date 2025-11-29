@@ -1,0 +1,10 @@
+{
+  "name": "Solarized Light",
+  "description": "Solarized Light theme with light colors",
+  "colors": {
+    "background": "#fdf6e3",
+    "text": "#657b83",
+    "selection": "#eee8d5",
+    "border": "#93a1a1"
+  }
+}

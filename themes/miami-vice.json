@@ -1,4 +1,10 @@
-"backgroundColor": "#0a0a1f",
-"textColor": "#ff2a6d",
-"selectionColor": "#1a1a3a",
-"borderColor": "#05d9e8"
+{
+  "name": "Miami Vice",
+  "description": "Miami Vice theme with dark colors",
+  "colors": {
+    "background": "#0a0a1f",
+    "text": "#ff2a6d",
+    "selection": "#1a1a3a",
+    "border": "#05d9e8"
+  }
+}

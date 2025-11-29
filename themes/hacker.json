@@ -1,0 +1,10 @@
+{
+  "name": "Hacker",
+  "description": "Hacker theme with dark colors",
+  "colors": {
+    "background": "#000000",
+    "text": "#00ff00",
+    "selection": "#333333",
+    "border": "#555555"
+  }
+}

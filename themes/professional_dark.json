@@ -1,4 +1,10 @@
-backgroundColor=#1a1a1a
-textColor=#dcdcdc
-selectionColor=#4a4a4a
-borderColor=#6a6a6a
+{
+  "name": "Professional Dark",
+  "description": "Professional Dark theme with dark colors",
+  "colors": {
+    "background": "#1a1a1a",
+    "text": "#dcdcdc",
+    "selection": "#4a4a4a",
+    "border": "#6a6a6a"
+  }
+}

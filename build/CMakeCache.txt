@@ -615,15 +615,6 @@ mmry_IS_TOP_LEVEL:STATIC=ON
 //Value Computed by CMake
 mmry_SOURCE_DIR:STATIC=/home/baiguai/documents/development/cpp/mmry
 
-//Value Computed by CMake
-mmry_cpp_BINARY_DIR:STATIC=/home/baiguai/documents/development/cpp/mmry/build
-
-//Value Computed by CMake
-mmry_cpp_IS_TOP_LEVEL:STATIC=ON
-
-//Value Computed by CMake
-mmry_cpp_SOURCE_DIR:STATIC=/home/baiguai/documents/development/cpp/mmry
-
 
 ########################
 # INTERNAL cache entries

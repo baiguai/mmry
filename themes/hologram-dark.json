@@ -1,4 +1,10 @@
-"backgroundColor": "#090913",
-"textColor": "#39ff14",
-"selectionColor": "#151520",
-"borderColor": "#2ed610"
+{
+  "name": "Hologram Dark",
+  "description": "Hologram Dark theme with dark colors",
+  "colors": {
+    "background": "#090913",
+    "text": "#39ff14",
+    "selection": "#151520",
+    "border": "#2ed610"
+  }
+}
