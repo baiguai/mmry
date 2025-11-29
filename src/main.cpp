@@ -2476,6 +2476,13 @@ private:
             }
         }
         file.close();
+        
+        // Update graphics context with new text color
+#ifdef __linux__
+        if (gc) {
+            XSetForeground(display, gc, textColor);
+        }
+#endif
     }
     
     void createDefaultThemeFile() {
