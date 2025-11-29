@@ -57,6 +57,12 @@ public:
                 filteredItems.clear();
                 selectedItem = 0;
                 drawConsole();
+            } else if (commandMode) {
+                // Escape exits command mode but doesn't hide window
+                commandMode = false;
+                commandText = "";
+                selectedItem = 0;
+                drawConsole();
             } else {
                 // Normal escape behavior - hide window
                 hideWindow();
@@ -788,6 +794,66 @@ public:
             return;
         }
 
+        // Command mode
+        //
+        if (commandMode) {
+            if (keysym == XK_BackSpace) {
+                // Remove last character from command
+                if (!commandText.empty()) {
+                    commandText.pop_back();
+                    drawConsole();
+                }
+                return;
+            }
+
+            if (keysym == XK_Escape) {
+                // Exit command mode
+                commandMode = false;
+                commandText = "";
+                drawConsole();
+                return;
+            }
+
+            if (keysym == XK_Return) {
+                // Execute command and exit command mode
+                if (!commandText.empty()) {
+                    executeCommand(commandText);
+                }
+                commandMode = false;
+                commandText = "";
+                drawConsole();
+                return;
+            }
+
+            if (keysym == XK_Down) {
+                // Move down
+                size_t displayCount = getDisplayItemCount();
+                if (selectedItem < displayCount - 1) {
+                    selectedItem++;
+                    updateConsoleScrollOffset();
+                    drawConsole();
+                }
+                return;
+            }
+
+            if (keysym == XK_Up) {
+                // Move up
+                if (selectedItem > 0) {
+                    selectedItem--;
+                    updateConsoleScrollOffset();
+                    drawConsole();
+                }
+                return;
+            }
+
+            // Handle text input in command mode - exclude vim navigation keys
+            char buffer[10];
+            int count = XLookupString(keyEvent, buffer, sizeof(buffer), nullptr, nullptr);
+            commandText += std::string(buffer, count);
+            drawConsole();
+
+            return;
+        }
 
 
         // General keys - main clips list
@@ -860,6 +926,15 @@ public:
             filterMode = true;
             filterText = "";
             updateFilteredItems();
+            selectedItem = 0;
+            drawConsole();
+            return;
+        }
+
+        if (keysym == XK_colon) {
+            // Enter command mode
+            commandMode = true;
+            commandText = "";
             selectedItem = 0;
             drawConsole();
             return;
@@ -1311,6 +1386,10 @@ private:
     bool filterMode = false;
     std::string filterText;
     std::vector<size_t> filteredItems;
+    
+    // Command mode
+    bool commandMode = false;
+    std::string commandText;
     
     // Bookmark dialog
     bool bookmarkDialogVisible = false;
@@ -1885,8 +1964,8 @@ private:
     void updateConsoleScrollOffset() {
         const int SCROLL_INDICATOR_HEIGHT = 15; // Height reserved for scroll indicator
         
-        // Calculate starting Y position (accounting for filter mode)
-        int startY = filterMode ? 45 : 20;
+        // Calculate starting Y position (accounting for filter or command mode)
+        int startY = (filterMode || commandMode) ? 45 : 20;
         
         // Calculate available height for items
         int availableHeight = windowHeight - startY - 10; // 10px bottom margin
@@ -2296,6 +2375,19 @@ private:
             outFile.close();
             std::cout << "Created default theme file: " << themeFile << std::endl;
         }
+    }
+    
+    void executeCommand(const std::string& command) {
+        // For now, just print the command - we'll define specific commands later
+        std::cout << "Command executed: " << command << std::endl;
+        
+        // TODO: Add specific command implementations here
+        // Examples:
+        // - "delete" - delete selected item
+        // - "pin" - pin selected item  
+        // - "theme <name>" - switch theme
+        // - "clear" - clear all items
+        // - "export" - export clipboard history
     }
     
     void loadBookmarkGroups() {
@@ -3102,12 +3194,18 @@ private:
         XSetWindowBackground(display, window, backgroundColor);
         XClearWindow(display, window);
         
-        // Draw filter textbox if in filter mode
+        // Draw filter or command textbox if in respective mode
         int startY = 20;
         if (filterMode) {
             // Draw filter input
             std::string filterDisplay = "/" + filterText;
             XDrawString(display, window, gc, 10, startY, filterDisplay.c_str(), filterDisplay.length());
+            startY += 25;
+        }
+        else if (commandMode) {
+            // Draw command input
+            std::string commandDisplay = ":" + commandText;
+            XDrawString(display, window, gc, 10, startY, commandDisplay.c_str(), commandDisplay.length());
             startY += 25;
         }
         
@@ -3224,7 +3322,14 @@ private:
         }
         
         if (displayCount == 0) {
-            std::string empty = filterMode ? "No matching items..." : "No clipboard items yet...";
+            std::string empty;
+            if (filterMode) {
+                empty = "No matching items...";
+            } else if (commandMode) {
+                empty = "Enter command...";
+            } else {
+                empty = "No clipboard items yet...";
+            }
             XDrawString(display, window, gc, 10, y, empty.c_str(), empty.length());
         }
         
