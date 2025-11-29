@@ -122,7 +122,7 @@ CMAKE_PROJECT_DESCRIPTION:STATIC=
 CMAKE_PROJECT_HOMEPAGE_URL:STATIC=
 
 //Value Computed by CMake
-CMAKE_PROJECT_NAME:STATIC=mmry_cpp
+CMAKE_PROJECT_NAME:STATIC=mmry
 
 //Value Computed by CMake
 CMAKE_PROJECT_VERSION:STATIC=1.0.0
@@ -361,10 +361,10 @@ X11_Xt_INCLUDE_PATH:PATH=/usr/include
 X11_Xt_LIB:FILEPATH=/usr/lib/x86_64-linux-gnu/libXt.so
 
 //Path to a file.
-X11_Xtst_INCLUDE_PATH:PATH=X11_Xtst_INCLUDE_PATH-NOTFOUND
+X11_Xtst_INCLUDE_PATH:PATH=/usr/include
 
 //Path to a library.
-X11_Xtst_LIB:FILEPATH=X11_Xtst_LIB-NOTFOUND
+X11_Xtst_LIB:FILEPATH=/usr/lib/x86_64-linux-gnu/libXtst.so
 
 //Path to a file.
 X11_Xutil_INCLUDE_PATH:PATH=/usr/include
@@ -605,6 +605,15 @@ X11_xkbfile_INCLUDE_PATH:PATH=X11_xkbfile_INCLUDE_PATH-NOTFOUND
 
 //Path to a library.
 X11_xkbfile_LIB:FILEPATH=X11_xkbfile_LIB-NOTFOUND
+
+//Value Computed by CMake
+mmry_BINARY_DIR:STATIC=/home/baiguai/documents/development/cpp/mmry/build
+
+//Value Computed by CMake
+mmry_IS_TOP_LEVEL:STATIC=ON
+
+//Value Computed by CMake
+mmry_SOURCE_DIR:STATIC=/home/baiguai/documents/development/cpp/mmry
 
 //Value Computed by CMake
 mmry_cpp_BINARY_DIR:STATIC=/home/baiguai/documents/development/cpp/mmry/build

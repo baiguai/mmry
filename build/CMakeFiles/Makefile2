@@ -63,7 +63,7 @@ CMAKE_BINARY_DIR = /home/baiguai/documents/development/cpp/mmry/build
 # Directory level rules for the build root directory
 
 # The main recursive "all" target.
-all: CMakeFiles/mmry_cpp.dir/all
+all: CMakeFiles/mmry.dir/all
 .PHONY : all
 
 # The main recursive "preinstall" target.
@@ -71,34 +71,34 @@ preinstall:
 .PHONY : preinstall
 
 # The main recursive "clean" target.
-clean: CMakeFiles/mmry_cpp.dir/clean
+clean: CMakeFiles/mmry.dir/clean
 .PHONY : clean
 
 #=============================================================================
-# Target rules for target CMakeFiles/mmry_cpp.dir
+# Target rules for target CMakeFiles/mmry.dir
 
 # All Build rule for target.
-CMakeFiles/mmry_cpp.dir/all:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/mmry_cpp.dir/build.make CMakeFiles/mmry_cpp.dir/depend
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/mmry_cpp.dir/build.make CMakeFiles/mmry_cpp.dir/build
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/home/baiguai/documents/development/cpp/mmry/build/CMakeFiles --progress-num=1,2 "Built target mmry_cpp"
-.PHONY : CMakeFiles/mmry_cpp.dir/all
+CMakeFiles/mmry.dir/all:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/mmry.dir/build.make CMakeFiles/mmry.dir/depend
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/mmry.dir/build.make CMakeFiles/mmry.dir/build
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/home/baiguai/documents/development/cpp/mmry/build/CMakeFiles --progress-num=1,2 "Built target mmry"
+.PHONY : CMakeFiles/mmry.dir/all
 
 # Build rule for subdir invocation for target.
-CMakeFiles/mmry_cpp.dir/rule: cmake_check_build_system
+CMakeFiles/mmry.dir/rule: cmake_check_build_system
 	$(CMAKE_COMMAND) -E cmake_progress_start /home/baiguai/documents/development/cpp/mmry/build/CMakeFiles 2
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 CMakeFiles/mmry_cpp.dir/all
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 CMakeFiles/mmry.dir/all
 	$(CMAKE_COMMAND) -E cmake_progress_start /home/baiguai/documents/development/cpp/mmry/build/CMakeFiles 0
-.PHONY : CMakeFiles/mmry_cpp.dir/rule
+.PHONY : CMakeFiles/mmry.dir/rule
 
 # Convenience name for target.
-mmry_cpp: CMakeFiles/mmry_cpp.dir/rule
-.PHONY : mmry_cpp
+mmry: CMakeFiles/mmry.dir/rule
+.PHONY : mmry
 
 # clean rule for target.
-CMakeFiles/mmry_cpp.dir/clean:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/mmry_cpp.dir/build.make CMakeFiles/mmry_cpp.dir/clean
-.PHONY : CMakeFiles/mmry_cpp.dir/clean
+CMakeFiles/mmry.dir/clean:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/mmry.dir/build.make CMakeFiles/mmry.dir/clean
+.PHONY : CMakeFiles/mmry.dir/clean
 
 #=============================================================================
 # Special targets to cleanup operation of make.

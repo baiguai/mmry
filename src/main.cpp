@@ -496,39 +496,52 @@ public:
 
             if (keysym == XK_D && (keyEvent->state & ShiftMask)) {
                 // Shift+D deletes selected pinned clip
-                std::ifstream file(pinnedFile);
-                
-                if (file.is_open()) {
+                std::ifstream inFile(pinnedFile);
+                if (inFile.is_open()) {
+                    std::vector<std::pair<long long, std::string>> pinnedItems;
                     std::string line;
-                    std::vector<std::string> lines;
-                    
-                    // Read all lines
-                    while (std::getline(file, line)) {
-                        lines.push_back(line);
+
+                    // Read and parse lines
+                    while (std::getline(inFile, line)) {
+                        size_t pos = line.find('|');
+                        if (pos != std::string::npos && pos > 0) {
+                            try {
+                                long long timestamp = std::stoll(line.substr(0, pos));
+                                pinnedItems.push_back({timestamp, line});
+                            } catch (...) {
+                                // Fallback for parsing error: use current time, keep original line
+                                long long timestamp = std::chrono::system_clock::now().time_since_epoch().count();
+                                pinnedItems.push_back({timestamp, line});
+                            }
+                        }
                     }
-                    file.close();
-                    
+                    inFile.close();
+
+                    // Sort by timestamp to match display order
+                    std::sort(pinnedItems.begin(), pinnedItems.end(),
+                              [](const auto& a, const auto& b) { return a.first > b.first; });
+
                     // Remove the selected item if valid
-                    if (selectedViewPinnedItem < lines.size()) {
-                        lines.erase(lines.begin() + selectedViewPinnedItem);
-                        
+                    if (selectedViewPinnedItem < pinnedItems.size()) {
+                        pinnedItems.erase(pinnedItems.begin() + selectedViewPinnedItem);
+
                         // Write back remaining lines
                         std::ofstream outFile(pinnedFile);
                         if (outFile.is_open()) {
-                            for (const auto& line : lines) {
-                                outFile << line << "\n";
+                            for (const auto& item : pinnedItems) {
+                                outFile << item.second << "\n";
                             }
                             outFile.close();
                             
                             std::cout << "Deleted pinned clip" << std::endl;
                             
                             // Adjust selection
-                            if (selectedViewPinnedItem > 0 && selectedViewPinnedItem >= lines.size()) {
-                                selectedViewPinnedItem = lines.size() - 1;
+                            if (selectedViewPinnedItem > 0 && selectedViewPinnedItem >= pinnedItems.size()) {
+                                selectedViewPinnedItem = pinnedItems.size() - 1;
                             }
                             
                             // Close dialog if no pinned clips left
-                            if (lines.empty()) {
+                            if (pinnedItems.empty()) {
                                 pinnedDialogVisible = false;
                             }
                             
