@@ -39,6 +39,7 @@ def generate_html(themes_dir, output_file):
     # Read all theme files
     themes = []
     for json_file in sorted(themes_dir.glob('*.json')):
+        print(f"Generating HTML for: {json_file}")
         theme_data = read_theme_file(json_file)
         if theme_data:
             themes.append({

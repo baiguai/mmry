@@ -1,0 +1,18 @@
+{
+  "name": "Monokai Pro",
+  "type": "dark",
+  "colors": {
+    "accent": "#ffd866",
+    "bg": "#2D2A2E",
+    "fg": "#FCFCFA",
+    "ui": "#403E41",
+    "string": "#ffd866",
+    "variable": "#ab9df2",
+    "keyword": "#ff6188",
+    "operator": "#ff6188",
+    "function": "#a9dc76",
+    "class": "#78dce8",
+    "comment": "#727072",
+    "error": "#ff6188"
+  }
+}
