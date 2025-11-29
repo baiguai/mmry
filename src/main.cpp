@@ -63,6 +63,12 @@ public:
                 commandText = "";
                 selectedItem = 0;
                 drawConsole();
+            } else if (themeSelectMode) {
+                // Escape exits theme selection mode but doesn't hide window
+                themeSelectMode = false;
+                availableThemes.clear();
+                selectedItem = 0;
+                drawConsole();
             } else {
                 // Normal escape behavior - hide window
                 hideWindow();
@@ -846,11 +852,91 @@ public:
                 return;
             }
 
+            if (keysym == XK_space) {
+                // Handle space key - check if it's for theme command
+                if (commandText == "theme") {
+                    // Enter theme selection mode
+                    commandMode = false;
+                    themeSelectMode = true;
+                    discoverThemes();
+                    drawConsole();
+                    return;
+                } else {
+                    // Add space to command text for other commands
+                    commandText += " ";
+                    drawConsole();
+                    return;
+                }
+            }
+
             // Handle text input in command mode - exclude vim navigation keys
             char buffer[10];
             int count = XLookupString(keyEvent, buffer, sizeof(buffer), nullptr, nullptr);
             commandText += std::string(buffer, count);
             drawConsole();
+
+            return;
+        }
+
+        // Theme selection mode
+        //
+        if (themeSelectMode) {
+            if (keysym == XK_Escape) {
+                // Exit theme selection mode
+                themeSelectMode = false;
+                availableThemes.clear();
+                drawConsole();
+                return;
+            }
+
+            if (keysym == XK_Return) {
+                // Select theme and apply it
+                if (selectedTheme < availableThemes.size()) {
+                    switchTheme(availableThemes[selectedTheme]);
+                }
+                themeSelectMode = false;
+                availableThemes.clear();
+                drawConsole();
+                return;
+            }
+
+            if (keysym == XK_Down || keysym == XK_j) {
+                // Move down in theme list
+                if (selectedTheme < availableThemes.size() - 1) {
+                    selectedTheme++;
+                    updateThemeSelectScrollOffset();
+                    drawConsole();
+                }
+                return;
+            }
+
+            if (keysym == XK_Up || keysym == XK_k) {
+                // Move up in theme list
+                if (selectedTheme > 0) {
+                    selectedTheme--;
+                    updateThemeSelectScrollOffset();
+                    drawConsole();
+                }
+                return;
+            }
+
+            if (keysym == XK_g) {
+                // Go to top
+                selectedTheme = 0;
+                themeSelectScrollOffset = 0;
+                drawConsole();
+                return;
+            }
+
+            if (keysym == XK_G && (keyEvent->state & ShiftMask)) {
+                // Go to bottom
+                if (!availableThemes.empty()) {
+                    selectedTheme = availableThemes.size() - 1;
+                    updateThemeSelectScrollOffset();
+                    drawConsole();
+                }
+                return;
+            }
 
             return;
         }
@@ -1390,6 +1476,12 @@ private:
     // Command mode
     bool commandMode = false;
     std::string commandText;
+    
+    // Theme selection mode
+    bool themeSelectMode = false;
+    std::vector<std::string> availableThemes;
+    size_t selectedTheme = 0;
+    size_t themeSelectScrollOffset = 0;
     
     // Bookmark dialog
     bool bookmarkDialogVisible = false;
@@ -1964,8 +2056,8 @@ private:
     void updateConsoleScrollOffset() {
         const int SCROLL_INDICATOR_HEIGHT = 15; // Height reserved for scroll indicator
         
-        // Calculate starting Y position (accounting for filter or command mode)
-        int startY = (filterMode || commandMode) ? 45 : 20;
+        // Calculate starting Y position (accounting for filter, command, or theme selection mode)
+        int startY = (filterMode || commandMode || themeSelectMode) ? 45 : 20;
         
         // Calculate available height for items
         int availableHeight = windowHeight - startY - 10; // 10px bottom margin
@@ -2032,8 +2124,18 @@ private:
         } else if (selectedAddBookmarkGroup >= addBookmarkScrollOffset + VISIBLE_ITEMS) {
             addBookmarkScrollOffset = selectedAddBookmarkGroup - VISIBLE_ITEMS + 1;
         }
+}
+    
+    void updateThemeSelectScrollOffset() {
+        const int VISIBLE_ITEMS = 10; // Number of themes visible in theme selection
+        
+        if (selectedTheme < themeSelectScrollOffset) {
+            themeSelectScrollOffset = selectedTheme;
+        } else if (selectedTheme >= themeSelectScrollOffset + VISIBLE_ITEMS) {
+            themeSelectScrollOffset = selectedTheme - VISIBLE_ITEMS + 1;
+        }
     }
-
+    
     void updateHelpDialogScrollOffset(int adjustment) {
         const int VISIBLE_ITEMS = 50; // Number of items visible in help dialog
         const int STEP = 10;
@@ -2378,16 +2480,87 @@ private:
     }
     
     void executeCommand(const std::string& command) {
-        // For now, just print the command - we'll define specific commands later
+        // Parse command and arguments
+        std::istringstream iss(command);
+        std::string cmd;
+        std::string args;
+        
+        if (iss >> cmd) {
+            std::getline(iss, args);
+            // Trim leading whitespace from args
+            if (!args.empty() && args[0] == ' ') {
+                args = args.substr(1);
+            }
+        }
+        
+        if (cmd == "theme") {
+            if (!args.empty()) {
+                // Direct theme switch: "theme dracula"
+                switchTheme(args);
+            } else {
+                // Enter theme selection mode: "theme"
+                commandMode = false;
+                themeSelectMode = true;
+                discoverThemes();
+                drawConsole();
+            }
+            return;
+        }
+        
+        // Handle other commands (for future implementation)
         std::cout << "Command executed: " << command << std::endl;
         
         // TODO: Add specific command implementations here
         // Examples:
         // - "delete" - delete selected item
         // - "pin" - pin selected item  
-        // - "theme <name>" - switch theme
         // - "clear" - clear all items
         // - "export" - export clipboard history
+    }
+    
+    void discoverThemes() {
+        availableThemes.clear();
+        
+        // Try user themes directory first
+        std::string userThemesDir = configDir + "/themes";
+        std::string localThemesDir = "themes";
+        
+        // Function to scan a directory for theme files
+        auto scanThemesDir = [&](const std::string& themesDir) {
+            DIR* dir = opendir(themesDir.c_str());
+            if (dir) {
+                struct dirent* entry;
+                while ((entry = readdir(dir)) != nullptr) {
+                    std::string filename = entry->d_name;
+                    // Check if it's a .json file and not a special entry
+                    if (filename.length() > 5 && filename.substr(filename.length() - 5) == ".json" &&
+                        filename != "." && filename != "..") {
+                        // Remove .json extension
+                        std::string themeName = filename.substr(0, filename.length() - 5);
+                        availableThemes.push_back(themeName);
+                    }
+                }
+                closedir(dir);
+            }
+        };
+        
+        // Scan both directories
+        scanThemesDir(userThemesDir);
+        scanThemesDir(localThemesDir);
+        
+        // Remove duplicates and sort
+        std::sort(availableThemes.begin(), availableThemes.end());
+        availableThemes.erase(std::unique(availableThemes.begin(), availableThemes.end()), availableThemes.end());
+        
+        // Reset selection
+        selectedTheme = 0;
+        themeSelectScrollOffset = 0;
+    }
+    
+    void switchTheme(const std::string& themeName) {
+        theme = themeName;
+        loadTheme();
+        std::cout << "Switched to theme: " << themeName << std::endl;
     }
     
     void loadBookmarkGroups() {
@@ -3208,6 +3381,25 @@ private:
             XDrawString(display, window, gc, 10, startY, commandDisplay.c_str(), commandDisplay.length());
             startY += 25;
         }
+        else if (themeSelectMode) {
+            // Draw theme selection header
+            XDrawString(display, window, gc, 10, startY, "Select theme:", 13);
+            startY += 25;
+            
+            // Draw theme list
+            const int VISIBLE_THEMES = 10;
+            size_t startIdx = themeSelectScrollOffset;
+            size_t endIdx = std::min(startIdx + VISIBLE_THEMES, availableThemes.size());
+            
+            for (size_t i = startIdx; i < endIdx; ++i) {
+                std::string themeDisplay = (i == selectedTheme ? "> " : "  ") + availableThemes[i];
+                XDrawString(display, window, gc, 10, startY, themeDisplay.c_str(), themeDisplay.length());
+                startY += LINE_HEIGHT;
+            }
+            
+            // Don't draw clipboard items in theme selection mode
+            return;
+        }
         
         // Draw clipboard items
         // TODO: Remove all the hardcoded values
@@ -3321,7 +3513,7 @@ private:
             y += LINE_HEIGHT;
         }
         
-        if (displayCount == 0) {
+        if (displayCount == 0 && !themeSelectMode) {
             std::string empty;
             if (filterMode) {
                 empty = "No matching items...";
