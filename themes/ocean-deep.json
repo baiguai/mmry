@@ -1,0 +1,10 @@
+{
+  "name": "Ocean Deep",
+  "description": "Deep ocean blue theme",
+  "colors": {
+    "background": "#0a1929",
+    "text": "#4fc3f7",
+    "selection": "#1a2d4a",
+    "border": "#0288d1"
+  }
+}

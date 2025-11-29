@@ -1,0 +1,10 @@
+{
+  "name": "Autumn Sunset",
+  "description": "Warm autumn sunset colors",
+  "colors": {
+    "background": "#2d1b0e",
+    "text": "#ff8c42",
+    "selection": "#4a2c1a",
+    "border": "#8b4513"
+  }
+}

@@ -1,0 +1,10 @@
+{
+  "name": "Lavender Field",
+  "description": "Peaceful lavender field theme",
+  "colors": {
+    "background": "#f0e6ff",
+    "text": "#9370db",
+    "selection": "#e6d0ff",
+    "border": "#b19cd9"
+  }
+}

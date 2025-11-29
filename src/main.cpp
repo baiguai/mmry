@@ -3411,7 +3411,8 @@ private:
         }
         else if (themeSelectMode) {
             // Draw theme selection header
-            XDrawString(display, window, gc, 10, startY, "Select theme:", 13);
+            std::string header = "Select theme (" + std::to_string(availableThemes.size()) + " total):";
+            XDrawString(display, window, gc, 10, startY, header.c_str(), header.length());
             startY += 25;
             
             // Draw theme list
@@ -3423,6 +3424,12 @@ private:
                 std::string themeDisplay = (i == selectedTheme ? "> " : "  ") + availableThemes[i];
                 XDrawString(display, window, gc, 10, startY, themeDisplay.c_str(), themeDisplay.length());
                 startY += LINE_HEIGHT;
+            }
+            
+            // Show scroll indicator if there are more themes
+            if (availableThemes.size() > VISIBLE_THEMES) {
+                std::string scrollInfo = "Showing " + std::to_string(startIdx + 1) + "-" + std::to_string(endIdx) + " of " + std::to_string(availableThemes.size());
+                XDrawString(display, window, gc, 10, startY, scrollInfo.c_str(), scrollInfo.length());
             }
             
             // Don't draw clipboard items in theme selection mode

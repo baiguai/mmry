@@ -1,0 +1,10 @@
+{
+  "name": "Cyan Dream",
+  "description": "Vibrant cyan dream theme",
+  "colors": {
+    "background": "#0a2d2d",
+    "text": "#00ced1",
+    "selection": "#1a4a4a",
+    "border": "#20b2aa"
+  }
+}

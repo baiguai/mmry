@@ -1,0 +1,10 @@
+{
+  "name": "Deep Forest",
+  "description": "Deep forest green theme",
+  "colors": {
+    "background": "#0a1a0a",
+    "text": "#228b22",
+    "selection": "#1a2d1a",
+    "border": "#2d5a2d"
+  }
+}

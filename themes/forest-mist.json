@@ -1,0 +1,10 @@
+{
+  "name": "Forest Mist",
+  "description": "Misty forest morning theme",
+  "colors": {
+    "background": "#e8f0e8",
+    "text": "#4a5d4a",
+    "selection": "#d0e0d0",
+    "border": "#8fa68f"
+  }
+}

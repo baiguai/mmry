@@ -1,0 +1,10 @@
+{
+  "name": "Arctic Blue",
+  "description": "Cool arctic blue theme",
+  "colors": {
+    "background": "#e8f4f8",
+    "text": "#2c5f7c",
+    "selection": "#d0e8f0",
+    "border": "#7fb3d5"
+  }
+}

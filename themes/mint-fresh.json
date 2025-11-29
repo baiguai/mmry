@@ -1,0 +1,10 @@
+{
+  "name": "Mint Fresh",
+  "description": "Fresh mint green theme",
+  "colors": {
+    "background": "#f0fff0",
+    "text": "#98fb98",
+    "selection": "#e0ffe0",
+    "border": "#90ee90"
+  }
+}
