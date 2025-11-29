@@ -64,9 +64,13 @@ public:
                 selectedItem = 0;
                 drawConsole();
             } else if (themeSelectMode) {
-                // Escape exits theme selection mode but doesn't hide window
+                // Restore original theme and exit theme selection mode but doesn't hide window
+                if (!originalTheme.empty()) {
+                    switchTheme(originalTheme);
+                }
                 themeSelectMode = false;
                 availableThemes.clear();
+                originalTheme.clear();
                 selectedItem = 0;
                 drawConsole();
             } else {
