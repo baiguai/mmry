@@ -540,38 +540,54 @@ public:
             }
 
             if (keysym == XK_Return) {
-                // Copy selected pinned clip to clipboard
-                std::ifstream file(pinnedFile);
-                
-                if (file.is_open()) {
-                    std::string line;
-                    std::vector<std::string> pinnedItems;
-                    
-                    while (std::getline(file, line)) {
-                        size_t pos = line.find('|');
-                        if (pos != std::string::npos && pos > 0) {
-                            std::string content = line.substr(pos + 1);
-                            try {
-                                std::string decryptedContent = decrypt(content);
-                                pinnedItems.push_back(decryptedContent);
-                            } catch (...) {
-                                pinnedItems.push_back(content);
-                            }
+                // Copy selected pinned clip to clipboard and move to top
+                std::vector<std::string> lines;
+                std::string line;
+                std::ifstream inFile(pinnedFile);
+                while (std::getline(inFile, line)) {
+                    lines.push_back(line);
+                }
+                inFile.close();
+
+                if (selectedViewPinnedItem < lines.size()) {
+                    std::string selectedLine = lines[selectedViewPinnedItem];
+                    size_t pos = selectedLine.find('|');
+                    if (pos != std::string::npos) {
+                        std::string contentToCopy;
+                        std::string contentToSave = selectedLine.substr(pos + 1);
+                        try {
+                            contentToCopy = decrypt(contentToSave);
+                        } catch (...) {
+                            contentToCopy = contentToSave;
                         }
-                    }
-                    file.close();
-                    
-                    if (selectedViewPinnedItem < pinnedItems.size()) {
-                        copyToClipboard(pinnedItems[selectedViewPinnedItem]);
-                        int lines = countLines(pinnedItems[selectedViewPinnedItem]);
-                        if (lines > 1) {
-                            std::cout << "Copied " << lines << " lines from pinned clips" << std::endl;
+
+                        copyToClipboard(contentToCopy);
+
+                        int lineCount = countLines(contentToCopy);
+                        if (lineCount > 1) {
+                            std::cout << "Copied " << lineCount << " lines from pinned clips" << std::endl;
                         } else {
-                            std::cout << "Copied from pinned clips: " << pinnedItems[selectedViewPinnedItem].substr(0, 50) << "..." << std::endl;
+                            std::cout << "Copied from pinned clips: " << contentToCopy.substr(0, 50) << "..." << std::endl;
                         }
-                        pinnedDialogVisible = false;
-                        hideWindow();
+
+                        // Remove the old line
+                        lines.erase(lines.begin() + selectedViewPinnedItem);
+
+                        // Add the new line at the beginning
+                        auto newTimestamp = std::chrono::system_clock::now().time_since_epoch().count();
+                        std::string newLine = std::to_string(newTimestamp) + "|" + contentToSave;
+                        lines.insert(lines.begin(), newLine);
+                        
+                        // Write the updated lines back to the file
+                        std::ofstream outFile(pinnedFile);
+                        for (const auto& l : lines) {
+                            outFile << l << std::endl;
+                        }
+                        outFile.close();
                     }
+
+                    pinnedDialogVisible = false;
+                    hideWindow();
                 }
                 return;
             }
@@ -2949,35 +2965,91 @@ private:
         int titleWidth = XTextWidth(font, title.c_str(), title.length());
         XDrawString(display, window, gc, dims.x + (dims.width - titleWidth) / 2, dims.y + 25, title.c_str(), title.length());
         
-        std::ifstream file(pinnedFile);
-            
-        if (file.is_open()) {
-            std::string line;
-            std::vector<std::string> pinnedItems;
-            
-            while (std::getline(file, line)) {
-                size_t pos = line.find('|');
-                if (pos != std::string::npos && pos > 0) {
-                    std::string content = line.substr(pos + 1);
-                    try {
-                        std::string decryptedContent = decrypt(content);
-                        pinnedItems.push_back(decryptedContent);
-                    } catch (...) {
-                        pinnedItems.push_back(content);
-                    }
-                }
-            }
-            file.close();
-            
-            // Draw items with scrolling
-            int itemY = dims.y + 60;
-            const int VISIBLE_ITEMS = 20;
-            
-            size_t startIdx = viewPinnedScrollOffset;  // Changed from viewBookmarksScrollOffset
-            size_t endIdx = std::min(startIdx + VISIBLE_ITEMS, pinnedItems.size());
-            
-            for (size_t i = startIdx; i < endIdx; ++i) {
-                std::string displayText = pinnedItems[i];
+                        std::ifstream file(pinnedFile);
+        
+                            
+        
+                        if (file.is_open()) {
+        
+                            std::string line;
+        
+                            std::vector<std::pair<long long, std::string>> pinnedItems;
+        
+                            
+        
+                            while (std::getline(file, line)) {
+        
+                                size_t pos = line.find('|');
+        
+                                if (pos != std::string::npos && pos > 0) {
+        
+                                    std::string timestampStr = line.substr(0, pos);
+        
+                                    std::string content = line.substr(line.find('|') + 1);
+        
+                                    try {
+        
+                                        std::string decryptedContent = decrypt(content);
+        
+                                        long long timestamp = std::stoll(timestampStr);
+        
+                                        pinnedItems.push_back({timestamp, decryptedContent});
+        
+                                    } catch (...) {
+        
+                                        try {
+        
+                                            long long timestamp = std::stoll(timestampStr);
+        
+                                            pinnedItems.push_back({timestamp, content});
+        
+                                        } catch (...) {
+        
+                                            // If timestamp parsing fails, use current time
+        
+                                            long long timestamp = std::chrono::system_clock::now().time_since_epoch().count();
+        
+                                            pinnedItems.push_back({timestamp, content});
+        
+                                        }
+        
+                                    }
+        
+                                }
+        
+                            }
+        
+                            file.close();
+        
+                            
+        
+                            // Sort by timestamp in descending order (most recent first)
+        
+                            std::sort(pinnedItems.begin(), pinnedItems.end(), 
+        
+                                     [](const auto& a, const auto& b) { return a.first > b.first; });
+        
+                            
+        
+                            // Draw items with scrolling
+        
+                            int itemY = dims.y + 60;
+        
+                            const int VISIBLE_ITEMS = 20;
+        
+                            
+        
+                            size_t startIdx = viewPinnedScrollOffset;  // Changed from viewBookmarksScrollOffset
+        
+                            size_t endIdx = std::min(startIdx + VISIBLE_ITEMS, pinnedItems.size());
+        
+                            
+        
+                            for (size_t i = startIdx; i < endIdx; ++i) {
+        
+                                std::string displayText = pinnedItems[i].second;
+        
+        
                 
                 // Truncate if too long
                 int maxContentLength = calculateDialogContentLength(dims);
