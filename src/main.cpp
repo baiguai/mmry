@@ -1,111 +1,4 @@
-#include <iostream>
-#include <unistd.h>
-#include <sys/file.h>
-#include <fcntl.h>
-#include <cstring>
-#include <cerrno>
-#include <thread>
-#include <atomic>
-#include <string>
-#include <regex>
-#include <algorithm>
-#include <vector>
-#include <chrono>
-#include <fstream>
-#include <sstream>
-#include <iomanip>
-#include <cstdlib>
-#include <sys/stat.h>
-#include <limits.h>
-#include <signal.h>
-
-
-#ifdef __linux__
-#include <X11/Xlib.h>
-#include <X11/keysym.h>
-#include <X11/Xutil.h>
-#include <X11/Xatom.h>
-#include <X11/extensions/Xfixes.h>
-#endif
-
-#ifdef _WIN32
-#include <windows.h>
-#endif
-
-#ifdef __APPLE__
-#include <ApplicationServices/ApplicationServices.h>
-#endif
-
-struct ClipboardItem {
-    std::string content;
-    std::chrono::system_clock::time_point timestamp;
-    
-    ClipboardItem(const std::string& content) 
-        : content(content), timestamp(std::chrono::system_clock::now()) {}
-};
-
-
-class SingleInstance {
-private:
-#ifdef _WIN32
-    HANDLE mutex;
-#else
-    int lockFile;
-    std::string lockPath;
-#endif
-
-public:
-    SingleInstance(const std::string& appName) {
-#ifdef _WIN32
-        // Windows: Use a named mutex
-        std::string mutexName = "Global\\" + appName + "_SingleInstance";
-        mutex = CreateMutexA(NULL, FALSE, mutexName.c_str());
-        
-        if (GetLastError() == ERROR_ALREADY_EXISTS) {
-            CloseHandle(mutex);
-            mutex = NULL;
-        }
-#else
-        // Unix/Linux/macOS: Use a lock file
-        lockPath = "/tmp/" + appName + ".lock";
-        lockFile = open(lockPath.c_str(), O_CREAT | O_RDWR, 0666);
-        
-        if (lockFile == -1) {
-            lockFile = -1;
-            return;
-        }
-        
-        // Try to acquire exclusive lock
-        if (flock(lockFile, LOCK_EX | LOCK_NB) == -1) {
-            close(lockFile);
-            lockFile = -1;
-        }
-#endif
-    }
-
-    ~SingleInstance() {
-#ifdef _WIN32
-        if (mutex) {
-            CloseHandle(mutex);
-        }
-#else
-        if (lockFile != -1) {
-            flock(lockFile, LOCK_UN);
-            close(lockFile);
-            unlink(lockPath.c_str());
-        }
-#endif
-    }
-
-    bool isAnotherInstanceRunning() const {
-#ifdef _WIN32
-        return (mutex == NULL);
-#else
-        return (lockFile == -1);
-#endif
-    }
-};
-
+#include "main.h"
 
 class ClipboardManager {
 public:
@@ -117,9 +10,11 @@ public:
 private:
     std::atomic<bool> hotkeyGrabbed{false};
 
-
-
 public:
+
+
+
+    //// Key Press /////////////////////////////////////////////////////////////
     void handleKeyPress(XEvent* event) {
         // !@!
 #ifdef __linux__
@@ -136,7 +31,10 @@ public:
         }
         
         if (keysym == XK_Escape) {
-            if (bookmarkDialogVisible) {
+            if (pinnedDialogVisible) {
+                pinnedDialogVisible = false;
+                drawConsole();
+            } else if (bookmarkDialogVisible) {
                 // Escape hides dialog but not window
                 bookmarkDialogVisible = false;
                 drawConsole();
@@ -522,6 +420,47 @@ public:
         }
 
 
+        // Accessing pinned clips
+        //
+        if (pinnedDialogVisible) {
+            // View bookmarks dialog is visible - handle dialog-specific keys
+            if (keysym == XK_Escape) {
+                drawConsole();
+                return;
+            }
+
+
+            if (keysym == XK_j || keysym == XK_Down) {
+                drawConsole();
+                return;
+            }
+
+            if (keysym == XK_k || keysym == XK_Up) {
+                drawConsole();
+                return;
+            }
+
+            if (keysym == XK_g) {
+                drawConsole();
+                return;
+            }
+
+            if (keysym == XK_G && (keyEvent->state & ShiftMask)) {
+                return;
+            }
+
+            if (keysym == XK_D && (keyEvent->state & ShiftMask)) {
+                return;
+            }
+
+            if (keysym == XK_Return) {
+                return;
+            }
+
+            return;
+        }
+
+
         // Adding the current clip to a bookmark group
         //
         if (addToBookmarkDialogVisible) {
@@ -861,9 +800,53 @@ public:
             }
             return;
         }
+
+        // Pin current clip
+        if (keysym == XK_p) {
+            // Check if current clip is already pinned
+            if (!items.empty() && selectedItem < getDisplayItemCount()) {
+                size_t actualIndex = getActualItemIndex(selectedItem);
+                std::string clipContent = items[actualIndex].content;
+                
+                // Read existing bookmarks in this group
+                std::ifstream file(pinnedFile);
+                std::string line;
+                bool alreadyExists = false;
+                
+                while (std::getline(file, line)) {
+                    std::string decrypted = decrypt(line);
+                    if (decrypted == clipContent) {
+                        alreadyExists = true;
+                        break;
+                    }
+                }
+                file.close();
+                
+                if (!alreadyExists) {
+                    addClipToPinned(clipContent);
+                    std::cout << "Added clip to pinned" << std::endl;
+                } else {
+                    std::cout << "Clip is already pinned" << std::endl;
+                }
+            }
+            return;
+        }
+
+        // Pinned clips dialog
+        if (keysym == XK_apostrophe) {
+            pinnedDialogVisible = true;
+            selectedViewPinnedItem = 0;
+            viewPinnedScrollOffset = 0; // Reset scroll when opening
+            drawConsole();
+        }
 #endif
     }
-    
+    //// End Key Press /////////////////////////////////////////////////////////
+
+
+
+
+
     void run() {
         running = true;
         visible = false;
@@ -1161,6 +1144,7 @@ private:
     std::string configDir;
     std::string bookmarksDir;
     std::string dataFile;
+    std::string pinnedFile;
     size_t maxClips = 500;
     bool encrypted = false;
     std::string encryptionKey = "";
@@ -1186,6 +1170,11 @@ private:
     std::vector<std::string> bookmarkGroups;
     size_t selectedBookmarkGroup = 0;
     size_t bookmarkMgmtScrollOffset = 0; // For scrolling long lists
+
+    // Pinned dialog
+    bool pinnedDialogVisible = false;
+    size_t selectedViewPinnedItem = 0;
+    size_t viewPinnedScrollOffset = 0; // For scrolling long lists
     
     // Add to bookmark dialog state
     bool addToBookmarkDialogVisible = false;
@@ -1797,6 +1786,16 @@ private:
             bookmarkMgmtScrollOffset = selectedBookmarkGroup - VISIBLE_ITEMS + 1;
         }
     }
+
+    void updatePinnedScrollOffset() {
+        const int VISIBLE_ITEMS = 20;
+        
+        if (selectedViewPinnedItem < viewPinnedScrollOffset) {
+            viewPinnedScrollOffset = selectedViewPinnedItem;
+        } else if (selectedViewPinnedItem >= viewPinnedScrollOffset + VISIBLE_ITEMS) {
+            viewPinnedScrollOffset = selectedViewPinnedItem - VISIBLE_ITEMS + 1;
+        }
+    }
     
     void updateAddBookmarkScrollOffset() {
         const int VISIBLE_ITEMS = 10; // Number of groups visible in add bookmark dialog
@@ -2204,6 +2203,17 @@ private:
             file.close();
         }
     }
+
+    void addClipToPinned(const std::string& content) {
+        std::ofstream file(pinnedFile, std::ios::app);
+        
+        if (file.is_open()) {
+            auto timestamp = std::chrono::system_clock::now().time_since_epoch().count();
+            std::string contentToSave = encrypt(content);
+            file << timestamp << "|" << contentToSave << "\n";
+            file.close();
+        }
+    }
     
     void setupConfigDir() {
         const char* home = getenv("HOME");
@@ -2234,6 +2244,7 @@ private:
         }
         
         dataFile = configDir + "/clips.txt";
+        pinnedFile = configDir + "/pinned.txt";
         
         // Ensure all required files exist
         ensureRequiredFiles();
@@ -2270,6 +2281,14 @@ private:
             if (outFile.is_open()) {
                 outFile.close();
                 std::cout << "Created clips file: " << dataFile << std::endl;
+            }
+        }
+        // Check and create pinned.txt if needed
+        if (stat(pinnedFile.c_str(), &st) == -1) {
+            std::ofstream outFile(pinnedFile);
+            if (outFile.is_open()) {
+                outFile.close();
+                std::cout << "Created pinned clips file: " << pinnedFile << std::endl;
             }
         }
     }
@@ -2791,6 +2810,88 @@ private:
         
 #endif
     }
+
+    void drawPinnedDialog() {
+#ifdef __linux__
+        if (!pinnedDialogVisible) return;
+        
+        // Get dynamic dialog dimensions
+        DialogDimensions dims = getViewBookmarksDialogDimensions();
+        
+        // Draw dialog background
+        XSetForeground(display, gc, backgroundColor);
+        XFillRectangle(display, window, gc, dims.x, dims.y, dims.width, dims.height);
+        XSetForeground(display, gc, borderColor);
+        XDrawRectangle(display, window, gc, dims.x, dims.y, dims.width, dims.height);
+        
+        // Draw title
+        std::string title = "Pinned Clips";
+        int titleWidth = XTextWidth(font, title.c_str(), title.length());
+        XDrawString(display, window, gc, dims.x + (dims.width - titleWidth) / 2, dims.y + 25, title.c_str(), title.length());
+        
+        std::ifstream file(pinnedFile);
+            
+        if (file.is_open()) {
+            std::string line;
+            std::vector<std::string> pinnedItems;
+            
+            while (std::getline(file, line)) {
+                size_t pos = line.find('|');
+                if (pos != std::string::npos && pos > 0) {
+                    std::string content = line.substr(pos + 1);
+                    try {
+                        std::string decryptedContent = decrypt(content);
+                        pinnedItems.push_back(decryptedContent);
+                    } catch (...) {
+                        pinnedItems.push_back(content);
+                    }
+                }
+            }
+            file.close();
+            
+            // Draw items with scrolling
+            int itemY = dims.y + 60;
+            const int VISIBLE_ITEMS = 20;
+            
+            size_t startIdx = viewBookmarksScrollOffset;
+            size_t endIdx = std::min(startIdx + VISIBLE_ITEMS, pinnedItems.size());
+            
+            for (size_t i = startIdx; i < endIdx; ++i) {
+                std::string displayText = pinnedItems[i];
+                
+                // Truncate if too long
+                int maxContentLength = calculateDialogContentLength(dims);
+                if (displayText.length() > maxContentLength) {
+                    displayText = smartTrim(displayText, maxContentLength);
+                }
+                
+                // Replace newlines with spaces for display
+                for (char& c : displayText) {
+                    if (c == '\n' || c == '\r') c = ' ';
+                }
+                
+                // Add selection indicator
+                if (i == selectedViewBookmarkItem) {
+                    displayText = "> " + displayText;
+                    // Highlight selected
+                    XSetForeground(display, gc, selectionColor);
+                    XFillRectangle(display, window, gc, dims.x + 15, itemY - 12, dims.width - 30, 15);
+                    XSetForeground(display, gc, textColor);
+                } else {
+                    displayText = "  " + displayText;
+                }
+                
+                XDrawString(display, window, gc, dims.x + 20, itemY, displayText.c_str(), displayText.length());
+                itemY += 18;
+            }
+            
+            if (pinnedItems.empty()) {
+                XDrawString(display, window, gc, dims.x + 20, itemY, "No pinned clips", 16);
+            }
+        }
+#endif
+    }
+
     
     void drawConsole() {
         if (!visible) return;
@@ -2930,6 +3031,7 @@ private:
         drawBookmarkDialog();
         drawAddToBookmarkDialog();
         drawViewBookmarksDialog();
+        drawPinnedDialog();
         drawHelpDialog();
 #endif
 
@@ -3240,27 +3342,10 @@ private:
 };
 
 
-
-
-// Temporary error handler to swallow BadAccess errors
-int ignore_x11_errors(Display* d, XErrorEvent* e) {
-    (void)d; // Suppress unused parameter warning
-    // 10 = BadAccess
-    if (e->error_code == BadAccess) {
-        return 0; // ignore the error
-    }
-    return 0; // ignore all other errors too
-}
-
-
-
-
-
-#include <signal.h>
-
 // Global pointer for signal handling
 ClipboardManager* g_manager = nullptr;
 
+#include <signal.h>
 void signal_handler(int signal) {
     std::cout << "\nReceived signal " << signal << ", cleaning up..." << std::endl;
     if (g_manager) {
