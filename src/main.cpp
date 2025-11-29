@@ -859,6 +859,12 @@ public:
                     commandMode = false;
                     themeSelectMode = true;
                     discoverThemes();
+                    // Store original theme and apply first theme for preview
+                    if (!availableThemes.empty()) {
+                        originalTheme = theme;
+                        selectedTheme = 0;
+                        switchTheme(availableThemes[0]);
+                    }
                     drawConsole();
                     return;
                 } else {
@@ -882,39 +888,54 @@ public:
         //
         if (themeSelectMode) {
             if (keysym == XK_Escape) {
-                // Exit theme selection mode
+                // Restore original theme and exit theme selection mode
+                if (!originalTheme.empty()) {
+                    switchTheme(originalTheme);
+                }
                 themeSelectMode = false;
                 availableThemes.clear();
+                originalTheme.clear();
                 drawConsole();
                 return;
             }
 
             if (keysym == XK_Return) {
-                // Select theme and apply it
+                // Save current theme to config and exit theme selection mode
                 if (selectedTheme < availableThemes.size()) {
                     switchTheme(availableThemes[selectedTheme]);
+                    // Save to config
+                    saveConfig();
                 }
                 themeSelectMode = false;
                 availableThemes.clear();
+                originalTheme.clear();
                 drawConsole();
                 return;
             }
 
             if (keysym == XK_Down || keysym == XK_j) {
-                // Move down in theme list
+                // Move down in theme list and apply live preview
                 if (selectedTheme < availableThemes.size() - 1) {
                     selectedTheme++;
                     updateThemeSelectScrollOffset();
+                    // Apply live preview
+                    if (selectedTheme < availableThemes.size()) {
+                        switchTheme(availableThemes[selectedTheme]);
+                    }
                     drawConsole();
                 }
                 return;
             }
 
             if (keysym == XK_Up || keysym == XK_k) {
-                // Move up in theme list
+                // Move up in theme list and apply live preview
                 if (selectedTheme > 0) {
                     selectedTheme--;
                     updateThemeSelectScrollOffset();
+                    // Apply live preview
+                    if (selectedTheme < availableThemes.size()) {
+                        switchTheme(availableThemes[selectedTheme]);
+                    }
                     drawConsole();
                 }
                 return;
@@ -1458,6 +1479,7 @@ private:
     bool encrypted = false;
     std::string encryptionKey = "";
     std::string theme = "console";
+    std::string originalTheme = ""; // Store original theme for preview mode
     bool autoStart = false;
     
     // Theme colors
@@ -2502,6 +2524,12 @@ private:
                 commandMode = false;
                 themeSelectMode = true;
                 discoverThemes();
+                // Store original theme and apply first theme for preview
+                if (!availableThemes.empty()) {
+                    originalTheme = theme;
+                    selectedTheme = 0;
+                    switchTheme(availableThemes[0]);
+                }
                 drawConsole();
             }
             return;
@@ -3707,6 +3735,20 @@ private:
             // Create default config with all settings
             createDefaultConfig();
         }
+    }
+    
+    void saveConfig() {
+        std::string configFile = configDir + "/config.json";
+        std::ofstream outFile(configFile);
+        outFile << "{\n";
+        outFile << "    \"verbose\": " << (verboseMode ? "true" : "false") << ",\n";
+        outFile << "    \"max_clips\": " << maxClips << ",\n";
+        outFile << "    \"encrypted\": " << (encrypted ? "true" : "false") << ",\n";
+        outFile << "    \"encryption_key\": \"" << encryptionKey << "\",\n";
+        outFile << "    \"autostart\": " << (autoStart ? "true" : "false") << ",\n";
+        outFile << "    \"theme\": \"" << theme << "\"\n";
+        outFile << "}\n";
+        outFile.close();
     }
     
     void createDefaultConfig() {
