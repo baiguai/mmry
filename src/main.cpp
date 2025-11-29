@@ -423,37 +423,156 @@ public:
         // Accessing pinned clips
         //
         if (pinnedDialogVisible) {
-            // View bookmarks dialog is visible - handle dialog-specific keys
+            // View pinned dialog is visible - handle dialog-specific keys
             if (keysym == XK_Escape) {
+                pinnedDialogVisible = false;
                 drawConsole();
                 return;
             }
 
-
             if (keysym == XK_j || keysym == XK_Down) {
-                drawConsole();
+                // Move down in pinned items
+                std::ifstream file(pinnedFile);
+                if (file.is_open()) {
+                    std::string line;
+                    size_t itemCount = 0;
+                    while (std::getline(file, line)) {
+                        size_t pos = line.find('|');
+                        if (pos != std::string::npos && pos > 0) {
+                            itemCount++;
+                        }
+                    }
+                    file.close();
+                    
+                    if (selectedViewPinnedItem < itemCount - 1) {
+                        selectedViewPinnedItem++;
+                        updatePinnedScrollOffset();
+                        drawConsole();
+                    }
+                }
                 return;
             }
 
             if (keysym == XK_k || keysym == XK_Up) {
-                drawConsole();
+                // Move up in pinned items
+                if (selectedViewPinnedItem > 0) {
+                    selectedViewPinnedItem--;
+                    updatePinnedScrollOffset();
+                    drawConsole();
+                }
                 return;
             }
 
             if (keysym == XK_g) {
+                // Go to top
+                selectedViewPinnedItem = 0;
+                viewPinnedScrollOffset = 0;
                 drawConsole();
                 return;
             }
 
             if (keysym == XK_G && (keyEvent->state & ShiftMask)) {
+                // Go to bottom
+                std::ifstream file(pinnedFile);
+                if (file.is_open()) {
+                    std::string line;
+                    size_t itemCount = 0;
+                    while (std::getline(file, line)) {
+                        size_t pos = line.find('|');
+                        if (pos != std::string::npos && pos > 0) {
+                            itemCount++;
+                        }
+                    }
+                    file.close();
+                    
+                    if (itemCount > 0) {
+                        selectedViewPinnedItem = itemCount - 1;
+                        updatePinnedScrollOffset();
+                        drawConsole();
+                    }
+                }
                 return;
             }
 
             if (keysym == XK_D && (keyEvent->state & ShiftMask)) {
+                // Shift+D deletes selected pinned clip
+                std::ifstream file(pinnedFile);
+                
+                if (file.is_open()) {
+                    std::string line;
+                    std::vector<std::string> lines;
+                    
+                    // Read all lines
+                    while (std::getline(file, line)) {
+                        lines.push_back(line);
+                    }
+                    file.close();
+                    
+                    // Remove the selected item if valid
+                    if (selectedViewPinnedItem < lines.size()) {
+                        lines.erase(lines.begin() + selectedViewPinnedItem);
+                        
+                        // Write back remaining lines
+                        std::ofstream outFile(pinnedFile);
+                        if (outFile.is_open()) {
+                            for (const auto& line : lines) {
+                                outFile << line << "\n";
+                            }
+                            outFile.close();
+                            
+                            std::cout << "Deleted pinned clip" << std::endl;
+                            
+                            // Adjust selection
+                            if (selectedViewPinnedItem > 0 && selectedViewPinnedItem >= lines.size()) {
+                                selectedViewPinnedItem = lines.size() - 1;
+                            }
+                            
+                            // Close dialog if no pinned clips left
+                            if (lines.empty()) {
+                                pinnedDialogVisible = false;
+                            }
+                            
+                            drawConsole();
+                        }
+                    }
+                }
                 return;
             }
 
             if (keysym == XK_Return) {
+                // Copy selected pinned clip to clipboard
+                std::ifstream file(pinnedFile);
+                
+                if (file.is_open()) {
+                    std::string line;
+                    std::vector<std::string> pinnedItems;
+                    
+                    while (std::getline(file, line)) {
+                        size_t pos = line.find('|');
+                        if (pos != std::string::npos && pos > 0) {
+                            std::string content = line.substr(pos + 1);
+                            try {
+                                std::string decryptedContent = decrypt(content);
+                                pinnedItems.push_back(decryptedContent);
+                            } catch (...) {
+                                pinnedItems.push_back(content);
+                            }
+                        }
+                    }
+                    file.close();
+                    
+                    if (selectedViewPinnedItem < pinnedItems.size()) {
+                        copyToClipboard(pinnedItems[selectedViewPinnedItem]);
+                        int lines = countLines(pinnedItems[selectedViewPinnedItem]);
+                        if (lines > 1) {
+                            std::cout << "Copied " << lines << " lines from pinned clips" << std::endl;
+                        } else {
+                            std::cout << "Copied from pinned clips: " << pinnedItems[selectedViewPinnedItem].substr(0, 50) << "..." << std::endl;
+                        }
+                        pinnedDialogVisible = false;
+                        hideWindow();
+                    }
+                }
                 return;
             }
 
@@ -2792,6 +2911,7 @@ private:
                             XFillRectangle(display, window, gc, dims.x + 15, itemY - 12, dims.width - 30, 15);
                             XSetForeground(display, gc, textColor);
                         } else {
+                            XSetForeground(display, gc, selectionColor);
                             displayText = "  " + displayText;
                         }
                         
@@ -2853,7 +2973,7 @@ private:
             int itemY = dims.y + 60;
             const int VISIBLE_ITEMS = 20;
             
-            size_t startIdx = viewBookmarksScrollOffset;
+            size_t startIdx = viewPinnedScrollOffset;  // Changed from viewBookmarksScrollOffset
             size_t endIdx = std::min(startIdx + VISIBLE_ITEMS, pinnedItems.size());
             
             for (size_t i = startIdx; i < endIdx; ++i) {
@@ -2871,13 +2991,14 @@ private:
                 }
                 
                 // Add selection indicator
-                if (i == selectedViewBookmarkItem) {
+                if (i == selectedViewPinnedItem) {  // Changed from selectedViewBookmarkItem
                     displayText = "> " + displayText;
                     // Highlight selected
                     XSetForeground(display, gc, selectionColor);
                     XFillRectangle(display, window, gc, dims.x + 15, itemY - 12, dims.width - 30, 15);
                     XSetForeground(display, gc, textColor);
                 } else {
+                    XSetForeground(display, gc, selectionColor);
                     displayText = "  " + displayText;
                 }
                 
