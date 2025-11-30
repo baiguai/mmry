@@ -3,7 +3,7 @@
   "description": "Hologram Dark theme with dark colors",
   "colors": {
     "background": "#090913",
-    "text": "#39ff14",
+    "text": "#ccf02d",
     "selection": "#151520",
     "border": "#2ed610"
   }

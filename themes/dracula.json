@@ -2,9 +2,9 @@
   "name": "Dracula",
   "description": "Dracula theme with dark colors",
   "colors": {
-    "background": "#282a36",
-    "text": "#f8f8f2",
-    "selection": "#44475a",
-    "border": "#6272a4"
+    "background": "#220000",
+    "text": "#ba0000",
+    "selection": "#550000",
+    "border": "#310000"
   }
 }
