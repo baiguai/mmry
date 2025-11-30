@@ -3131,6 +3131,18 @@ private:
         drawHelpTopic(topicLeft, y, contentTop, contentBottom, "Escape         - Exit dialog");
         y += lineHeight + gap + 5;
 
+        // Commands
+        drawHelpTopic(titleLeft, y, contentTop, contentBottom, "Commands");
+        y += lineHeight;
+        drawHelpTopic(topicLeft, y, contentTop, contentBottom, ":              - Activate commands");
+        y += lineHeight;
+        drawHelpTopic(topicLeft, y, contentTop, contentBottom, "theme          - Select theme to apply");
+        y += lineHeight;
+        drawHelpTopic(topicLeft, y, contentTop, contentBottom, "Enter          - Apply command");
+        y += lineHeight;
+        drawHelpTopic(topicLeft, y, contentTop, contentBottom, "Escape         - Cancel command");
+        y += lineHeight + gap + 5;
+
 
         // Global hotkey
         drawHelpTopic(titleLeft, y, contentTop, contentBottom, "Global Hotkey:");
