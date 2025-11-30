@@ -1,0 +1,10 @@
+{
+  "name": "Midnight Purple",
+  "description": "Deep midnight purple theme",
+  "colors": {
+    "background": "#1a0a2d",
+    "text": "#9370db",
+    "selection": "#2a154a",
+    "border": "#663399"
+  }
+}

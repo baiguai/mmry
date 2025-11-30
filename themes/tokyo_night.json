@@ -1,0 +1,10 @@
+{
+  "name": "Tokyo Night",
+  "description": "Tokyo Night theme with dark colors",
+  "colors": {
+    "background": "#1a1b26",
+    "text": "#a9b1d6",
+    "selection": "#414868",
+    "border": "#565f89"
+  }
+}

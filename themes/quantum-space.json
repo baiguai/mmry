@@ -1,0 +1,10 @@
+{
+  "name": "Quantum Space",
+  "description": "Quantum Space theme with dark colors",
+  "colors": {
+    "background": "#08080e",
+    "text": "#9d4edd",
+    "selection": "#1c1c28",
+    "border": "#7b2cbf"
+  }
+}

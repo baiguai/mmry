@@ -1,0 +1,10 @@
+{
+  "name": "Fun Pink",
+  "description": "Fun Pink theme with dark colors",
+  "colors": {
+    "background": "#e91e63",
+    "text": "#ffffff",
+    "selection": "#c2185b",
+    "border": "#c2185b"
+  }
+}

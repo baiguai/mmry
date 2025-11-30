@@ -117,41 +117,41 @@ depend:
 .PHONY : depend
 
 #=============================================================================
-# Target rules for targets named mmry_cpp
+# Target rules for targets named mmry
 
 # Build rule for target.
-mmry_cpp: cmake_check_build_system
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 mmry_cpp
-.PHONY : mmry_cpp
+mmry: cmake_check_build_system
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 mmry
+.PHONY : mmry
 
 # fast build rule for target.
-mmry_cpp/fast:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/mmry_cpp.dir/build.make CMakeFiles/mmry_cpp.dir/build
-.PHONY : mmry_cpp/fast
+mmry/fast:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/mmry.dir/build.make CMakeFiles/mmry.dir/build
+.PHONY : mmry/fast
 
-complete_main.o: complete_main.cpp.o
-.PHONY : complete_main.o
+src/main.o: src/main.cpp.o
+.PHONY : src/main.o
 
 # target to build an object file
-complete_main.cpp.o:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/mmry_cpp.dir/build.make CMakeFiles/mmry_cpp.dir/complete_main.cpp.o
-.PHONY : complete_main.cpp.o
+src/main.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/mmry.dir/build.make CMakeFiles/mmry.dir/src/main.cpp.o
+.PHONY : src/main.cpp.o
 
-complete_main.i: complete_main.cpp.i
-.PHONY : complete_main.i
+src/main.i: src/main.cpp.i
+.PHONY : src/main.i
 
 # target to preprocess a source file
-complete_main.cpp.i:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/mmry_cpp.dir/build.make CMakeFiles/mmry_cpp.dir/complete_main.cpp.i
-.PHONY : complete_main.cpp.i
+src/main.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/mmry.dir/build.make CMakeFiles/mmry.dir/src/main.cpp.i
+.PHONY : src/main.cpp.i
 
-complete_main.s: complete_main.cpp.s
-.PHONY : complete_main.s
+src/main.s: src/main.cpp.s
+.PHONY : src/main.s
 
 # target to generate assembly for a file
-complete_main.cpp.s:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/mmry_cpp.dir/build.make CMakeFiles/mmry_cpp.dir/complete_main.cpp.s
-.PHONY : complete_main.cpp.s
+src/main.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/mmry.dir/build.make CMakeFiles/mmry.dir/src/main.cpp.s
+.PHONY : src/main.cpp.s
 
 # Help Target
 help:
@@ -161,10 +161,10 @@ help:
 	@echo "... depend"
 	@echo "... edit_cache"
 	@echo "... rebuild_cache"
-	@echo "... mmry_cpp"
-	@echo "... complete_main.o"
-	@echo "... complete_main.i"
-	@echo "... complete_main.s"
+	@echo "... mmry"
+	@echo "... src/main.o"
+	@echo "... src/main.i"
+	@echo "... src/main.s"
 .PHONY : help
 
 

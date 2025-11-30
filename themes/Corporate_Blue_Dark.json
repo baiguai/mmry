@@ -1,6 +1,6 @@
 {
   "name": "Corporate Blue Dark",
-  "type": "dark",
+  "description": "Corporate Blue Dark theme with dark colors",
   "colors": {
     "accent": "#4A90E2",
     "bg": "#252830",

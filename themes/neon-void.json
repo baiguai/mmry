@@ -1,0 +1,10 @@
+{
+  "name": "Neon Void",
+  "description": "Neon Void theme with dark colors",
+  "colors": {
+    "background": "#0a0a0f",
+    "text": "#00f5ff",
+    "selection": "#1a1a2e",
+    "border": "#00d4ff"
+  }
+}

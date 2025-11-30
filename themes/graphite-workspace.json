@@ -1,0 +1,10 @@
+{
+  "name": "Graphite Workspace",
+  "description": "Graphite Workspace theme with dark colors",
+  "colors": {
+    "background": "#13171f",
+    "text": "#b8bcc8",
+    "selection": "#1e2431",
+    "border": "#3d4552"
+  }
+}

@@ -1,0 +1,10 @@
+{
+  "name": "Test",
+  "description": "Test theme with dark colors",
+  "colors": {
+    "background": "#1a1a1a",
+    "text": "#ff6b6b",
+    "selection": "#444444",
+    "border": "#ff6b6b"
+  }
+}

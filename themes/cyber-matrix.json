@@ -1,0 +1,10 @@
+{
+  "name": "Cyber Matrix",
+  "description": "Cyber Matrix theme with dark colors",
+  "colors": {
+    "background": "#0d0d18",
+    "text": "#0ff0c8",
+    "selection": "#1a1a2a",
+    "border": "#0dd9b8"
+  }
+}

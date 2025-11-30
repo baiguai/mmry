@@ -1,0 +1,10 @@
+{
+  "name": "Graphite Gray",
+  "description": "Professional graphite gray theme",
+  "colors": {
+    "background": "#2d2d2d",
+    "text": "#a9a9a9",
+    "selection": "#3a3a3a",
+    "border": "#696969"
+  }
+}

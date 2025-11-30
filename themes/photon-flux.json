@@ -1,0 +1,10 @@
+{
+  "name": "Photon Flux",
+  "description": "Photon Flux theme with dark colors",
+  "colors": {
+    "background": "#0a0a11",
+    "text": "#00ffff",
+    "selection": "#181828",
+    "border": "#00e5e5"
+  }
+}

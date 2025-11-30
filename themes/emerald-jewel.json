@@ -1,0 +1,10 @@
+{
+  "name": "Emerald Jewel",
+  "description": "Precious emerald jewel theme",
+  "colors": {
+    "background": "#0a2d1a",
+    "text": "#50c878",
+    "selection": "#1a4a2d",
+    "border": "#2e8b57"
+  }
+}

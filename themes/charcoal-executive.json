@@ -1,0 +1,10 @@
+{
+  "name": "Charcoal Executive",
+  "description": "Charcoal Executive theme with dark colors",
+  "colors": {
+    "background": "#1a1d23",
+    "text": "#d4d4d4",
+    "selection": "#2d3139",
+    "border": "#3e4451"
+  }
+}

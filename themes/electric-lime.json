@@ -1,0 +1,10 @@
+{
+  "name": "Electric Lime",
+  "description": "Bright electric lime theme",
+  "colors": {
+    "background": "#1a2d0a",
+    "text": "#32cd32",
+    "selection": "#2d4a15",
+    "border": "#5aff5a"
+  }
+}

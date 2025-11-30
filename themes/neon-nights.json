@@ -1,0 +1,10 @@
+{
+  "name": "Neon Nights",
+  "description": "Neon Nights theme with dark colors",
+  "colors": {
+    "background": "#0f0a1e",
+    "text": "#ff006e",
+    "selection": "#1e1532",
+    "border": "#fb5607"
+  }
+}

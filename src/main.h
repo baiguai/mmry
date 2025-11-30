@@ -21,6 +21,7 @@
 #include <sys/stat.h>
 #include <limits.h>
 #include <signal.h>
+#include <dirent.h>
 
 
 #ifdef __linux__

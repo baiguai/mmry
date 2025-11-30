@@ -1,0 +1,10 @@
+{
+  "name": "Amber Night",
+  "description": "Warm amber night theme",
+  "colors": {
+    "background": "#1a1810",
+    "text": "#d4af37",
+    "selection": "#2d2a20",
+    "border": "#4a4530"
+  }
+}

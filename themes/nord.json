@@ -1,0 +1,10 @@
+{
+  "name": "Nord",
+  "description": "Nord theme with dark colors",
+  "colors": {
+    "background": "#2e3440",
+    "text": "#d8dee9",
+    "selection": "#434c5e",
+    "border": "#4c566a"
+  }
+}

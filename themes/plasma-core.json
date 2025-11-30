@@ -1,0 +1,10 @@
+{
+  "name": "Plasma Core",
+  "description": "Plasma Core theme with dark colors",
+  "colors": {
+    "background": "#0e0e16",
+    "text": "#ff00aa",
+    "selection": "#1d1d2a",
+    "border": "#e6009a"
+  }
+}

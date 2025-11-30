@@ -1,0 +1,10 @@
+{
+  "name": "Berry Purple",
+  "description": "Rich berry purple theme",
+  "colors": {
+    "background": "#2d1b3d",
+    "text": "#da70d6",
+    "selection": "#4a2d5e",
+    "border": "#8b4789"
+  }
+}

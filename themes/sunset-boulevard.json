@@ -1,0 +1,10 @@
+{
+  "name": "Sunset Boulevard",
+  "description": "Sunset Boulevard theme with dark colors",
+  "colors": {
+    "background": "#1f0a3c",
+    "text": "#f72585",
+    "selection": "#331556",
+    "border": "#ff9e00"
+  }
+}

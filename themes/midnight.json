@@ -1,0 +1,10 @@
+{
+  "name": "Midnight",
+  "description": "Midnight theme with dark colors",
+  "colors": {
+    "background": "#0f0f0f",
+    "text": "#dcdcdc",
+    "selection": "#2a2a2a",
+    "border": "#4a4a4a"
+  }
+}

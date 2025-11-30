@@ -1,0 +1,10 @@
+{
+  "name": "Anthracite Pro",
+  "description": "Anthracite Pro theme with dark colors",
+  "colors": {
+    "background": "#191d24",
+    "text": "#cbd2d9",
+    "selection": "#252b34",
+    "border": "#3f4651"
+  }
+}

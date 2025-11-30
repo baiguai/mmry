@@ -1,0 +1,10 @@
+{
+  "name": "Vapor Wave",
+  "description": "Vapor Wave theme with dark colors",
+  "colors": {
+    "background": "#120e29",
+    "text": "#00d9ff",
+    "selection": "#251c4f",
+    "border": "#ff00aa"
+  }
+}

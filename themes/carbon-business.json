@@ -1,0 +1,10 @@
+{
+  "name": "Carbon Business",
+  "description": "Carbon Business theme with dark colors",
+  "colors": {
+    "background": "#181a1f",
+    "text": "#abb2bf",
+    "selection": "#282c34",
+    "border": "#3b4048"
+  }
+}

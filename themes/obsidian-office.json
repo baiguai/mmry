@@ -1,0 +1,10 @@
+{
+  "name": "Obsidian Office",
+  "description": "Obsidian Office theme with dark colors",
+  "colors": {
+    "background": "#161b22",
+    "text": "#c9d1d9",
+    "selection": "#21262d",
+    "border": "#484f58"
+  }
+}

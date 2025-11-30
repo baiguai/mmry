@@ -1,0 +1,10 @@
+{
+  "name": "Blazing Orange",
+  "description": "Vibrant blazing orange theme",
+  "colors": {
+    "background": "#2d1a0a",
+    "text": "#ff6b35",
+    "selection": "#4a2d15",
+    "border": "#8b4513"
+  }
+}

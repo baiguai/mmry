@@ -1,0 +1,10 @@
+{
+  "name": "Ayu Dark",
+  "description": "Ayu Dark theme with dark colors",
+  "colors": {
+    "background": "#0a0e14",
+    "text": "#b3b1ad",
+    "selection": "#2d333d",
+    "border": "#5c6773"
+  }
+}

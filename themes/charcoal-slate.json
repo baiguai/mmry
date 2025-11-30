@@ -1,0 +1,10 @@
+{
+  "name": "Charcoal Slate",
+  "description": "Dark charcoal slate theme",
+  "colors": {
+    "background": "#1a1a1a",
+    "text": "#a0a0a0",
+    "selection": "#2d2d2d",
+    "border": "#4a4a4a"
+  }
+}

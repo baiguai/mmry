@@ -1,0 +1,10 @@
+{
+  "name": "Frost Blue",
+  "description": "Cool frost blue theme",
+  "colors": {
+    "background": "#e6f3ff",
+    "text": "#4682b4",
+    "selection": "#cce7ff",
+    "border": "#87ceeb"
+  }
+}

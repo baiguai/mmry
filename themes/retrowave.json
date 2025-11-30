@@ -1,0 +1,10 @@
+{
+  "name": "Retrowave",
+  "description": "Retrowave theme with dark colors",
+  "colors": {
+    "background": "#180a33",
+    "text": "#ff0080",
+    "selection": "#2b1452",
+    "border": "#00ffff"
+  }
+}

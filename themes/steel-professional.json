@@ -1,0 +1,10 @@
+{
+  "name": "Steel Professional",
+  "description": "Steel Professional theme with dark colors",
+  "colors": {
+    "background": "#1e2127",
+    "text": "#d0d0d0",
+    "selection": "#2c313a",
+    "border": "#4b5362"
+  }
+}

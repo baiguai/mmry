@@ -1,0 +1,10 @@
+{
+  "name": "Synthwave City",
+  "description": "Synthwave City theme with dark colors",
+  "colors": {
+    "background": "#0e0628",
+    "text": "#d926a9",
+    "selection": "#1d0f3f",
+    "border": "#f72585"
+  }
+}

@@ -1,0 +1,10 @@
+{
+  "name": "Digital Horizon",
+  "description": "Digital Horizon theme with dark colors",
+  "colors": {
+    "background": "#0a0e1a",
+    "text": "#00d9ff",
+    "selection": "#141c2e",
+    "border": "#0099cc"
+  }
+}

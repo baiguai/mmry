@@ -1,0 +1,10 @@
+{
+  "name": "Twilight Purple",
+  "description": "Mysterious twilight purple theme",
+  "colors": {
+    "background": "#1a0a2d",
+    "text": "#ba55d3",
+    "selection": "#2a154a",
+    "border": "#8b4789"
+  }
+}

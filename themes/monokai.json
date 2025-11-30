@@ -1,0 +1,10 @@
+{
+  "name": "Monokai",
+  "description": "Monokai theme with dark colors",
+  "colors": {
+    "background": "#272822",
+    "text": "#f8f8f2",
+    "selection": "#49483e",
+    "border": "#75715e"
+  }
+}

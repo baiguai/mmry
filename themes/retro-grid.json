@@ -1,0 +1,10 @@
+{
+  "name": "Retro Grid",
+  "description": "Retro Grid theme with dark colors",
+  "colors": {
+    "background": "#1a0a3e",
+    "text": "#ff007f",
+    "selection": "#2e1553",
+    "border": "#39c0ed"
+  }
+}

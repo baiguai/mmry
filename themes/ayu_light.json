@@ -1,0 +1,10 @@
+{
+  "name": "Ayu Light",
+  "description": "Ayu Light theme with light colors",
+  "colors": {
+    "background": "#fafafa",
+    "text": "#5c6773",
+    "selection": "#f0f0f0",
+    "border": "#abb0b6"
+  }
+}
