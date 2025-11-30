@@ -1,0 +1,10 @@
+{
+  "name": "Desert Sand",
+  "description": "Warm desert sand theme",
+  "colors": {
+    "background": "#f4e4c1",
+    "text": "#8b7355",
+    "selection": "#e8d8b0",
+    "border": "#c4a57b"
+  }
+}

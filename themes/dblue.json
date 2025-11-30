@@ -1,11 +1,10 @@
 {
-    "encrypted": true,
-    "name": "DBlue",
-    "description": "Dark Blue Theme",
-    "colors": {
-        "background": "#092046",
-        "text": "#bcd7ff",
-        "selection": "#103878",
-        "border": "#c7d9e1"
-    }
+  "name": "Deep Blue",
+  "description": "Deep Blue theme with dark colors",
+  "colors": {
+    "background": "#092046",
+    "text": "#bcd7ff",
+    "selection": "#103878",
+    "border": "#c7d9e1"
+  }
 }

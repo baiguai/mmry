@@ -1,4 +1,10 @@
-"backgroundColor": "#0c0c14",
-"textColor": "#ff006e",
-"selectionColor": "#1a1a26",
-"borderColor": "#d90059"
+{
+  "name": "Neural Network",
+  "description": "Neural Network theme with dark colors",
+  "colors": {
+    "background": "#0c0c14",
+    "text": "#ff006e",
+    "selection": "#1a1a26",
+    "border": "#d90059"
+  }
+}

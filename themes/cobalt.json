@@ -1,0 +1,10 @@
+{
+  "name": "Cobalt",
+  "description": "Cobalt theme with dark colors",
+  "colors": {
+    "background": "#002240",
+    "text": "#ffffff",
+    "selection": "#004080",
+    "border": "#0059b3"
+  }
+}

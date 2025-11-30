@@ -1,0 +1,10 @@
+{
+  "name": "Sage Green",
+  "description": "Calm sage green theme",
+  "colors": {
+    "background": "#f0f5f0",
+    "text": "#87a96b",
+    "selection": "#e0eae0",
+    "border": "#a8c09a"
+  }
+}

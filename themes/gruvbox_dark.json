@@ -1,0 +1,10 @@
+{
+  "name": "Gruvbox Dark",
+  "description": "Gruvbox Dark theme with dark colors",
+  "colors": {
+    "background": "#282828",
+    "text": "#ebdbb2",
+    "selection": "#3c3836",
+    "border": "#665c54"
+  }
+}

@@ -1,0 +1,10 @@
+{
+  "name": "Classy Light",
+  "description": "Classy Light theme with light colors",
+  "colors": {
+    "background": "#ecf0f1",
+    "text": "#2c3e50",
+    "selection": "#bdc3c7",
+    "border": "#7f8c8d"
+  }
+}

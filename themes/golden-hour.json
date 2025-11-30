@@ -1,0 +1,10 @@
+{
+  "name": "Golden Hour",
+  "description": "Golden hour lighting theme",
+  "colors": {
+    "background": "#2d2a1a",
+    "text": "#daa520",
+    "selection": "#4a402d",
+    "border": "#b8860b"
+  }
+}

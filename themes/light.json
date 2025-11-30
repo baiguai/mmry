@@ -1,0 +1,10 @@
+{
+  "name": "Light",
+  "description": "Light theme with light colors",
+  "colors": {
+    "background": "#ffffff",
+    "text": "#000000",
+    "selection": "#e0e0e0",
+    "border": "#cccccc"
+  }
+}

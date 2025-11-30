@@ -1,0 +1,10 @@
+{
+  "name": "Candy Pink",
+  "description": "Sweet candy pink theme",
+  "colors": {
+    "background": "#2d1a20",
+    "text": "#ff69b4",
+    "selection": "#4a2d30",
+    "border": "#8b4a6b"
+  }
+}

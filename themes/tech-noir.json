@@ -1,4 +1,10 @@
-"backgroundColor": "#0b0b12",
-"textColor": "#00f0ff",
-"selectionColor": "#161622",
-"borderColor": "#00b8d4"
+{
+  "name": "Tech Noir",
+  "description": "Tech Noir theme with dark colors",
+  "colors": {
+    "background": "#0b0b12",
+    "text": "#00f0ff",
+    "selection": "#161622",
+    "border": "#00b8d4"
+  }
+}

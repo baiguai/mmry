@@ -1,0 +1,10 @@
+{
+  "name": "Gruvbox Light",
+  "description": "Gruvbox Light theme with light colors",
+  "colors": {
+    "background": "#fbf1c7",
+    "text": "#3c3836",
+    "selection": "#ebdbb2",
+    "border": "#bdae93"
+  }
+}

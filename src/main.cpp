@@ -57,6 +57,22 @@ public:
                 filteredItems.clear();
                 selectedItem = 0;
                 drawConsole();
+            } else if (commandMode) {
+                // Escape exits command mode but doesn't hide window
+                commandMode = false;
+                commandText = "";
+                selectedItem = 0;
+                drawConsole();
+            } else if (themeSelectMode) {
+                // Restore original theme and exit theme selection mode but doesn't hide window
+                if (!originalTheme.empty()) {
+                    switchTheme(originalTheme);
+                }
+                themeSelectMode = false;
+                availableThemes.clear();
+                originalTheme.clear();
+                selectedItem = 0;
+                drawConsole();
             } else {
                 // Normal escape behavior - hide window
                 hideWindow();
@@ -788,6 +804,167 @@ public:
             return;
         }
 
+        // Command mode
+        //
+        if (commandMode) {
+            if (keysym == XK_BackSpace) {
+                // Remove last character from command
+                if (!commandText.empty()) {
+                    commandText.pop_back();
+                    drawConsole();
+                }
+                return;
+            }
+
+            if (keysym == XK_Escape) {
+                // Exit command mode
+                commandMode = false;
+                commandText = "";
+                drawConsole();
+                return;
+            }
+
+            if (keysym == XK_Return) {
+                // Execute command and exit command mode
+                if (!commandText.empty()) {
+                    executeCommand(commandText);
+                }
+                commandMode = false;
+                commandText = "";
+                drawConsole();
+                return;
+            }
+
+            if (keysym == XK_Down) {
+                // Move down
+                size_t displayCount = getDisplayItemCount();
+                if (selectedItem < displayCount - 1) {
+                    selectedItem++;
+                    updateConsoleScrollOffset();
+                    drawConsole();
+                }
+                return;
+            }
+
+            if (keysym == XK_Up) {
+                // Move up
+                if (selectedItem > 0) {
+                    selectedItem--;
+                    updateConsoleScrollOffset();
+                    drawConsole();
+                }
+                return;
+            }
+
+            if (keysym == XK_space) {
+                // Handle space key - check if it's for theme command
+                if (commandText == "theme") {
+                    // Enter theme selection mode
+                    commandMode = false;
+                    themeSelectMode = true;
+                    discoverThemes();
+                    // Store original theme and apply first theme for preview
+                    if (!availableThemes.empty()) {
+                        originalTheme = theme;
+                        selectedTheme = 0;
+                        switchTheme(availableThemes[0]);
+                    }
+                    drawConsole();
+                    return;
+                } else {
+                    // Add space to command text for other commands
+                    commandText += " ";
+                    drawConsole();
+                    return;
+                }
+            }
+
+            // Handle text input in command mode - exclude vim navigation keys
+            char buffer[10];
+            int count = XLookupString(keyEvent, buffer, sizeof(buffer), nullptr, nullptr);
+            commandText += std::string(buffer, count);
+            drawConsole();
+
+            return;
+        }
+
+        // Theme selection mode
+        //
+        if (themeSelectMode) {
+            if (keysym == XK_Escape) {
+                // Restore original theme and exit theme selection mode
+                if (!originalTheme.empty()) {
+                    switchTheme(originalTheme);
+                }
+                themeSelectMode = false;
+                availableThemes.clear();
+                originalTheme.clear();
+                drawConsole();
+                return;
+            }
+
+            if (keysym == XK_Return) {
+                // Save current theme to config and exit theme selection mode
+                if (selectedTheme < availableThemes.size()) {
+                    switchTheme(availableThemes[selectedTheme]);
+                    // Save to config
+                    saveConfig();
+                }
+                themeSelectMode = false;
+                availableThemes.clear();
+                originalTheme.clear();
+                drawConsole();
+                return;
+            }
+
+            if (keysym == XK_Down || keysym == XK_j) {
+                // Move down in theme list and apply live preview
+                if (selectedTheme < availableThemes.size() - 1) {
+                    selectedTheme++;
+                    updateThemeSelectScrollOffset();
+                    // Apply live preview
+                    if (selectedTheme < availableThemes.size()) {
+                        switchTheme(availableThemes[selectedTheme]);
+                    }
+                    drawConsole();
+                }
+                return;
+            }
+
+            if (keysym == XK_Up || keysym == XK_k) {
+                // Move up in theme list and apply live preview
+                if (selectedTheme > 0) {
+                    selectedTheme--;
+                    updateThemeSelectScrollOffset();
+                    // Apply live preview
+                    if (selectedTheme < availableThemes.size()) {
+                        switchTheme(availableThemes[selectedTheme]);
+                    }
+                    drawConsole();
+                }
+                return;
+            }
+
+            if (keysym == XK_g) {
+                // Go to top
+                selectedTheme = 0;
+                themeSelectScrollOffset = 0;
+                drawConsole();
+                return;
+            }
+
+            if (keysym == XK_G && (keyEvent->state & ShiftMask)) {
+                // Go to bottom
+                if (!availableThemes.empty()) {
+                    selectedTheme = availableThemes.size() - 1;
+                    updateThemeSelectScrollOffset();
+                    drawConsole();
+                }
+                return;
+            }
+
+            return;
+        }
 
 
         // General keys - main clips list
@@ -860,6 +1037,15 @@ public:
             filterMode = true;
             filterText = "";
             updateFilteredItems();
+            selectedItem = 0;
+            drawConsole();
+            return;
+        }
+
+        if (keysym == XK_colon) {
+            // Enter command mode
+            commandMode = true;
+            commandText = "";
             selectedItem = 0;
             drawConsole();
             return;
@@ -1297,6 +1483,7 @@ private:
     bool encrypted = false;
     std::string encryptionKey = "";
     std::string theme = "console";
+    std::string originalTheme = ""; // Store original theme for preview mode
     bool autoStart = false;
     
     // Theme colors
@@ -1311,6 +1498,16 @@ private:
     bool filterMode = false;
     std::string filterText;
     std::vector<size_t> filteredItems;
+    
+    // Command mode
+    bool commandMode = false;
+    std::string commandText;
+    
+    // Theme selection mode
+    bool themeSelectMode = false;
+    std::vector<std::string> availableThemes;
+    size_t selectedTheme = 0;
+    size_t themeSelectScrollOffset = 0;
     
     // Bookmark dialog
     bool bookmarkDialogVisible = false;
@@ -1885,8 +2082,8 @@ private:
     void updateConsoleScrollOffset() {
         const int SCROLL_INDICATOR_HEIGHT = 15; // Height reserved for scroll indicator
         
-        // Calculate starting Y position (accounting for filter mode)
-        int startY = filterMode ? 45 : 20;
+        // Calculate starting Y position (accounting for filter, command, or theme selection mode)
+        int startY = (filterMode || commandMode || themeSelectMode) ? 45 : 20;
         
         // Calculate available height for items
         int availableHeight = windowHeight - startY - 10; // 10px bottom margin
@@ -1953,8 +2150,18 @@ private:
         } else if (selectedAddBookmarkGroup >= addBookmarkScrollOffset + VISIBLE_ITEMS) {
             addBookmarkScrollOffset = selectedAddBookmarkGroup - VISIBLE_ITEMS + 1;
         }
+}
+    
+    void updateThemeSelectScrollOffset() {
+        const int VISIBLE_ITEMS = 10; // Number of themes visible in theme selection
+        
+        if (selectedTheme < themeSelectScrollOffset) {
+            themeSelectScrollOffset = selectedTheme;
+        } else if (selectedTheme >= themeSelectScrollOffset + VISIBLE_ITEMS) {
+            themeSelectScrollOffset = selectedTheme - VISIBLE_ITEMS + 1;
+        }
     }
-
+    
     void updateHelpDialogScrollOffset(int adjustment) {
         const int VISIBLE_ITEMS = 50; // Number of items visible in help dialog
         const int STEP = 10;
@@ -2189,92 +2396,93 @@ private:
     }
     
     void loadTheme() {
-        // Try multiple locations for theme files
-        std::vector<std::string> themePaths = {
-            configDir + "/themes/" + theme + "_theme.json",
-            configDir + "/themes/" + theme + ".json",
-            "themes/" + theme + "_theme.json",
-            "themes/" + theme + ".json"
-        };
-        
         // Set default colors (console theme)
         backgroundColor = 0x000000; // Black
         textColor = 0x00FF00;      // Green (console theme)
         selectionColor = 0x333333;  // Dark gray
         borderColor = 0x00FF00;    // Green
         
-        std::ifstream file;
-        bool foundTheme = false;
+        // Try user config directory first, then fallback to local themes
+        std::string themePath = configDir + "/themes/" + theme + ".json";
+        std::ifstream file(themePath);
         
-        // Try each possible path
-        for (const auto& themePath : themePaths) {
+        if (!file.is_open()) {
+            // Fallback to local themes directory
+            themePath = "themes/" + theme + ".json";
             file.open(themePath);
-            if (file.is_open()) {
-                std::cout << "Loading theme from: " << themePath << std::endl;
-                foundTheme = true;
-                break;
-            }
         }
         
-        if (!foundTheme) {
+        if (!file.is_open()) {
             std::cout << "Theme file not found for theme: " << theme << ", using default colors" << std::endl;
             return;
         }
         
+        std::cout << "Loading theme from: " << themePath << std::endl;
+        
+        // Parse JSON theme file
         std::string line;
+        bool inColorsSection = false;
         while (std::getline(file, line)) {
             // Remove whitespace
             line.erase(0, line.find_first_not_of(" \t"));
             line.erase(line.find_last_not_of(" \t") + 1);
             
-            // Parse key=value format (your current theme file format)
-            if (line.find("backgroundColor=") != std::string::npos) {
-                std::string color = line.substr(line.find('=') + 1);
-                backgroundColor = hexToRgb(color);
+            // Skip empty lines and comments
+            if (line.empty() || line[0] == '/' || line[0] == '#') {
+                continue;
             }
-            else if (line.find("textColor=") != std::string::npos) {
-                std::string color = line.substr(line.find('=') + 1);
-                textColor = hexToRgb(color);
+            
+            // Check if we're entering the colors section
+            if (line.find("\"colors\"") != std::string::npos) {
+                inColorsSection = true;
+                continue;
             }
-            else if (line.find("selectionColor=") != std::string::npos) {
-                std::string color = line.substr(line.find('=') + 1);
-                selectionColor = hexToRgb(color);
+            
+            // Check if we're exiting the colors section
+            if (inColorsSection && line.find("}") != std::string::npos) {
+                break;
             }
-            else if (line.find("borderColor=") != std::string::npos) {
-                std::string color = line.substr(line.find('=') + 1);
-                borderColor = hexToRgb(color);
-            }
-            // Also support JSON format for future compatibility
-            else if (line.find("\"background\"") != std::string::npos) {
-                size_t start = line.find('"', line.find(':'));
-                size_t end = line.find('"', start + 1);
-                if (start != std::string::npos && end != std::string::npos) {
-                    backgroundColor = hexToRgb(line.substr(start + 1, end - start - 1));
+            
+            // Parse color values (only in JSON format)
+            if (inColorsSection) {
+                if (line.find("\"background\"") != std::string::npos) {
+                    size_t start = line.find('"', line.find(':'));
+                    size_t end = line.find('"', start + 1);
+                    if (start != std::string::npos && end != std::string::npos) {
+                        backgroundColor = hexToRgb(line.substr(start + 1, end - start - 1));
+                    }
                 }
-            }
-            else if (line.find("\"text\"") != std::string::npos) {
-                size_t start = line.find('"', line.find(':'));
-                size_t end = line.find('"', start + 1);
-                if (start != std::string::npos && end != std::string::npos) {
-                    textColor = hexToRgb(line.substr(start + 1, end - start - 1));
+                else if (line.find("\"text\"") != std::string::npos) {
+                    size_t start = line.find('"', line.find(':'));
+                    size_t end = line.find('"', start + 1);
+                    if (start != std::string::npos && end != std::string::npos) {
+                        textColor = hexToRgb(line.substr(start + 1, end - start - 1));
+                    }
                 }
-            }
-            else if (line.find("\"selection\"") != std::string::npos) {
-                size_t start = line.find('"', line.find(':'));
-                size_t end = line.find('"', start + 1);
-                if (start != std::string::npos && end != std::string::npos) {
-                    selectionColor = hexToRgb(line.substr(start + 1, end - start - 1));
+                else if (line.find("\"selection\"") != std::string::npos) {
+                    size_t start = line.find('"', line.find(':'));
+                    size_t end = line.find('"', start + 1);
+                    if (start != std::string::npos && end != std::string::npos) {
+                        selectionColor = hexToRgb(line.substr(start + 1, end - start - 1));
+                    }
                 }
-            }
-            else if (line.find("\"border\"") != std::string::npos) {
-                size_t start = line.find('"', line.find(':'));
-                size_t end = line.find('"', start + 1);
-                if (start != std::string::npos && end != std::string::npos) {
-                    borderColor = hexToRgb(line.substr(start + 1, end - start - 1));
+                else if (line.find("\"border\"") != std::string::npos) {
+                    size_t start = line.find('"', line.find(':'));
+                    size_t end = line.find('"', start + 1);
+                    if (start != std::string::npos && end != std::string::npos) {
+                        borderColor = hexToRgb(line.substr(start + 1, end - start - 1));
+                    }
                 }
             }
         }
         file.close();
+        
+        // Update graphics context with new text color
+#ifdef __linux__
+        if (gc) {
+            XSetForeground(display, gc, textColor);
+        }
+#endif
     }
     
     void createDefaultThemeFile() {
@@ -2285,22 +2493,113 @@ private:
             mkdir(themesDir.c_str(), 0755);
         }
         
-        // Create default console theme file
+        // Create default console theme file with valid JSON
         std::string themeFile = themesDir + "/console.json";
         std::ofstream outFile(themeFile);
         if (outFile.is_open()) {
             outFile << "{\n";
-            outFile << "    \"name\": \"Console\",\n";
-            outFile << "    \"description\": \"Default console theme with black background and white text\",\n";
-            outFile << "    \"colors\": {\n";
-            outFile << "        \"background\": \"#000000\",\n";
-            outFile << "        \"text\": \"#FFFFFF\",\n";
-            outFile << "        \"selection\": \"#404040\",\n";
-            outFile << "        \"border\": \"#FFFFFF\"\n";
-            outFile << "    }\n";
+            outFile << "  \"name\": \"Console\",\n";
+            outFile << "  \"description\": \"Default console theme with black background and green text\",\n";
+            outFile << "  \"colors\": {\n";
+            outFile << "    \"background\": \"#000000\",\n";
+            outFile << "    \"text\": \"#00FF00\",\n";
+            outFile << "    \"selection\": \"#333333\",\n";
+            outFile << "    \"border\": \"#00FF00\"\n";
+            outFile << "  }\n";
             outFile << "}\n";
             outFile.close();
+            std::cout << "Created default theme file: " << themeFile << std::endl;
         }
+    }
+    
+    void executeCommand(const std::string& command) {
+        // Parse command and arguments
+        std::istringstream iss(command);
+        std::string cmd;
+        std::string args;
+        
+        if (iss >> cmd) {
+            std::getline(iss, args);
+            // Trim leading whitespace from args
+            if (!args.empty() && args[0] == ' ') {
+                args = args.substr(1);
+            }
+        }
+        
+        if (cmd == "theme") {
+            if (!args.empty()) {
+                // Direct theme switch: "theme dracula"
+                switchTheme(args);
+            } else {
+                // Enter theme selection mode: "theme"
+                commandMode = false;
+                themeSelectMode = true;
+                discoverThemes();
+                // Store original theme and apply first theme for preview
+                if (!availableThemes.empty()) {
+                    originalTheme = theme;
+                    selectedTheme = 0;
+                    switchTheme(availableThemes[0]);
+                }
+                drawConsole();
+            }
+            return;
+        }
+        
+        // Handle other commands (for future implementation)
+        std::cout << "Command executed: " << command << std::endl;
+        
+        // TODO: Add specific command implementations here
+        // Examples:
+        // - "delete" - delete selected item
+        // - "pin" - pin selected item  
+        // - "clear" - clear all items
+        // - "export" - export clipboard history
+    }
+    
+    void discoverThemes() {
+        availableThemes.clear();
+        
+        // Try user themes directory first
+        std::string userThemesDir = configDir + "/themes";
+        std::string localThemesDir = "themes";
+        
+        // Function to scan a directory for theme files
+        auto scanThemesDir = [&](const std::string& themesDir) {
+            DIR* dir = opendir(themesDir.c_str());
+            if (dir) {
+                struct dirent* entry;
+                while ((entry = readdir(dir)) != nullptr) {
+                    std::string filename = entry->d_name;
+                    // Check if it's a .json file and not a special entry
+                    if (filename.length() > 5 && filename.substr(filename.length() - 5) == ".json" &&
+                        filename != "." && filename != "..") {
+                        // Remove .json extension
+                        std::string themeName = filename.substr(0, filename.length() - 5);
+                        availableThemes.push_back(themeName);
+                    }
+                }
+                closedir(dir);
+            }
+        };
+        
+        // Scan both directories
+        scanThemesDir(userThemesDir);
+        scanThemesDir(localThemesDir);
+        
+        // Remove duplicates and sort
+        std::sort(availableThemes.begin(), availableThemes.end());
+        availableThemes.erase(std::unique(availableThemes.begin(), availableThemes.end()), availableThemes.end());
+        
+        // Reset selection
+        selectedTheme = 0;
+        themeSelectScrollOffset = 0;
+    }
+    
+    void switchTheme(const std::string& themeName) {
+        theme = themeName;
+        loadTheme();
+        std::cout << "Switched to theme: " << themeName << std::endl;
     }
     
     void loadBookmarkGroups() {
@@ -2832,6 +3131,18 @@ private:
         drawHelpTopic(topicLeft, y, contentTop, contentBottom, "Escape         - Exit dialog");
         y += lineHeight + gap + 5;
 
+        // Commands
+        drawHelpTopic(titleLeft, y, contentTop, contentBottom, "Commands");
+        y += lineHeight;
+        drawHelpTopic(topicLeft, y, contentTop, contentBottom, ":              - Activate commands");
+        y += lineHeight;
+        drawHelpTopic(topicLeft, y, contentTop, contentBottom, "theme          - Select theme to apply");
+        y += lineHeight;
+        drawHelpTopic(topicLeft, y, contentTop, contentBottom, "Enter          - Apply command");
+        y += lineHeight;
+        drawHelpTopic(topicLeft, y, contentTop, contentBottom, "Escape         - Cancel command");
+        y += lineHeight + gap + 5;
+
 
         // Global hotkey
         drawHelpTopic(titleLeft, y, contentTop, contentBottom, "Global Hotkey:");
@@ -3107,13 +3418,45 @@ private:
         XSetWindowBackground(display, window, backgroundColor);
         XClearWindow(display, window);
         
-        // Draw filter textbox if in filter mode
+        // Draw filter or command textbox if in respective mode
         int startY = 20;
         if (filterMode) {
             // Draw filter input
             std::string filterDisplay = "/" + filterText;
             XDrawString(display, window, gc, 10, startY, filterDisplay.c_str(), filterDisplay.length());
             startY += 25;
+        }
+        else if (commandMode) {
+            // Draw command input
+            std::string commandDisplay = ":" + commandText;
+            XDrawString(display, window, gc, 10, startY, commandDisplay.c_str(), commandDisplay.length());
+            startY += 25;
+        }
+        else if (themeSelectMode) {
+            // Draw theme selection header
+            std::string header = "Select theme (" + std::to_string(availableThemes.size()) + " total):";
+            XDrawString(display, window, gc, 10, startY, header.c_str(), header.length());
+            startY += 25;
+            
+            // Draw theme list
+            const int VISIBLE_THEMES = 10;
+            size_t startIdx = themeSelectScrollOffset;
+            size_t endIdx = std::min(startIdx + VISIBLE_THEMES, availableThemes.size());
+            
+            for (size_t i = startIdx; i < endIdx; ++i) {
+                std::string themeDisplay = (i == selectedTheme ? "> " : "  ") + availableThemes[i];
+                XDrawString(display, window, gc, 10, startY, themeDisplay.c_str(), themeDisplay.length());
+                startY += LINE_HEIGHT;
+            }
+            
+            // Show scroll indicator if there are more themes
+            if (availableThemes.size() > VISIBLE_THEMES) {
+                std::string scrollInfo = "Showing " + std::to_string(startIdx + 1) + "-" + std::to_string(endIdx) + " of " + std::to_string(availableThemes.size());
+                XDrawString(display, window, gc, 10, startY, scrollInfo.c_str(), scrollInfo.length());
+            }
+            
+            // Don't draw clipboard items in theme selection mode
+            return;
         }
         
         // Draw clipboard items
@@ -3228,8 +3571,15 @@ private:
             y += LINE_HEIGHT;
         }
         
-        if (displayCount == 0) {
-            std::string empty = filterMode ? "No matching items..." : "No clipboard items yet...";
+        if (displayCount == 0 && !themeSelectMode) {
+            std::string empty;
+            if (filterMode) {
+                empty = "No matching items...";
+            } else if (commandMode) {
+                empty = "Enter command...";
+            } else {
+                empty = "No clipboard items yet...";
+            }
             XDrawString(display, window, gc, 10, y, empty.c_str(), empty.length());
         }
         
@@ -3415,6 +3765,20 @@ private:
             // Create default config with all settings
             createDefaultConfig();
         }
+    }
+    
+    void saveConfig() {
+        std::string configFile = configDir + "/config.json";
+        std::ofstream outFile(configFile);
+        outFile << "{\n";
+        outFile << "    \"verbose\": " << (verboseMode ? "true" : "false") << ",\n";
+        outFile << "    \"max_clips\": " << maxClips << ",\n";
+        outFile << "    \"encrypted\": " << (encrypted ? "true" : "false") << ",\n";
+        outFile << "    \"encryption_key\": \"" << encryptionKey << "\",\n";
+        outFile << "    \"autostart\": " << (autoStart ? "true" : "false") << ",\n";
+        outFile << "    \"theme\": \"" << theme << "\"\n";
+        outFile << "}\n";
+        outFile.close();
     }
     
     void createDefaultConfig() {

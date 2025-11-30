@@ -1,0 +1,10 @@
+{
+  "name": "Corporate Dark",
+  "description": "Corporate Dark theme with dark colors",
+  "colors": {
+    "background": "#1a1a1a",
+    "text": "#e0e0e0",
+    "selection": "#3a3a3a",
+    "border": "#5a5a5a"
+  }
+}

@@ -1,4 +1,10 @@
-"backgroundColor": "#0b0e13",
-"textColor": "#a9b1ba",
-"selectionColor": "#1a1f29",
-"borderColor": "#363d47"
+{
+  "name": "Onyx Enterprise",
+  "description": "Onyx Enterprise theme with dark colors",
+  "colors": {
+    "background": "#0b0e13",
+    "text": "#a9b1ba",
+    "selection": "#1a1f29",
+    "border": "#363d47"
+  }
+}

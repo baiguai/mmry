@@ -1,0 +1,10 @@
+{
+  "name": "Palenight",
+  "description": "Palenight theme with dark colors",
+  "colors": {
+    "background": "#292d3e",
+    "text": "#a6accd",
+    "selection": "#4e5579",
+    "border": "#676e95"
+  }
+}

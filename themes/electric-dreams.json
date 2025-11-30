@@ -1,4 +1,10 @@
-"backgroundColor": "#14082e",
-"textColor": "#fe00c7",
-"selectionColor": "#250d47",
-"borderColor": "#00f0ff"
+{
+  "name": "Electric Dreams",
+  "description": "Electric Dreams theme with dark colors",
+  "colors": {
+    "background": "#14082e",
+    "text": "#fe00c7",
+    "selection": "#250d47",
+    "border": "#00f0ff"
+  }
+}

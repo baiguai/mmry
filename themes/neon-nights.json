@@ -1,4 +1,10 @@
-"backgroundColor": "#0f0a1e",
-"textColor": "#ff006e",
-"selectionColor": "#1e1532",
-"borderColor": "#fb5607"
+{
+  "name": "Neon Nights",
+  "description": "Neon Nights theme with dark colors",
+  "colors": {
+    "background": "#0f0a1e",
+    "text": "#ff006e",
+    "selection": "#1e1532",
+    "border": "#fb5607"
+  }
+}

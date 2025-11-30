@@ -1,0 +1,10 @@
+{
+  "name": "Oceanic Next",
+  "description": "Oceanic Next theme with dark colors",
+  "colors": {
+    "background": "#1b2b34",
+    "text": "#c0c5ce",
+    "selection": "#343d46",
+    "border": "#65737e"
+  }
+}

@@ -1,4 +1,10 @@
-"backgroundColor": "#0a0a11",
-"textColor": "#00ffff",
-"selectionColor": "#181828",
-"borderColor": "#00e5e5"
+{
+  "name": "Photon Flux",
+  "description": "Photon Flux theme with dark colors",
+  "colors": {
+    "background": "#0a0a11",
+    "text": "#00ffff",
+    "selection": "#181828",
+    "border": "#00e5e5"
+  }
+}

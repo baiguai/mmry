@@ -1,0 +1,10 @@
+{
+  "name": "Coffee Brown",
+  "description": "Rich coffee brown theme",
+  "colors": {
+    "background": "#2d1f0f",
+    "text": "#8b4513",
+    "selection": "#4a3020",
+    "border": "#8b6239"
+  }
+}

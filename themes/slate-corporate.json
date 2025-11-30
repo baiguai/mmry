@@ -1,4 +1,10 @@
-"backgroundColor": "#0f1419",
-"textColor": "#bfbdb6",
-"selectionColor": "#252a33",
-"borderColor": "#4d5566"
+{
+  "name": "Slate Corporate",
+  "description": "Slate Corporate theme with dark colors",
+  "colors": {
+    "background": "#0f1419",
+    "text": "#bfbdb6",
+    "selection": "#252a33",
+    "border": "#4d5566"
+  }
+}
