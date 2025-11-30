@@ -63,12 +63,12 @@ public:
                 commandText = "";
                 selectedItem = 0;
                 drawConsole();
-            } else if (themeSelectMode) {
+            } else if (cmd_themeSelectMode) {
                 // Restore original theme and exit theme selection mode but doesn't hide window
                 if (!originalTheme.empty()) {
                     switchTheme(originalTheme);
                 }
-                themeSelectMode = false;
+                cmd_themeSelectMode = false;
                 availableThemes.clear();
                 originalTheme.clear();
                 selectedItem = 0;
@@ -861,7 +861,7 @@ public:
                 if (commandText == "theme") {
                     // Enter theme selection mode
                     commandMode = false;
-                    themeSelectMode = true;
+                    cmd_themeSelectMode = true;
                     discoverThemes();
                     // Store original theme and apply first theme for preview
                     if (!availableThemes.empty()) {
@@ -871,12 +871,12 @@ public:
                     }
                     drawConsole();
                     return;
-                } else {
-                    // Add space to command text for other commands
-                    commandText += " ";
-                    drawConsole();
-                    return;
                 }
+
+                // Add space to command text for other commands
+                commandText += " ";
+                drawConsole();
+                return;
             }
 
             // Handle text input in command mode - exclude vim navigation keys
@@ -890,13 +890,13 @@ public:
 
         // Theme selection mode
         //
-        if (themeSelectMode) {
+        if (cmd_themeSelectMode) {
             if (keysym == XK_Escape) {
                 // Restore original theme and exit theme selection mode
                 if (!originalTheme.empty()) {
                     switchTheme(originalTheme);
                 }
-                themeSelectMode = false;
+                cmd_themeSelectMode = false;
                 availableThemes.clear();
                 originalTheme.clear();
                 drawConsole();
@@ -910,7 +910,7 @@ public:
                     // Save to config
                     saveConfig();
                 }
-                themeSelectMode = false;
+                cmd_themeSelectMode = false;
                 availableThemes.clear();
                 originalTheme.clear();
                 drawConsole();
@@ -1228,9 +1228,10 @@ public:
             std::cout << "Running on macOS." << std::endl;
             // Add macOS-specific auto-start code here
         #elif __linux__
+            std::string dir = std::string(getenv("HOME")) + "/.config/autostart";
+            std::string filePath = dir + "/mmry.desktop";
+
             if (autoStart) {
-                std::string dir = std::string(getenv("HOME")) + "/.config/autostart";
-                std::string filePath = dir + "/mmry.desktop";
                 std::string appName = "mmry";
                 std::string appLabel = "Mmry";
 
@@ -1249,20 +1250,24 @@ public:
                     std::cerr << "Error getting path" << std::endl;
                 }
 
-
-
                 std::ofstream file(filePath);
                 file <<
-    R"([Desktop Entry]
-    Type=Application
-    Exec=)" << result << R"(
-    Hidden=false
-    NoDisplay=false
-    X-GNOME-Autostart-enabled=true
-    Name=)" << appLabel << R"(
-    Comment=Autostart for )" << appLabel << R"(
-    )";
+R"([Desktop Entry]
+Type=Application
+Exec=)" << result << R"(
+Hidden=false
+NoDisplay=false
+X-GNOME-Autostart-enabled=true
+Name=)" << appLabel << R"(
+Comment=Autostart for )" << appLabel << R"(
+)";
                 file.close();
+            } else {
+                if (remove(filePath.c_str()) != 0) {
+                    std::cout << "Autostart already disabled" << std::endl;
+                } else {
+                    std::cout << "Autostart disabled" << std::endl;
+                }
             }
         #else
             std::cout << "Unknown operating system." << std::endl;
@@ -1504,7 +1509,7 @@ private:
     std::string commandText;
     
     // Theme selection mode
-    bool themeSelectMode = false;
+    bool cmd_themeSelectMode = false;
     std::vector<std::string> availableThemes;
     size_t selectedTheme = 0;
     size_t themeSelectScrollOffset = 0;
@@ -2083,7 +2088,7 @@ private:
         const int SCROLL_INDICATOR_HEIGHT = 15; // Height reserved for scroll indicator
         
         // Calculate starting Y position (accounting for filter, command, or theme selection mode)
-        int startY = (filterMode || commandMode || themeSelectMode) ? 45 : 20;
+        int startY = (filterMode || commandMode || cmd_themeSelectMode) ? 45 : 20;
         
         // Calculate available height for items
         int availableHeight = windowHeight - startY - 10; // 10px bottom margin
@@ -2533,7 +2538,7 @@ private:
             } else {
                 // Enter theme selection mode: "theme"
                 commandMode = false;
-                themeSelectMode = true;
+                cmd_themeSelectMode = true;
                 discoverThemes();
                 // Store original theme and apply first theme for preview
                 if (!availableThemes.empty()) {
@@ -3432,7 +3437,7 @@ private:
             XDrawString(display, window, gc, 10, startY, commandDisplay.c_str(), commandDisplay.length());
             startY += 25;
         }
-        else if (themeSelectMode) {
+        else if (cmd_themeSelectMode) {
             // Draw theme selection header
             std::string header = "Select theme (" + std::to_string(availableThemes.size()) + " total):";
             XDrawString(display, window, gc, 10, startY, header.c_str(), header.length());
@@ -3571,7 +3576,7 @@ private:
             y += LINE_HEIGHT;
         }
         
-        if (displayCount == 0 && !themeSelectMode) {
+        if (displayCount == 0 && !cmd_themeSelectMode) {
             std::string empty;
             if (filterMode) {
                 empty = "No matching items...";

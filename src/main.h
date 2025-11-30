@@ -2,6 +2,7 @@
 #define MAIN_H
 
 #include <iostream>
+#include <cstdio>
 #include <unistd.h>
 #include <sys/file.h>
 #include <fcntl.h>
