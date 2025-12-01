@@ -2668,35 +2668,77 @@ private:
     }
     
     void setupConfigDir() {
-        const char* home = getenv("HOME");
-        if (!home) home = getenv("USERPROFILE");
+        // Cross-platform home directory detection
+        const char* home = nullptr;
+        
+#ifdef _WIN32
+        home = getenv("USERPROFILE");
+        if (!home) home = getenv("APPDATA");
+#elif __APPLE__
+        home = getenv("HOME");
+#elif __linux__
+        home = getenv("HOME");
+#endif
+        
         if (!home) home = ".";
         
+        // Cross-platform config directory path
+#ifdef _WIN32
+        configDir = std::string(home) + "\\mmry";
+#elif __APPLE__
+        configDir = std::string(home) + "/Library/Application Support/mmry";
+#elif __linux__
         configDir = std::string(home) + "/.config/mmry";
+#endif
+        
+        // Cross-platform directory creation
+        auto createDirectory = [](const std::string& path) {
+#ifdef _WIN32
+            return _mkdir(path.c_str()) == 0 || errno == EEXIST;
+#else
+            return mkdir(path.c_str(), 0755) == 0 || errno == EEXIST;
+#endif
+        };
         
         // Create config directory if it doesn't exist
         struct stat st = {0};
         if (stat(configDir.c_str(), &st) == -1) {
-            mkdir(configDir.c_str(), 0755);
-            std::cout << "Created config directory: " << configDir << std::endl;
+            if (createDirectory(configDir)) {
+                std::cout << "Created config directory: " << configDir << std::endl;
+            } else {
+                std::cerr << "Failed to create config directory: " << configDir << std::endl;
+            }
         }
         
+        // Cross-platform path separator
+#ifdef _WIN32
+        const char pathSep = '\\';
+#else
+        const char pathSep = '/';
+#endif
+        
         // Create themes directory if it doesn't exist
-        std::string themesDir = configDir + "/themes";
+        std::string themesDir = configDir + pathSep + "themes";
         if (stat(themesDir.c_str(), &st) == -1) {
-            mkdir(themesDir.c_str(), 0755);
-            std::cout << "Created themes directory: " << themesDir << std::endl;
+            if (createDirectory(themesDir)) {
+                std::cout << "Created themes directory: " << themesDir << std::endl;
+            } else {
+                std::cerr << "Failed to create themes directory: " << themesDir << std::endl;
+            }
         }
         
         // Create bookmarks directory if it doesn't exist
-        bookmarksDir = configDir + "/bookmarks";
+        bookmarksDir = configDir + pathSep + "bookmarks";
         if (stat(bookmarksDir.c_str(), &st) == -1) {
-            mkdir(bookmarksDir.c_str(), 0755);
-            std::cout << "Created bookmarks directory: " << bookmarksDir << std::endl;
+            if (createDirectory(bookmarksDir)) {
+                std::cout << "Created bookmarks directory: " << bookmarksDir << std::endl;
+            } else {
+                std::cerr << "Failed to create bookmarks directory: " << bookmarksDir << std::endl;
+            }
         }
         
-        dataFile = configDir + "/clips.txt";
-        pinnedFile = configDir + "/pinned.txt";
+        dataFile = configDir + pathSep + "clips.txt";
+        pinnedFile = configDir + pathSep + "pinned.txt";
         
         // Ensure all required files exist
         ensureRequiredFiles();
@@ -3720,7 +3762,14 @@ private:
     }
     
     void loadConfig() {
-        std::string configFile = configDir + "/config.json";
+        // Cross-platform path separator
+#ifdef _WIN32
+        const char pathSep = '\\';
+#else
+        const char pathSep = '/';
+#endif
+        
+        std::string configFile = configDir + pathSep + "config.json";
         std::ifstream file(configFile);
         if (file.is_open()) {
             std::string line;
@@ -3744,7 +3793,7 @@ private:
                 else if (line.find("\"encrypted\"") != std::string::npos) {
                     encrypted = line.find("true") != std::string::npos;
                 }
-                // Parse encrypted
+                // Parse autostart
                 else if (line.find("\"autostart\"") != std::string::npos) {
                     autoStart = line.find("true") != std::string::npos;
                 }
@@ -3931,11 +3980,12 @@ void signal_handler(int signal) {
 }
 
 int main() {
+#ifdef __linux__
     // Install signal handlers for graceful shutdown
     signal(SIGTERM, signal_handler);
     signal(SIGINT, signal_handler);
 
-    SingleInstance guard("MyUniqueAppName");
+    SingleInstance guard("Mmry");
     if (guard.isAnotherInstanceRunning()) {
         std::cerr << "Another instance is already running. Exiting." << std::endl;
         return 1;
@@ -3949,5 +3999,11 @@ int main() {
     g_manager = &manager;
     manager.run();
     g_manager = nullptr;
+#endif linux
+
+#ifdef _WIN32
+    // Add Windows entry point
+#endif windows
+
     return 0;
 }
