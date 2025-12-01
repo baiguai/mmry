@@ -1397,12 +1397,55 @@ Comment=Autostart for )" << appLabel << R"(
 #endif
 
 #ifdef _WIN32
-        // Windows event loop
+        std::cout << "Windows: registering global hotkey Ctrl+Alt+C..." << std::endl;
+
+        // Register Ctrl+Alt+C (ID: 1)
+        if (!RegisterHotKey(NULL, 1, MOD_CONTROL | MOD_ALT, 'C')) {
+            std::cerr << "Failed to register global hotkey." << std::endl;
+        }
+
+        // --- Win32 window class (blank window for now) ---
+        WNDCLASS wc = {0};
+        wc.lpfnWndProc   = MMRYWndProc;
+        wc.hInstance     = GetModuleHandle(NULL);
+        wc.lpszClassName = "MMRY_Window_Class";
+
+        RegisterClass(&wc);
+
+        HWND hwnd = NULL;
+
+        // --- Windows Message Loop ---
         MSG msg;
-        while (running && GetMessage(&msg, nullptr, 0, 0)) {
+        while (running) {
+            BOOL result = GetMessage(&msg, NULL, 0, 0);
+
+            if (result <= 0) {
+                break; // WM_QUIT or error
+            }
+
+            if (msg.message == WM_HOTKEY) {
+                if (msg.wParam == 1) {   // Ctrl+Alt+C pressed
+
+                    if (!hwnd) {
+                        hwnd = CreateWindow(
+                            "MMRY_Window_Class",
+                            "MMRY Clipboard Window",
+                            WS_OVERLAPPEDWINDOW,
+                            CW_USEDEFAULT, CW_USEDEFAULT,
+                            400, 300,
+                            NULL, NULL, GetModuleHandle(NULL), NULL);
+                    }
+
+                    ShowWindow(hwnd, SW_SHOW);
+                    SetForegroundWindow(hwnd);
+                }
+            }
+
             TranslateMessage(&msg);
             DispatchMessage(&msg);
         }
+
+        UnregisterHotKey(NULL, 1);
 #endif
 
 #ifdef __APPLE__
@@ -2403,17 +2446,24 @@ private:
     void loadTheme() {
         // Set default colors (console theme)
         backgroundColor = 0x000000; // Black
-        textColor = 0x00FF00;      // Green (console theme)
+        textColor = 0xFFFFFF;      // White
         selectionColor = 0x333333;  // Dark gray
-        borderColor = 0x00FF00;    // Green
+        borderColor = 0x888888;    // Gray
+        
+        // Cross-platform path separator
+#ifdef _WIN32
+        const char pathSep = '\\';
+#else
+        const char pathSep = '/';
+#endif
         
         // Try user config directory first, then fallback to local themes
-        std::string themePath = configDir + "/themes/" + theme + ".json";
+        std::string themePath = configDir + pathSep + "themes" + pathSep + theme + ".json";
         std::ifstream file(themePath);
         
         if (!file.is_open()) {
             // Fallback to local themes directory
-            themePath = "themes/" + theme + ".json";
+            themePath = std::string("themes") + pathSep + theme + ".json";
             file.open(themePath);
         }
         
@@ -2608,7 +2658,14 @@ private:
     }
     
     void loadBookmarkGroups() {
-        std::string bookmarkFile = bookmarksDir + "/bookmarks.txt";
+        // Cross-platform path separator
+#ifdef _WIN32
+        const char pathSep = '\\';
+#else
+        const char pathSep = '/';
+#endif
+        
+        std::string bookmarkFile = bookmarksDir + pathSep + "bookmarks.txt";
         std::ifstream file(bookmarkFile);
         bookmarkGroups.clear();
         
@@ -3960,6 +4017,8 @@ private:
             if (outFile.is_open()) {
                 outFile.close();
                 std::cout << "Created empty clips file: " << dataFile << std::endl;
+            } else {
+                std::cerr << "Failed to create clips file: " << dataFile << std::endl;
             }
         }
     }
