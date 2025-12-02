@@ -3882,7 +3882,7 @@ private:
 #endif
     }
 
-    
+public:
     void drawConsole() {
         if (!visible) return;
         
