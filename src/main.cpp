@@ -33,6 +33,7 @@ public:
 #endif
 #ifdef _WIN32
         MSG* msg = (MSG*)eventPtr;
+        std::cout << "Key received: " << (int)msg->wParam << std::endl;
         int virtualKey = (int)msg->wParam; 
         BYTE keyboardState[256] = {0};
         GetKeyboardState(keyboardState);
@@ -1781,29 +1782,28 @@ Comment=Autostart for )" << appLabel << R"(
         MSG msg;
         while (running) {
             BOOL result = GetMessage(&msg, NULL, 0, 0);
-
-            if (result <= 0) {
-                break; // WM_QUIT or error
-            }
-
-            if (msg.message == WM_HOTKEY) {
-                if (msg.wParam == 1) {   // Ctrl+Alt+C pressed
-
-                    if (!hwnd) {
-                        hwnd = CreateWindow(
-                            "MMRY_Window_Class",
-                            "MMRY Clipboard Window",
-                            WS_OVERLAPPEDWINDOW,
-                            CW_USEDEFAULT, CW_USEDEFAULT,
-                            400, 300,
-                            NULL, NULL, GetModuleHandle(NULL), NULL);
-                    }
-
-                    ShowWindow(hwnd, SW_SHOW);
-                    SetForegroundWindow(hwnd);
+            if (result <= 0) break;
+            
+            if (msg.message == WM_HOTKEY && msg.wParam == 1) {
+                // Hotkey handling
+                if (!hwnd) {
+                    // Create window with proper styles for keyboard input
+                    hwnd = CreateWindowEx(
+                        WS_EX_CLIENTEDGE,
+                        "MMRY_Window_Class",
+                        "MMRY Clipboard Window",
+                        WS_OVERLAPPEDWINDOW,
+                        CW_USEDEFAULT, CW_USEDEFAULT,
+                        400, 300,
+                        NULL, NULL, GetModuleHandle(NULL), 
+                        this); // Pass 'this' as lpParam
                 }
+                visible = true;
+                ShowWindow(hwnd, SW_SHOW);
+                SetForegroundWindow(hwnd);
+                SetFocus(hwnd); 
             }
-
+            
             TranslateMessage(&msg);
             DispatchMessage(&msg);
         }
@@ -3367,7 +3367,12 @@ private:
             XUnmapWindow(display, window);
 #endif
 #ifdef _WIN32
-            ShowWindow(hwnd, SW_HIDE);
+            if (hwnd) {
+                std::cout << "Calling ShowWindow(SW_HIDE)" << std::endl;
+                ShowWindow(hwnd, SW_HIDE);
+            } else {
+                std::cout << "hwnd is null!" << std::endl;
+            }
 #endif
             visible = false;
             std::cout << "Window hidden" << std::endl;
@@ -4462,28 +4467,34 @@ void signal_handler(int signal) {
 
 
 #ifdef _WIN32
-    // Windows window procedure
-    LRESULT CALLBACK MMRYWndProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
-        switch (uMsg) {
-            case WM_PAINT: {
-                if (g_manager) {
-                    g_manager->drawConsole();
-                }
-                return 0;
-            }
-            case WM_KEYDOWN: {
-                MSG msg = {hwnd, uMsg, wParam, lParam};
-                if (g_manager) {
-                    g_manager->handleKeyPressCommon(&msg);
-                }
-                return 0;
-            }
-            case WM_DESTROY:
-                PostQuitMessage(0);
-                return 0;
-        }
-        return DefWindowProc(hwnd, uMsg, wParam, lParam);
+LRESULT CALLBACK MMRYWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
+    // Get the ClipboardManager instance
+    ClipboardManager* manager = nullptr;
+    
+    if (msg == WM_NCCREATE) {
+        // Store instance pointer
+        CREATESTRUCT* pCreate = (CREATESTRUCT*)lParam;
+        manager = (ClipboardManager*)pCreate->lpCreateParams;
+        SetWindowLongPtr(hwnd, GWLP_USERDATA, (LONG_PTR)manager);
+    } else {
+        manager = (ClipboardManager*)GetWindowLongPtr(hwnd, GWLP_USERDATA);
     }
+    
+    switch (msg) {
+        case WM_KEYDOWN:
+        case WM_CHAR:
+            if (manager) {
+                MSG winMsg = {hwnd, msg, wParam, lParam};
+                manager->handleKeyPressCommon(&winMsg);
+            }
+            return 0;
+        case WM_DESTROY:
+            PostQuitMessage(0);
+            return 0;
+        default:
+            return DefWindowProc(hwnd, msg, wParam, lParam);
+    }
+}
 #endif
 
 
