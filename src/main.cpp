@@ -1776,7 +1776,8 @@ Comment=Autostart for )" << appLabel << R"(
 
         RegisterClass(&wc);
 
-        HWND hwnd = NULL;
+        // 'hwnd' is now a class member, initialized to nullptr.
+        // The check '!hwnd' on first hotkey press will create it.
 
         // --- Windows Message Loop ---
         MSG msg;
@@ -1861,8 +1862,8 @@ private:
     #endif
     
     #ifdef _WIN32
-        HWND hwnd;
-        HFONT font;
+        HWND hwnd = nullptr;
+        HFONT font = nullptr;
     #endif
     
         std::atomic<bool> running;
