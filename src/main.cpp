@@ -15,9 +15,9 @@ public:
 
 
     //// Key Press /////////////////////////////////////////////////////////////
+#ifdef __linux__
     void handleKeyPress(XEvent* event) {
         // !@!
-#ifdef __linux__
         KeySym keysym;
         char buffer[10];
         XKeyEvent* keyEvent = (XKeyEvent*)event;
@@ -1173,8 +1173,8 @@ public:
             viewPinnedScrollOffset = 0; // Reset scroll when opening
             drawConsole();
         }
-#endif
     }
+#endif
     //// End Key Press /////////////////////////////////////////////////////////
 
 
@@ -2545,7 +2545,11 @@ private:
         std::string themesDir = configDir + "/themes";
         struct stat st = {0};
         if (stat(themesDir.c_str(), &st) == -1) {
+#ifdef _WIN32
+            mkdir(themesDir.c_str());
+#else
             mkdir(themesDir.c_str(), 0755);
+#endif
         }
         
         // Create default console theme file with valid JSON
@@ -2751,7 +2755,7 @@ private:
         // Cross-platform directory creation
         auto createDirectory = [](const std::string& path) {
 #ifdef _WIN32
-            return _mkdir(path.c_str()) == 0 || errno == EEXIST;
+            return mkdir(path.c_str()) == 0 || errno == EEXIST;
 #else
             return mkdir(path.c_str(), 0755) == 0 || errno == EEXIST;
 #endif
@@ -3117,7 +3121,9 @@ private:
 
     void drawHelpTopic(int x, int y, int contentTop, int contentBottom, std::string topic) {
         int topicLen = topic.length();
+#ifdef __linux__
         if (y >= contentTop && y < contentBottom) { XDrawString(display, window, gc, x, y, topic.c_str(), topicLen); }
+#endif
     }
 
     void drawHelpDialog() {
@@ -3713,8 +3719,8 @@ private:
 #endif
     }
 
-    void handleSelectionNotify(XEvent* event) {
 #ifdef __linux__
+    void handleSelectionNotify(XEvent* event) {
         if (event->xselection.property == None) {
             // If UTF8_STRING is not available, try plain TEXT
             XConvertSelection(display, clipboardAtom, XA_STRING, clipboardAtom, window, CurrentTime);
@@ -3740,8 +3746,8 @@ private:
             XFree(data);
             processClipboardContent(content);
         }
-#endif
     }
+#endif
 
     void processClipboardContent(const std::string& content) {
         // Trim trailing newlines
@@ -4058,11 +4064,11 @@ int main() {
     g_manager = &manager;
     manager.run();
     g_manager = nullptr;
-#endif linux
+#endif
 
 #ifdef _WIN32
     // Add Windows entry point
-#endif windows
+#endif
 
     return 0;
 }
