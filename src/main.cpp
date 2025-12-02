@@ -228,17 +228,20 @@ public:
             }
 
             // Text input for bookmark dialog - exclude vim navigation keys
-            char buffer[10];
-#ifdef __linux__
-            int count = XLookupString(keyEvent, buffer, sizeof(buffer), nullptr, nullptr);
-#endif
 #ifdef _WIN32
-            int count = ToUnicode(virtualKey, msg->wParam, keyboardState, (LPWSTR)buffer, sizeof(buffer) / sizeof(buffer[0]), 0);
-#endif
+            // If it's a WM_CHAR message, use the character directly
+            if (msg->message == WM_CHAR && msg->wParam >= 32) { // Exclude control characters
+                bookmarkDialogInput += (char)msg->wParam;
+                drawConsole();
+            }
+#else
+            char buffer[10];
+            int count = XLookupString(keyEvent, buffer, sizeof(buffer), nullptr, nullptr);
             if (count > 0) {
                 bookmarkDialogInput += std::string(buffer, count);
                 drawConsole();
             }
+#endif
 
             return;
         }
@@ -1017,19 +1020,23 @@ public:
             }
 
 
-            // Handle text input in filter mode - exclude vim navigation keys
-            char buffer[10];
-#ifdef __linux__
-            int count = XLookupString(keyEvent, buffer, sizeof(buffer), nullptr, nullptr);
-#endif
 #ifdef _WIN32
-            int count = ToUnicode(virtualKey, msg->wParam, keyboardState, (LPWSTR)buffer, sizeof(buffer) / sizeof(buffer[0]), 0);
-#endif
-
+            // If it's a WM_CHAR message, use the character directly
+            if (msg->message == WM_CHAR && msg->wParam >= 32) { // Exclude control characters
+                filterText += (char)msg->wParam;
+                updateFilteredItems();
+                selectedItem = 0;
+                drawConsole();
+            }
+#else
+            // Original Linux part
+            char buffer[10];
+            int count = XLookupString(keyEvent, buffer, sizeof(buffer), nullptr, nullptr);
             filterText += std::string(buffer, count);
             updateFilteredItems();
             selectedItem = 0;
             drawConsole();
+#endif
 
             return;
         }
@@ -1139,16 +1146,19 @@ public:
                 return;
             }
 
-            // Handle text input in command mode - exclude vim navigation keys
-            char buffer[10];
-#ifdef __linux__
-            int count = XLookupString(keyEvent, buffer, sizeof(buffer), nullptr, nullptr);
-#endif
 #ifdef _WIN32
-            int count = ToUnicode(virtualKey, msg->wParam, keyboardState, (LPWSTR)buffer, sizeof(buffer) / sizeof(buffer[0]), 0);
-#endif
+            // If it's a WM_CHAR message, use the character directly
+            if (msg->message == WM_CHAR && msg->wParam >= 32) { // Exclude control characters
+                commandText += (char)msg->wParam;
+                drawConsole();
+            }
+#else
+            // Original Linux part
+            char buffer[10];
+            int count = XLookupString(keyEvent, buffer, sizeof(buffer), nullptr, nullptr);
             commandText += std::string(buffer, count);
             drawConsole();
+#endif
 
             return;
         }
