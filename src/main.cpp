@@ -1803,6 +1803,7 @@ Comment=Autostart for )" << appLabel << R"(
                 ShowWindow(hwnd, SW_SHOW);
                 SetForegroundWindow(hwnd);
                 SetFocus(hwnd); 
+                drawConsole();
             }
             
             TranslateMessage(&msg);
@@ -4072,59 +4073,110 @@ public:
 
 #ifdef _WIN32
         // Windows drawing
-        PAINTSTRUCT ps;
-        HDC hdc = BeginPaint(hwnd, &ps);
-        
+        HDC hdc = GetDC(hwnd);
+        if (!hdc) {
+            return;
+        }
+
+        // Extract theme colors
+        BYTE bg_r = (backgroundColor >> 16) & 0xFF;
+        BYTE bg_g = (backgroundColor >> 8) & 0xFF;
+        BYTE bg_b = backgroundColor & 0xFF;
+
+        BYTE text_r = (textColor >> 16) & 0xFF;
+        BYTE text_g = (textColor >> 8) & 0xFF;
+        BYTE text_b = textColor & 0xFF;
+
+        BYTE sel_r = (selectionColor >> 16) & 0xFF;
+        BYTE sel_g = (selectionColor >> 8) & 0xFF;
+        BYTE sel_b = selectionColor & 0xFF;
+
         // Clear background
-        RECT rect;
-        GetClientRect(hwnd, &rect);
-        HBRUSH bgBrush = CreateSolidBrush(RGB(0, 0, 0)); // Black background
-        FillRect(hdc, &rect, bgBrush);
+        RECT clientRect;
+        GetClientRect(hwnd, &clientRect);
+        HBRUSH bgBrush = CreateSolidBrush(RGB(bg_r, bg_g, bg_b));
+        FillRect(hdc, &clientRect, bgBrush);
         DeleteObject(bgBrush);
-        
-        // Set text color
-        SetTextColor(hdc, RGB(0, 255, 0)); // Green text
+
+        // Set text properties
+        SetTextColor(hdc, RGB(text_r, text_g, text_b));
         SetBkMode(hdc, TRANSPARENT);
-        
-        // Draw clipboard items
-        int y = 20;
+
+        // --- Scrolling and item list logic (similar to Linux) ---
+        int startY = 20;
         size_t displayCount = getDisplayItemCount();
-        
+        const int SCROLL_INDICATOR_HEIGHT = 15;
+        int availableHeight = windowHeight - startY - 10;
+
+        if (displayCount > (size_t)(availableHeight / LINE_HEIGHT)) {
+            availableHeight -= SCROLL_INDICATOR_HEIGHT;
+        }
+
+        int maxItems = availableHeight / LINE_HEIGHT;
+        if (maxItems > 0) maxItems += 1;
+        if (maxItems < 1) maxItems = 1;
+
+        size_t startIdx = consoleScrollOffset;
+        size_t endIdx = std::min(startIdx + (size_t)maxItems, displayCount);
+
+        if (displayCount > (size_t)maxItems) {
+            std::string scrollText = "[" + std::to_string(selectedItem + 1) + "/" + std::to_string(displayCount) + "]";
+            RECT scrollRect;
+            GetClientRect(hwnd, &scrollRect);
+            scrollRect.left = scrollRect.right - 100;
+            scrollRect.top = 5;
+            DrawTextA(hdc, scrollText.c_str(), -1, &scrollRect, DT_RIGHT | DT_TOP | DT_SINGLELINE);
+        }
+
+        int y = startY;
+
         if (displayCount == 0) {
             TextOutA(hdc, 10, y, "No clipboard items yet...", 25);
         } else {
-            for (size_t i = 0; i < displayCount && i < 20; ++i) {
+            for (size_t i = startIdx; i < endIdx; ++i) {
                 size_t actualIndex = getActualItemIndex(i);
                 const auto& item = items[actualIndex];
-                
+
                 std::string line;
-                
-                // Add selection indicator
                 if (i == selectedItem) {
                     line = "> ";
                 } else {
                     line = "  ";
                 }
-                
-                // Truncate content if too long
+
+                size_t lineCount = 1 + std::count(item.content.begin(), item.content.end(), '\n');
+                if (item.content.empty()) lineCount = 0;
+
                 std::string content = item.content;
-                if (content.length() > 80) {
-                    content = smartTrim(content, 80);
+                int maxContentLength = calculateMaxContentLength(false);
+                if (content.length() > (size_t)maxContentLength) {
+                    content = smartTrim(content, maxContentLength);
                 }
-                
-                // Replace newlines with spaces
+
                 for (char& c : content) {
                     if (c == '\n' || c == '\r') c = ' ';
                 }
-                
+
                 line += content;
-                
-                TextOutA(hdc, 10, y, line.c_str(), line.length());
-                y += 20;
+
+                if (lineCount > 1) {
+                    line += " (" + std::to_string(lineCount) + " lines)";
+                }
+
+                if (i == selectedItem) {
+                    RECT selRect = { 5, y, clientRect.right - 5, y + LINE_HEIGHT };
+                    HBRUSH selBrush = CreateSolidBrush(RGB(sel_r, sel_g, sel_b));
+                    FillRect(hdc, &selRect, selBrush);
+                    DeleteObject(selBrush);
+                }
+
+                int textY = y + (LINE_HEIGHT - 15) / 2;
+                TextOutA(hdc, 10, textY, line.c_str(), line.length());
+                y += LINE_HEIGHT;
             }
         }
-        
-        EndPaint(hwnd, &ps);
+
+        ReleaseDC(hwnd, hdc);
 #endif
 
 #ifdef __APPLE__
