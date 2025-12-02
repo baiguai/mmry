@@ -17,20 +17,48 @@ public:
     //// Key Press /////////////////////////////////////////////////////////////
 #ifdef __linux__
     void handleKeyPress(XEvent* event) {
+        handleKeyPressCommon(event);
+    }
+#endif
+
+    void handleKeyPressCommon(void* eventPtr) {
         // !@!
+#ifdef __linux__
+        XEvent* event = (XEvent*)eventPtr;
         KeySym keysym;
         char buffer[10];
         XKeyEvent* keyEvent = (XKeyEvent*)event;
         
         XLookupString(keyEvent, buffer, sizeof(buffer), &keysym, nullptr);
+#endif
+#ifdef _WIN32
+        MSG* msg = (MSG*)eventPtr;
+        int virtualKey = (int)msg->wParam; 
+        BYTE keyboardState[256] = {0};
+        GetKeyboardState(keyboardState);
+#endif
 
+
+
+
+#ifdef __linux__
         if (keysym == XK_Q && (keyEvent->state & ShiftMask)) {
+#endif
+#ifdef _WIN32
+        if (msg->wParam == 'Q' && (GetKeyState(VK_SHIFT) & 0x8000)) {
+#endif
             // Shift+Q quits application even from dialog
             std::cout << "Quitting MMRY..." << std::endl;
             running = false; // Let main loop exit naturally to avoid deadlock
         }
-        
+
+#ifdef __linux__
         if (keysym == XK_Escape) {
+#endif
+#ifdef _WIN32
+        if (msg->wParam == VK_ESCAPE) {
+            // TODO: Implement [specific feature] for Windows
+#endif
             if (pinnedDialogVisible) {
                 pinnedDialogVisible = false;
                 drawConsole();
@@ -82,21 +110,36 @@ public:
         }
 
         if (helpDialogVisible) {
+#ifdef __linux__
             if (keysym == XK_Escape || keysym == XK_question) {
+#endif
+#ifdef _WIN32
+            if (msg->wParam == VK_ESCAPE || (msg->wParam == VK_OEM_2 && (GetKeyState(VK_SHIFT) & 0x8000))) {
+#endif
                 // Escape or '?' closes help dialog
                 helpDialogVisible = false;
                 drawConsole();
                 return;
             }
 
+#ifdef __linux__
             if (keysym == XK_j || keysym == XK_Down) {
+#endif
+#ifdef _WIN32
+            if (msg->wParam == 'J' || msg->wParam == VK_DOWN) {
+#endif
                 // Scroll down
                 updateHelpDialogScrollOffset(-1);
                 drawConsole();
                 return;
             }
 
+#ifdef __linux__
             if (keysym == XK_k || keysym == XK_Up) {
+#endif
+#ifdef _WIN32
+            if (msg->wParam == 'K' || msg->wParam == VK_UP) {
+#endif
                 // Scroll up
                 if (helpDialogScrollOffset > 0) {
                     updateHelpDialogScrollOffset(1);
@@ -105,7 +148,12 @@ public:
                 return;
             }
 
+#ifdef __linux__
             if (keysym == XK_g) {
+#endif
+#ifdef _WIN32
+            if (msg->wParam == 'G') {
+#endif
                 // Scroll up
                 helpDialogScrollOffset = 0;
                 drawConsole();
@@ -121,7 +169,12 @@ public:
         // Adding bookmark groups
         //
         if (bookmarkDialogVisible && !addToBookmarkDialogVisible) {
+#ifdef __linux__
             if (keysym == XK_Return) {
+#endif
+#ifdef _WIN32
+            if (msg->wParam == VK_RETURN) {
+#endif
                 // Enter creates/selects bookmark group using input text only
                 if (!bookmarkDialogInput.empty()) {
                     // Check if this is a new group
@@ -159,7 +212,12 @@ public:
                 return;
             }
 
+#ifdef __linux__
             if (keysym == XK_BackSpace) {
+#endif
+#ifdef _WIN32
+            if (msg->wParam == VK_BACK) {
+#endif
                 // Backspace in input field
                 if (!bookmarkDialogInput.empty()) {
                     bookmarkDialogInput.pop_back();
@@ -170,7 +228,12 @@ public:
 
             // Text input for bookmark dialog - exclude vim navigation keys
             char buffer[10];
+#ifdef __linux__
             int count = XLookupString(keyEvent, buffer, sizeof(buffer), nullptr, nullptr);
+#endif
+#ifdef _WIN32
+            int count = ToUnicode(virtualKey, msg->wParam, keyboardState, (LPWSTR)buffer, sizeof(buffer) / sizeof(buffer[0]), 0);
+#endif
             if (count > 0) {
                 bookmarkDialogInput += std::string(buffer, count);
                 drawConsole();
@@ -184,7 +247,12 @@ public:
         //
         if (viewBookmarksDialogVisible) {
             // View bookmarks dialog is visible - handle dialog-specific keys
+#ifdef __linux__
             if (keysym == XK_Escape || keysym == XK_grave) {
+#endif
+#ifdef _WIN32
+            if (msg->wParam == VK_ESCAPE || msg->wParam == VK_OEM_3 && (GetKeyState(VK_SHIFT) & 0x8000)) {
+#endif
                 // Escape or '`' closes view bookmarks dialog or goes back to groups
                 if (!viewBookmarksShowingGroups) {
                     // If viewing clips, go back to groups
@@ -205,7 +273,12 @@ public:
             //
             if (viewBookmarksShowingGroups) {
                 // In group selection mode
+#ifdef __linux__
                 if (keysym == XK_j || keysym == XK_Down) {
+#endif
+#ifdef _WIN32
+                if (msg->wParam == 'J' || msg->wParam == VK_DOWN) {
+#endif
                     // Move down in groups
                     if (selectedViewBookmarkGroup < bookmarkGroups.size() - 1) {
                         selectedViewBookmarkGroup++;
@@ -215,7 +288,12 @@ public:
                     return;
                 }
 
+#ifdef __linux__
                 if (keysym == XK_k || keysym == XK_Up) {
+#endif
+#ifdef _WIN32
+                if (msg->wParam == 'K' || msg->wParam == VK_UP) {
+#endif
                     // Move up in groups
                     if (selectedViewBookmarkGroup > 0) {
                         selectedViewBookmarkGroup--;
@@ -225,7 +303,12 @@ public:
                     return;
                 }
 
+#ifdef __linux__
                 if (keysym == XK_g) {
+#endif
+#ifdef _WIN32
+                if (msg->wParam == 'G') {
+#endif
                     // Go to top
                     selectedViewBookmarkGroup = 0;
                     viewBookmarksScrollOffset = 0;
@@ -233,7 +316,12 @@ public:
                     return;
                 }
 
+#ifdef __linux__
                 if (keysym == XK_G && (keyEvent->state & ShiftMask)) {
+#endif
+#ifdef _WIN32
+                if (msg->wParam == 'G' && (GetKeyState(VK_SHIFT) & 0x8000)) {
+#endif
                     // Go to bottom
                     selectedViewBookmarkGroup = bookmarkGroups.size() - 1;
                     updateScrollOffset();
@@ -241,7 +329,12 @@ public:
                     return;
                 }
 
+#ifdef __linux__
                 if (keysym == XK_D && (keyEvent->state & ShiftMask)) {
+#endif
+#ifdef _WIN32
+                if (msg->wParam == 'D' && (GetKeyState(VK_SHIFT) & 0x8000)) {
+#endif
                     // Shift+D deletes selected group and its clips
                     if (selectedViewBookmarkGroup < bookmarkGroups.size()) {
                         std::string groupToDelete = bookmarkGroups[selectedViewBookmarkGroup];
@@ -271,7 +364,12 @@ public:
                     return;
                 }
 
+#ifdef __linux__
                 if (keysym == XK_Return) {
+#endif
+#ifdef _WIN32
+                if (msg->wParam == VK_RETURN) {
+#endif
                     // Select this group and show its clips
                     if (selectedViewBookmarkGroup < bookmarkGroups.size()) {
                         viewBookmarksShowingGroups = false;
@@ -286,7 +384,12 @@ public:
             // Clips are being shown
             //
             else {
+#ifdef __linux__
                 if (keysym == XK_j || keysym == XK_Down) {
+#endif
+#ifdef _WIN32
+                if (msg->wParam == 'J' || msg->wParam == VK_DOWN) {
+#endif
                     // Move down in bookmark items
                     selectedViewBookmarkItem++;
                     updateScrollOffset();
@@ -294,7 +397,12 @@ public:
                     return;
                 }
 
+#ifdef __linux__
                 if (keysym == XK_k || keysym == XK_Up) {
+#endif
+#ifdef _WIN32
+                if (msg->wParam == 'K' || msg->wParam == VK_UP) {
+#endif
                     // Move up in bookmark items
                     if (selectedViewBookmarkItem > 0) {
                         selectedViewBookmarkItem--;
@@ -304,7 +412,12 @@ public:
                     return;
                 }
 
+#ifdef __linux__
                 if (keysym == XK_g) {
+#endif
+#ifdef _WIN32
+                if (msg->wParam == 'G') {
+#endif
                     // Go to top
                     selectedViewBookmarkItem = 0;
                     viewBookmarksScrollOffset = 0;
@@ -312,7 +425,12 @@ public:
                     return;
                 }
 
+#ifdef __linux__
                 if (keysym == XK_G && (keyEvent->state & ShiftMask)) {
+#endif
+#ifdef _WIN32
+                if (msg->wParam == 'G' && (GetKeyState(VK_SHIFT) & 0x8000)) {
+#endif
                     // Go to bottom
                     if (selectedViewBookmarkGroup < bookmarkGroups.size()) {
                         std::string selectedGroup = bookmarkGroups[selectedViewBookmarkGroup];
@@ -340,7 +458,12 @@ public:
                     return;
                 }
 
+#ifdef __linux__
                 if (keysym == XK_D && (keyEvent->state & ShiftMask)) {
+#endif
+#ifdef _WIN32
+                if (msg->wParam == 'D' && (GetKeyState(VK_SHIFT) & 0x8000)) {
+#endif
                     // Shift+D deletes selected clip
                     if (selectedViewBookmarkGroup < bookmarkGroups.size()) {
                         std::string selectedGroup = bookmarkGroups[selectedViewBookmarkGroup];
@@ -384,7 +507,12 @@ public:
                     return;
                 }
 
+#ifdef __linux__
                 if (keysym == XK_Return) {
+#endif
+#ifdef _WIN32
+                if (msg->wParam == VK_RETURN) {
+#endif
                     // Copy selected bookmark item to clipboard
                     if (selectedViewBookmarkGroup < bookmarkGroups.size()) {
                         std::string selectedGroup = bookmarkGroups[selectedViewBookmarkGroup];
@@ -425,7 +553,12 @@ public:
                     return;
                 }
 
+#ifdef __linux__
                 if (keysym == XK_h) {
+#endif
+#ifdef _WIN32
+                if (msg->wParam == 'H') {
+#endif
                     // Go back to bookmark groups
                     viewBookmarksShowingGroups = true;
                     drawConsole();
@@ -440,13 +573,23 @@ public:
         //
         if (pinnedDialogVisible) {
             // View pinned dialog is visible - handle dialog-specific keys
+#ifdef __linux__
             if (keysym == XK_Escape) {
+#endif
+#ifdef _WIN32
+            if (msg->wParam == VK_ESCAPE) {
+#endif
                 pinnedDialogVisible = false;
                 drawConsole();
                 return;
             }
 
+#ifdef __linux__
             if (keysym == XK_j || keysym == XK_Down) {
+#endif
+#ifdef _WIN32
+            if (msg->wParam == 'J' || msg->wParam == VK_DOWN) {
+#endif
                 // Move down in pinned items
                 std::ifstream file(pinnedFile);
                 if (file.is_open()) {
@@ -469,7 +612,12 @@ public:
                 return;
             }
 
+#ifdef __linux__
             if (keysym == XK_k || keysym == XK_Up) {
+#endif
+#ifdef _WIN32
+            if (msg->wParam == 'K' || msg->wParam == VK_UP) {
+#endif
                 // Move up in pinned items
                 if (selectedViewPinnedItem > 0) {
                     selectedViewPinnedItem--;
@@ -479,7 +627,12 @@ public:
                 return;
             }
 
+#ifdef __linux__
             if (keysym == XK_g) {
+#endif
+#ifdef _WIN32
+            if (msg->wParam == 'G') {
+#endif
                 // Go to top
                 selectedViewPinnedItem = 0;
                 viewPinnedScrollOffset = 0;
@@ -487,7 +640,12 @@ public:
                 return;
             }
 
+#ifdef __linux__
             if (keysym == XK_G && (keyEvent->state & ShiftMask)) {
+#endif
+#ifdef _WIN32
+            if (msg->wParam == 'G' && (GetKeyState(VK_SHIFT) & 0x8000)) {
+#endif
                 // Go to bottom
                 std::ifstream file(pinnedFile);
                 if (file.is_open()) {
@@ -510,7 +668,12 @@ public:
                 return;
             }
 
+#ifdef __linux__
             if (keysym == XK_D && (keyEvent->state & ShiftMask)) {
+#endif
+#ifdef _WIN32
+            if (msg->wParam == 'D' && (GetKeyState(VK_SHIFT) & 0x8000)) {
+#endif
                 // Shift+D deletes selected pinned clip
                 std::ifstream inFile(pinnedFile);
                 if (inFile.is_open()) {
@@ -568,7 +731,12 @@ public:
                 return;
             }
 
+#ifdef __linux__
             if (keysym == XK_Return) {
+#endif
+#ifdef _WIN32
+            if (msg->wParam == VK_RETURN) {
+#endif
                 // Copy selected pinned clip to clipboard and move to top
                 std::vector<std::string> lines;
                 std::string line;
@@ -629,14 +797,24 @@ public:
         //
         if (addToBookmarkDialogVisible) {
             // Add to bookmark dialog is visible - handle dialog-specific keys
+#ifdef __linux__
             if (keysym == XK_Escape) {
+#endif
+#ifdef _WIN32
+            if (msg->wParam == VK_ESCAPE) {
+#endif
                 // Escape closes dialog but not window
                 addToBookmarkDialogVisible = false;
                 drawConsole();
                 return;
             }
 
+#ifdef __linux__
             if (keysym == XK_Return) {
+#endif
+#ifdef _WIN32
+            if (msg->wParam == VK_RETURN) {
+#endif
                 // std::cout << "TEST: hit return" << std::endl;
                 // Enter adds clip to selected bookmark group
                 if (!bookmarkGroups.empty() && selectedAddBookmarkGroup < bookmarkGroups.size()) {
@@ -676,7 +854,12 @@ public:
                 return;
             }
 
+#ifdef __linux__
             if (keysym == XK_j || keysym == XK_Down) {
+#endif
+#ifdef _WIN32
+            if (msg->wParam == 'J' || msg->wParam == VK_DOWN) {
+#endif
                 // Move down in bookmark groups
                 if (!bookmarkGroups.empty() && selectedAddBookmarkGroup < bookmarkGroups.size() - 1) {
                     selectedAddBookmarkGroup++;
@@ -686,7 +869,12 @@ public:
                 return;
             }
 
+#ifdef __linux__
             if (keysym == XK_k || keysym == XK_Up) {
+#endif
+#ifdef _WIN32
+            if (msg->wParam == 'K' || msg->wParam == VK_UP) {
+#endif
                 // Move up in bookmark groups
                 if (selectedAddBookmarkGroup > 0) {
                     selectedAddBookmarkGroup--;
@@ -696,7 +884,12 @@ public:
                 return;
             }
 
+#ifdef __linux__
             if (keysym == XK_g) {
+#endif
+#ifdef _WIN32
+            if (msg->wParam == 'G') {
+#endif
                 // Go to top
                 selectedAddBookmarkGroup = 0;
                 addBookmarkScrollOffset = 0;
@@ -704,7 +897,12 @@ public:
                 return;
             }
 
+#ifdef __linux__
             if (keysym == XK_G && (keyEvent->state & ShiftMask)) {
+#endif
+#ifdef _WIN32
+            if (msg->wParam == 'G' && (GetKeyState(VK_SHIFT) & 0x8000)) {
+#endif
                 // Go to bottom
                 if (!bookmarkGroups.empty()) {
                     selectedAddBookmarkGroup = bookmarkGroups.size() - 1;
@@ -721,7 +919,12 @@ public:
         // Filter mode
         //
         if (filterMode) {
+#ifdef __linux__
             if (keysym == XK_BackSpace) {
+#endif
+#ifdef _WIN32
+            if (msg->wParam == VK_BACK) {
+#endif
                 // Remove last character from filter
                 if (!filterText.empty()) {
                     filterText.pop_back();
@@ -732,7 +935,12 @@ public:
                 return;
             }
 
+#ifdef __linux__
             if (keysym == XK_Delete) {
+#endif
+#ifdef _WIN32
+            if (msg->wParam == VK_DELETE) {
+#endif
                 if (!items.empty() && selectedItem < getDisplayItemCount()) {
                     size_t actualIndex = getActualItemIndex(selectedItem);
                     items.erase(items.begin() + actualIndex);
@@ -752,7 +960,12 @@ public:
                 return;
             }
 
+#ifdef __linux__
             if (keysym == XK_Return) {
+#endif
+#ifdef _WIN32
+            if (msg->wParam == VK_RETURN) {
+#endif
                 // Copy selected item to clipboard and hide window
                 if (!items.empty() && selectedItem < getDisplayItemCount()) {
                     size_t actualIndex = getActualItemIndex(selectedItem);
@@ -771,7 +984,12 @@ public:
                 return;
             }
 
+#ifdef __linux__
             if (keysym == XK_Down) {
+#endif
+#ifdef _WIN32
+            if (msg->wParam == VK_DOWN) {
+#endif
                 // Move down
                 size_t displayCount = getDisplayItemCount();
                 if (selectedItem < displayCount - 1) {
@@ -782,7 +1000,12 @@ public:
                 return;
             }
 
+#ifdef __linux__
             if (keysym == XK_Up) {
+#endif
+#ifdef _WIN32
+            if (msg->wParam == VK_UP) {
+#endif
                 // Move up
                 if (selectedItem > 0) {
                     selectedItem--;
@@ -795,7 +1018,13 @@ public:
 
             // Handle text input in filter mode - exclude vim navigation keys
             char buffer[10];
+#ifdef __linux__
             int count = XLookupString(keyEvent, buffer, sizeof(buffer), nullptr, nullptr);
+#endif
+#ifdef _WIN32
+            int count = ToUnicode(virtualKey, msg->wParam, keyboardState, (LPWSTR)buffer, sizeof(buffer) / sizeof(buffer[0]), 0);
+#endif
+
             filterText += std::string(buffer, count);
             updateFilteredItems();
             selectedItem = 0;
@@ -807,7 +1036,12 @@ public:
         // Command mode
         //
         if (commandMode) {
+#ifdef __linux__
             if (keysym == XK_BackSpace) {
+#endif
+#ifdef _WIN32
+            if (msg->wParam == VK_BACK) {
+#endif
                 // Remove last character from command
                 if (!commandText.empty()) {
                     commandText.pop_back();
@@ -816,7 +1050,12 @@ public:
                 return;
             }
 
+#ifdef __linux__
             if (keysym == XK_Escape) {
+#endif
+#ifdef _WIN32
+            if (msg->wParam == VK_ESCAPE) {
+#endif
                 // Exit command mode
                 commandMode = false;
                 commandText = "";
@@ -824,7 +1063,12 @@ public:
                 return;
             }
 
+#ifdef __linux__
             if (keysym == XK_Return) {
+#endif
+#ifdef _WIN32
+            if (msg->wParam == VK_RETURN) {
+#endif
                 // Execute command and exit command mode
                 if (!commandText.empty()) {
                     executeCommand(commandText);
@@ -835,7 +1079,12 @@ public:
                 return;
             }
 
+#ifdef __linux__
             if (keysym == XK_Down) {
+#endif
+#ifdef _WIN32
+            if (msg->wParam == VK_DOWN) {
+#endif
                 // Move down
                 size_t displayCount = getDisplayItemCount();
                 if (selectedItem < displayCount - 1) {
@@ -846,7 +1095,12 @@ public:
                 return;
             }
 
+#ifdef __linux__
             if (keysym == XK_Up) {
+#endif
+#ifdef _WIN32
+            if (msg->wParam == VK_UP) {
+#endif
                 // Move up
                 if (selectedItem > 0) {
                     selectedItem--;
@@ -856,7 +1110,12 @@ public:
                 return;
             }
 
+#ifdef __linux__
             if (keysym == XK_space) {
+#endif
+#ifdef _WIN32
+            if (msg->wParam == VK_SPACE) {
+#endif
                 // Handle space key - check if it's for theme command
                 if (commandText == "theme") {
                     // Enter theme selection mode
@@ -881,7 +1140,12 @@ public:
 
             // Handle text input in command mode - exclude vim navigation keys
             char buffer[10];
+#ifdef __linux__
             int count = XLookupString(keyEvent, buffer, sizeof(buffer), nullptr, nullptr);
+#endif
+#ifdef _WIN32
+            int count = ToUnicode(virtualKey, msg->wParam, keyboardState, (LPWSTR)buffer, sizeof(buffer) / sizeof(buffer[0]), 0);
+#endif
             commandText += std::string(buffer, count);
             drawConsole();
 
@@ -891,7 +1155,12 @@ public:
         // Theme selection mode
         //
         if (cmd_themeSelectMode) {
+#ifdef __linux__
             if (keysym == XK_Escape) {
+#endif
+#ifdef _WIN32
+            if (msg->wParam == VK_ESCAPE) {
+#endif
                 // Restore original theme and exit theme selection mode
                 if (!originalTheme.empty()) {
                     switchTheme(originalTheme);
@@ -903,7 +1172,12 @@ public:
                 return;
             }
 
+#ifdef __linux__
             if (keysym == XK_Return) {
+#endif
+#ifdef _WIN32
+            if (msg->wParam == VK_RETURN) {
+#endif
                 // Save current theme to config and exit theme selection mode
                 if (selectedTheme < availableThemes.size()) {
                     switchTheme(availableThemes[selectedTheme]);
@@ -917,7 +1191,12 @@ public:
                 return;
             }
 
-            if (keysym == XK_Down || keysym == XK_j) {
+#ifdef __linux__
+            if (keysym == XK_j || keysym == XK_Down) {
+#endif
+#ifdef _WIN32
+            if (msg->wParam == 'J' || msg->wParam == VK_DOWN) {
+#endif
                 // Move down in theme list and apply live preview
                 if (selectedTheme < availableThemes.size() - 1) {
                     selectedTheme++;
@@ -931,7 +1210,12 @@ public:
                 return;
             }
 
-            if (keysym == XK_Up || keysym == XK_k) {
+#ifdef __linux__
+            if (keysym == XK_k || keysym == XK_Up) {
+#endif
+#ifdef _WIN32
+            if (msg->wParam == 'K' || msg->wParam == VK_UP) {
+#endif
                 // Move up in theme list and apply live preview
                 if (selectedTheme > 0) {
                     selectedTheme--;
@@ -945,7 +1229,12 @@ public:
                 return;
             }
 
+#ifdef __linux__
             if (keysym == XK_g) {
+#endif
+#ifdef _WIN32
+            if (msg->wParam == 'G') {
+#endif
                 // Go to top
                 selectedTheme = 0;
                 themeSelectScrollOffset = 0;
@@ -953,7 +1242,12 @@ public:
                 return;
             }
 
+#ifdef __linux__
             if (keysym == XK_G && (keyEvent->state & ShiftMask)) {
+#endif
+#ifdef _WIN32
+            if (msg->wParam == 'G' && (GetKeyState(VK_SHIFT) & 0x8000)) {
+#endif
                 // Go to bottom
                 if (!availableThemes.empty()) {
                     selectedTheme = availableThemes.size() - 1;
@@ -969,7 +1263,12 @@ public:
 
         // General keys - main clips list
         //
+#ifdef __linux__
         if (keysym == XK_j || keysym == XK_Down) {
+#endif
+#ifdef _WIN32
+        if (msg->wParam == 'J' || msg->wParam == VK_DOWN) {
+#endif
             // Move down
             size_t displayCount = getDisplayItemCount();
             if (selectedItem < displayCount - 1) {
@@ -980,7 +1279,12 @@ public:
             return;
         }
 
+#ifdef __linux__
         if (keysym == XK_k || keysym == XK_Up) {
+#endif
+#ifdef _WIN32
+        if (msg->wParam == 'K' || msg->wParam == VK_UP) {
+#endif
             // Move up
             if (selectedItem > 0) {
                 selectedItem--;
@@ -990,7 +1294,12 @@ public:
             return;
         }
 
+#ifdef __linux__
         if (keysym == XK_g) {
+#endif
+#ifdef _WIN32
+        if (msg->wParam == 'G') {
+#endif
             // Go to top
             selectedItem = 0;
             updateConsoleScrollOffset();
@@ -998,7 +1307,12 @@ public:
             return;
         }
 
-        if (keysym == XK_G) {
+#ifdef __linux__
+        if (keysym == XK_G && (keyEvent->state & ShiftMask)) {
+#endif
+#ifdef _WIN32
+        if (msg->wParam == 'G' && (GetKeyState(VK_SHIFT) & 0x8000)) {
+#endif
             // Go to bottom
             size_t displayCount = getDisplayItemCount();
             if (displayCount > 0) {
@@ -1009,7 +1323,12 @@ public:
             return;
         }
 
+#ifdef __linux__
         if (keysym == XK_D && (keyEvent->state & ShiftMask)) {
+#endif
+#ifdef _WIN32
+        if (msg->wParam == 'D' && (GetKeyState(VK_SHIFT) & 0x8000)) {
+#endif
             // Delete selected item (Shift+D)
             if (!items.empty() && selectedItem < getDisplayItemCount()) {
                 size_t actualIndex = getActualItemIndex(selectedItem);
@@ -1032,7 +1351,12 @@ public:
             return;
         }
 
+#ifdef __linux__
         if (keysym == XK_slash) {
+#endif
+#ifdef _WIN32
+        if (msg->wParam == VK_OEM_2) {
+#endif
             // Enter filter mode
             filterMode = true;
             filterText = "";
@@ -1042,7 +1366,12 @@ public:
             return;
         }
 
+#ifdef __linux__
         if (keysym == XK_colon) {
+#endif
+#ifdef _WIN32
+        if (msg->wParam == VK_OEM_1 && (GetKeyState(VK_SHIFT) & 0x8000)) {
+#endif
             // Enter command mode
             commandMode = true;
             commandText = "";
@@ -1051,7 +1380,12 @@ public:
             return;
         }
 
+#ifdef __linux__
         if (keysym == XK_Return) {
+#endif
+#ifdef _WIN32
+        if (msg->wParam == VK_RETURN) {
+#endif
             // Copy selected item to clipboard and hide window
             if (!items.empty() && selectedItem < getDisplayItemCount()) {
                 size_t actualIndex = getActualItemIndex(selectedItem);
@@ -1093,7 +1427,12 @@ public:
             return;
         }
 
+#ifdef __linux__
         if (keysym == XK_M && (keyEvent->state & ShiftMask)) {
+#endif
+#ifdef _WIN32
+        if (msg->wParam == 'M' && (GetKeyState(VK_SHIFT) & 0x8000)) {
+#endif
             // Shift+M to show bookmark dialog
             bookmarkDialogVisible = true;
             bookmarkDialogInput = "";
@@ -1103,7 +1442,12 @@ public:
             return;
         }
 
+#ifdef __linux__
         if (keysym == XK_m) {
+#endif
+#ifdef _WIN32
+        if (msg->wParam == 'M') {
+#endif
             // Lowercase m to show add-to-bookmark dialog
             if (!bookmarkGroups.empty()) {
                 addToBookmarkDialogVisible = true;
@@ -1114,7 +1458,12 @@ public:
             return;
         }
 
+#ifdef __linux__
         if (keysym == XK_question) {
+#endif
+#ifdef _WIN32
+        if (msg->wParam == VK_OEM_2 && (GetKeyState(VK_SHIFT) & 0x8000)) {
+#endif
             // '?' to show help dialog
             helpDialogVisible = true;
             helpDialogScrollOffset = 0; // Reset scroll offset when opening help dialog
@@ -1122,7 +1471,12 @@ public:
             return;
         }
 
+#ifdef __linux__
         if (keysym == XK_grave) {
+#endif
+#ifdef _WIN32
+        if (msg->wParam == VK_OEM_3) {
+#endif
             // '`' to show view bookmarks dialog
             if (!bookmarkGroups.empty()) {
                 viewBookmarksDialogVisible = true;
@@ -1136,7 +1490,12 @@ public:
         }
 
         // Pin current clip
+#ifdef __linux__
         if (keysym == XK_p) {
+#endif
+#ifdef _WIN32
+        if (msg->wParam == 'P') {
+#endif
             // Check if current clip is already pinned
             if (!items.empty() && selectedItem < getDisplayItemCount()) {
                 size_t actualIndex = getActualItemIndex(selectedItem);
@@ -1167,14 +1526,18 @@ public:
         }
 
         // Pinned clips dialog
+#ifdef __linux__
         if (keysym == XK_apostrophe) {
+#endif
+#ifdef _WIN32
+        if (msg->wParam == VK_OEM_7) {
+#endif
             pinnedDialogVisible = true;
             selectedViewPinnedItem = 0;
             viewPinnedScrollOffset = 0; // Reset scroll when opening
             drawConsole();
         }
     }
-#endif
     //// End Key Press /////////////////////////////////////////////////////////
 
 
@@ -3703,6 +4066,59 @@ private:
 
 #ifdef _WIN32
         // Windows drawing
+        PAINTSTRUCT ps;
+        HDC hdc = BeginPaint(hwnd, &ps);
+        
+        // Clear background
+        RECT rect;
+        GetClientRect(hwnd, &rect);
+        HBRUSH bgBrush = CreateSolidBrush(RGB(0, 0, 0)); // Black background
+        FillRect(hdc, &rect, bgBrush);
+        DeleteObject(bgBrush);
+        
+        // Set text color
+        SetTextColor(hdc, RGB(0, 255, 0)); // Green text
+        SetBkMode(hdc, TRANSPARENT);
+        
+        // Draw clipboard items
+        int y = 20;
+        size_t displayCount = getDisplayItemCount();
+        
+        if (displayCount == 0) {
+            TextOutA(hdc, 10, y, "No clipboard items yet...", 25);
+        } else {
+            for (size_t i = 0; i < displayCount && i < 20; ++i) {
+                size_t actualIndex = getActualItemIndex(i);
+                const auto& item = items[actualIndex];
+                
+                std::string line;
+                
+                // Add selection indicator
+                if (i == selectedItem) {
+                    line = "> ";
+                } else {
+                    line = "  ";
+                }
+                
+                // Truncate content if too long
+                std::string content = item.content;
+                if (content.length() > 80) {
+                    content = smartTrim(content, 80);
+                }
+                
+                // Replace newlines with spaces
+                for (char& c : content) {
+                    if (c == '\n' || c == '\r') c = ' ';
+                }
+                
+                line += content;
+                
+                TextOutA(hdc, 10, y, line.c_str(), line.length());
+                y += 20;
+            }
+        }
+        
+        EndPaint(hwnd, &ps);
 #endif
 
 #ifdef __APPLE__
@@ -4044,6 +4460,33 @@ void signal_handler(int signal) {
     exit(0);
 }
 
+
+#ifdef _WIN32
+    // Windows window procedure
+    LRESULT CALLBACK MMRYWndProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
+        switch (uMsg) {
+            case WM_PAINT: {
+                if (g_manager) {
+                    g_manager->drawConsole();
+                }
+                return 0;
+            }
+            case WM_KEYDOWN: {
+                MSG msg = {hwnd, uMsg, wParam, lParam};
+                if (g_manager) {
+                    g_manager->handleKeyPressCommon(&msg);
+                }
+                return 0;
+            }
+            case WM_DESTROY:
+                PostQuitMessage(0);
+                return 0;
+        }
+        return DefWindowProc(hwnd, uMsg, wParam, lParam);
+    }
+#endif
+
+
 int main() {
 #ifdef __linux__
     // Install signal handlers for graceful shutdown
@@ -4067,7 +4510,31 @@ int main() {
 #endif
 
 #ifdef _WIN32
-    // Add Windows entry point
+    // Check for another instance using a named mutex
+    HANDLE hMutex = CreateMutexA(NULL, TRUE, "Global\\MmryClipboardManager");
+    if (GetLastError() == ERROR_ALREADY_EXISTS) {
+        std::cerr << "Another instance is already running. Exiting." << std::endl;
+        if (hMutex) {
+            CloseHandle(hMutex);
+        }
+        MessageBoxA(NULL, "MMRY is already running.", "MMRY", MB_OK | MB_ICONINFORMATION);
+        return 1;
+    }
+
+    // Install signal handlers for graceful shutdown
+    signal(SIGTERM, signal_handler);
+    signal(SIGINT, signal_handler);
+
+    ClipboardManager manager;
+    g_manager = &manager;
+    manager.run();
+    g_manager = nullptr;
+
+    // Clean up mutex
+    if (hMutex) {
+        ReleaseMutex(hMutex);
+        CloseHandle(hMutex);
+    }
 #endif
 
     return 0;

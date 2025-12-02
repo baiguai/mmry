@@ -127,7 +127,7 @@ int ignore_x11_errors(Display* d, XErrorEvent* e) {
 #endif
 
 #ifdef _WIN32
-    static LRESULT CALLBACK MMRYWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam);
+    LRESULT CALLBACK MMRYWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam);
 #endif
 
 #endif // End main_h
