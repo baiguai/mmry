@@ -1798,6 +1798,10 @@ Comment=Autostart for )" << appLabel << R"(
                         400, 300,
                         NULL, NULL, GetModuleHandle(NULL), 
                         this); // Pass 'this' as lpParam
+                    
+                    if (hwnd) {
+                        AddClipboardFormatListener(hwnd);
+                    }
                 }
                 visible = true;
                 ShowWindow(hwnd, SW_SHOW);
@@ -4541,7 +4545,27 @@ LRESULT CALLBACK MMRYWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) 
                 manager->handleKeyPressCommon(&winMsg);
             }
             return 0;
+        case WM_CLIPBOARDUPDATE:
+            if (manager) {
+                if (OpenClipboard(hwnd)) {
+                    if (IsClipboardFormatAvailable(CF_TEXT)) {
+                        HANDLE hData = GetClipboardData(CF_TEXT);
+                        if (hData) {
+                            char* pszText = static_cast<char*>(GlobalLock(hData));
+                            if (pszText) {
+                                manager->processClipboardContent(pszText);
+                                GlobalUnlock(hData);
+                            }
+                        }
+                    }
+                    CloseClipboard();
+                }
+            }
+            return 0;
         case WM_DESTROY:
+            if (manager) {
+                RemoveClipboardFormatListener(hwnd);
+            }
             PostQuitMessage(0);
             return 0;
         default:
