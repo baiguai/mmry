@@ -1,14 +1,21 @@
 #include "main.h"
+#include <fstream>
 
 class ClipboardManager {
 public:
+    ClipboardManager() {
+        logfile.open("mmry_debug.log");
+    }
+
     ~ClipboardManager() {
+        logfile.close();
         std::cout << "ClipboardManager destructor called - cleaning up resources" << std::endl;
         stop();
     }
 
 private:
     std::atomic<bool> hotkeyGrabbed{false};
+    std::ofstream logfile;
 
 public:
 
@@ -1562,6 +1569,8 @@ public:
             newHeight = MIN_WINDOW_HEIGHT;
         }
         
+        
+        logfile << "updateWindowDimensions (internal): newWidth=" << newWidth << ", newHeight=" << newHeight << " -> windowWidth=" << windowWidth << ", windowHeight=" << windowHeight << std::endl;
         windowWidth = newWidth;
         windowHeight = newHeight;
         updateClipListWidth();
@@ -1838,6 +1847,19 @@ Comment=Autostart for )" << appLabel << R"(
                     
                     if (hwnd) {
                         AddClipboardFormatListener(hwnd);
+
+                        // Create and select a font
+                        font = CreateFontA(16, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE, 
+                                           DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, 
+                                           CLIP_DEFAULT_PRECIS, DEFAULT_QUALITY, 
+                                           FIXED_PITCH | FF_MODERN, "Courier New");
+
+                        RECT clientRect;
+                        GetClientRect(hwnd, &clientRect);
+                        int actualClientWidth = clientRect.right - clientRect.left;
+                        int actualClientHeight = clientRect.bottom - clientRect.top;
+                        logfile << "run(): Before updateWindowDimensions. actualClientWidth=" << actualClientWidth << ", actualClientHeight=" << actualClientHeight << std::endl;
+                        updateWindowDimensions(actualClientWidth, actualClientHeight);
                     }
                 }
                 visible = true;
@@ -2546,6 +2568,7 @@ private:
         
         // Calculate how many items can fit
         int maxVisibleItems = availableHeight / LINE_HEIGHT;
+        logfile << "updateConsoleScrollOffset: windowHeight=" << windowHeight << ", availableHeight=" << availableHeight << ", LINE_HEIGHT=" << LINE_HEIGHT << ", maxVisibleItems (initial)=" << maxVisibleItems << std::endl;
         
         // If we have more items than fit, reserve space for scroll indicator
         if (displayCount > maxVisibleItems) {
@@ -2559,6 +2582,7 @@ private:
         if (maxVisibleItems < 1) {
             maxVisibleItems = 1;
         }
+        logfile << "updateConsoleScrollOffset: displayCount=" << displayCount << ", maxVisibleItems (final)=" << maxVisibleItems << ", selectedItem=" << selectedItem << ", consoleScrollOffset=" << consoleScrollOffset << std::endl;
         
         // Update scroll offset to keep selected item visible
         if (selectedItem < consoleScrollOffset) {
@@ -2680,7 +2704,7 @@ private:
         // Calculate maximum size that fits in window with margins
         int maxWidth = windowWidth - 40;  // 20px margin on each side
         int maxHeight = windowHeight - 40; // 20px margin on each side
-        
+
         // Ensure minimum usable size
         int minDialogWidth = 200;
         int minDialogHeight = 100;
@@ -2695,11 +2719,16 @@ private:
         
         // Ensure minimum content area
         if (dims.contentWidth < 200) dims.contentWidth = 200;
-        if (dims.contentHeight < 100) dims.contentHeight = 100;
 
         // Center dialog in window
         dims.x = (windowWidth - dims.width) / 2;
         dims.y = (windowHeight - dims.height) / 2;
+
+#ifdef _WIN32
+        dims.y = dims.y - 40;
+        dims.height = dims.height - 60;
+        dims.contentHeight = dims.contentHeight - 60;
+#endif
         
         return dims;
     }
@@ -4172,6 +4201,10 @@ public:
         HDC hdc = GetDC(hwnd);
         if (!hdc) {
             return;
+        }
+
+        if (font) {
+            SelectObject(hdc, font);
         }
 
         // Extract theme colors
