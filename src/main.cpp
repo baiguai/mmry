@@ -37,6 +37,9 @@ public:
         int virtualKey = (int)msg->wParam; 
         BYTE keyboardState[256] = {0};
         GetKeyboardState(keyboardState);
+        if (msg->wParam != VK_ESCAPE) { // NEW
+            just_exited_mode = false;    // NEW
+        }                                // NEW
 #endif
 
 
@@ -86,12 +89,14 @@ public:
                 filteredItems.clear();
                 selectedItem = 0;
                 drawConsole();
+                just_exited_mode = true; // NEW
             } else if (commandMode) {
                 // Escape exits command mode but doesn't hide window
                 commandMode = false;
                 commandText = "";
                 selectedItem = 0;
                 drawConsole();
+                just_exited_mode = true; // NEW
             } else if (cmd_themeSelectMode) {
                 // Restore original theme and exit theme selection mode but doesn't hide window
                 if (!originalTheme.empty()) {
@@ -104,7 +109,14 @@ public:
                 drawConsole();
             } else {
                 // Normal escape behavior - hide window
-                hideWindow();
+                if (just_exited_mode) {
+                    // This is the first Escape press after exiting a mode.
+                    // We do nothing, but we consume the flag.
+                    just_exited_mode = false;
+                } else {
+                    // No mode was just exited, so this is a genuine hide request.
+                    hideWindow();
+                }
             }
 
             return;
@@ -1023,10 +1035,15 @@ public:
 #ifdef _WIN32
             // If it's a WM_CHAR message, use the character directly
             if (msg->message == WM_CHAR && msg->wParam >= 32) { // Exclude control characters
-                filterText += (char)msg->wParam;
-                updateFilteredItems();
-                selectedItem = 0;
-                drawConsole();
+                // Don't add the triggering '/' as the first character
+                if (filterText.empty() && msg->wParam == '/') {
+                    // do nothing
+                } else {
+                    filterText += (char)msg->wParam;
+                    updateFilteredItems();
+                    selectedItem = 0;
+                    drawConsole();
+                }
             }
 #else
             // Original Linux part
@@ -1149,8 +1166,13 @@ public:
 #ifdef _WIN32
             // If it's a WM_CHAR message, use the character directly
             if (msg->message == WM_CHAR && msg->wParam >= 32) { // Exclude control characters
-                commandText += (char)msg->wParam;
-                drawConsole();
+                // Don't add the triggering ':' as the first character
+                if (commandText.empty() && msg->wParam == ':') {
+                    // do nothing
+                } else {
+                    commandText += (char)msg->wParam;
+                    drawConsole();
+                }
             }
 #else
             // Original Linux part
@@ -1881,9 +1903,9 @@ private:
         HFONT font = nullptr;
     #endif
     
-        std::atomic<bool> running;
-        std::atomic<bool> visible;
-        
+            std::atomic<bool> running;
+            std::atomic<bool> visible;
+            bool just_exited_mode = false; // NEW        
         // Window properties
         int windowWidth = 800;
         int windowHeight = 600;
@@ -4116,8 +4138,19 @@ public:
         SetTextColor(hdc, RGB(text_r, text_g, text_b));
         SetBkMode(hdc, TRANSPARENT);
 
-        // --- Scrolling and item list logic (similar to Linux) ---
+        // --- Logic to draw filter/command input ---
         int startY = 20;
+        if (filterMode) {
+            std::string filterDisplay = "/" + filterText;
+            TextOutA(hdc, 10, 5, filterDisplay.c_str(), filterDisplay.length());
+            startY = 30;
+        } else if (commandMode) {
+            std::string commandDisplay = ":" + commandText;
+            TextOutA(hdc, 10, 5, commandDisplay.c_str(), commandDisplay.length());
+            startY = 30;
+        }
+
+        // --- Scrolling and item list logic (similar to Linux) ---
         size_t displayCount = getDisplayItemCount();
         const int SCROLL_INDICATOR_HEIGHT = 15;
         int availableHeight = windowHeight - startY - 10;
