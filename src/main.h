@@ -113,8 +113,8 @@ public:
 };
 
 
-
 // Temporary error handler to swallow BadAccess errors
+#ifdef __linux__
 int ignore_x11_errors(Display* d, XErrorEvent* e) {
     (void)d; // Suppress unused parameter warning
     // 10 = BadAccess
@@ -123,5 +123,10 @@ int ignore_x11_errors(Display* d, XErrorEvent* e) {
     }
     return 0; // ignore all other errors too
 }
+#endif
 
-#endif MAIN_H
+#ifdef _WIN32
+    LRESULT CALLBACK MMRYWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam);
+#endif
+
+#endif // End main_h
