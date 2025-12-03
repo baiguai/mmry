@@ -113,7 +113,6 @@ public:
 };
 
 
-
 // Temporary error handler to swallow BadAccess errors
 #ifdef __linux__
 int ignore_x11_errors(Display* d, XErrorEvent* e) {

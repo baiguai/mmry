@@ -1,5 +1,7 @@
 #include "main.h"
 #include <fstream>
+#include <chrono>
+#include <iomanip>
 
 class ClipboardManager {
 public:
@@ -15,7 +17,17 @@ public:
 
 private:
     std::atomic<bool> hotkeyGrabbed{false};
-    std::ofstream logfile;
+    bool m_debugging = true; // Debugging flag, controlled via config
+    mutable std::ofstream logfile;
+
+    // Helper method for logging
+    void writeLog(const std::string& message) const {
+        if (m_debugging) {
+            auto now = std::chrono::system_clock::now();
+            auto in_time_t = std::chrono::system_clock::to_time_t(now);
+            logfile << std::put_time(std::localtime(&in_time_t), "%Y-%m-%d %X") << " | " << message << std::endl;
+        }
+    }
 
 public:
 
@@ -1561,6 +1573,8 @@ public:
 
     // Dynamic window and layout management functions
     void updateWindowDimensions(int newWidth, int newHeight) {
+
+#ifdef __linux__
         // Enforce minimum window size constraints
         if (newWidth < MIN_WINDOW_WIDTH) {
             newWidth = MIN_WINDOW_WIDTH;
@@ -1568,9 +1582,10 @@ public:
         if (newHeight < MIN_WINDOW_HEIGHT) {
             newHeight = MIN_WINDOW_HEIGHT;
         }
+#endif
         
         
-        logfile << "updateWindowDimensions (internal): newWidth=" << newWidth << ", newHeight=" << newHeight << " -> windowWidth=" << windowWidth << ", windowHeight=" << windowHeight << std::endl;
+        // if (debugging) logfile << "updateWindowDimensions (internal): newWidth=" << newWidth << ", newHeight=" << newHeight << " -> windowWidth=" << windowWidth << ", windowHeight=" << windowHeight << std::endl;
         windowWidth = newWidth;
         windowHeight = newHeight;
         updateClipListWidth();
@@ -1858,7 +1873,7 @@ Comment=Autostart for )" << appLabel << R"(
                         GetClientRect(hwnd, &clientRect);
                         int actualClientWidth = clientRect.right - clientRect.left;
                         int actualClientHeight = clientRect.bottom - clientRect.top;
-                        logfile << "run(): Before updateWindowDimensions. actualClientWidth=" << actualClientWidth << ", actualClientHeight=" << actualClientHeight << std::endl;
+                        writeLog("run(): Before updateWindowDimensions. actualClientWidth=" + std::to_string(actualClientWidth) + ", actualClientHeight=" + std::to_string(actualClientHeight));
                         updateWindowDimensions(actualClientWidth, actualClientHeight);
                     }
                 }
@@ -2568,7 +2583,7 @@ private:
         
         // Calculate how many items can fit
         int maxVisibleItems = availableHeight / LINE_HEIGHT;
-        logfile << "updateConsoleScrollOffset: windowHeight=" << windowHeight << ", availableHeight=" << availableHeight << ", LINE_HEIGHT=" << LINE_HEIGHT << ", maxVisibleItems (initial)=" << maxVisibleItems << std::endl;
+        // logfile << "updateConsoleScrollOffset: windowHeight=" << windowHeight << ", availableHeight=" << availableHeight << ", LINE_HEIGHT=" << LINE_HEIGHT << ", maxVisibleItems (initial)=" << maxVisibleItems << std::endl;
         
         // If we have more items than fit, reserve space for scroll indicator
         if (displayCount > maxVisibleItems) {
@@ -2582,7 +2597,7 @@ private:
         if (maxVisibleItems < 1) {
             maxVisibleItems = 1;
         }
-        logfile << "updateConsoleScrollOffset: displayCount=" << displayCount << ", maxVisibleItems (final)=" << maxVisibleItems << ", selectedItem=" << selectedItem << ", consoleScrollOffset=" << consoleScrollOffset << std::endl;
+        // logfile << "updateConsoleScrollOffset: displayCount=" << displayCount << ", maxVisibleItems (final)=" << maxVisibleItems << ", selectedItem=" << selectedItem << ", consoleScrollOffset=" << consoleScrollOffset << std::endl;
         
         // Update scroll offset to keep selected item visible
         if (selectedItem < consoleScrollOffset) {
@@ -2700,29 +2715,40 @@ private:
     // Modular dialog positioning functions
     DialogDimensions calculateDialogDimensions(int preferredWidth, int preferredHeight) const {
         DialogDimensions dims;
+
+        writeLog("-- calculateDialogDimensions --");
+        writeLog("windowHeight: " + std::to_string(windowHeight) + ", windowWidth: " + std::to_string(windowWidth));
         
         // Calculate maximum size that fits in window with margins
-        int maxWidth = windowWidth - 40;  // 20px margin on each side
         int maxHeight = windowHeight - 40; // 20px margin on each side
+        int maxWidth = windowWidth - 40;  // 20px margin on each side
+
+        writeLog("maxHeight: " + std::to_string(maxHeight) + ", maxWidth: " + std::to_string(maxWidth));
 
         // Ensure minimum usable size
         int minDialogWidth = 200;
         int minDialogHeight = 100;
         
         // Use preferred size if it fits, otherwise scale down
-        dims.width = std::min(preferredWidth, std::max(minDialogWidth, maxWidth));
         dims.height = std::min(preferredHeight, std::max(minDialogHeight, maxHeight));
+        dims.width = std::min(preferredWidth, std::max(minDialogWidth, maxWidth));
+
+        writeLog("dims.height: " + std::to_string(dims.height) + ", dims.width: " + std::to_string(dims.width));
         
         // Calculate content area (excluding borders and margins)
-        dims.contentWidth = dims.width - 40;  // 20px margin on each side
         dims.contentHeight = dims.height - 80; // 30px margin top/bottom for title and padding
-        
+        dims.contentWidth = dims.width - 40;  // 20px margin on each side
+
         // Ensure minimum content area
         if (dims.contentWidth < 200) dims.contentWidth = 200;
+
+        writeLog("dims.contentHeight: " + std::to_string(dims.contentHeight) + ", dims.contentWidth: " + std::to_string(dims.contentWidth));
 
         // Center dialog in window
         dims.x = (windowWidth - dims.width) / 2;
         dims.y = (windowHeight - dims.height) / 2;
+
+        writeLog("dims.x: " + std::to_string(dims.x) + ", dims.y: " + std::to_string(dims.y));
 
 #ifdef _WIN32
         dims.y = dims.y - 40;
@@ -2976,9 +3002,9 @@ private:
             outFile << "  \"description\": \"Default console theme with black background and green text\",\n";
             outFile << "  \"colors\": {\n";
             outFile << "    \"background\": \"#000000\",\n";
-            outFile << "    \"text\": \"#00FF00\",\n";
+            outFile << "    \"text\": \"#FFFFFF\",\n";
             outFile << "    \"selection\": \"#333333\",\n";
-            outFile << "    \"border\": \"#00FF00\"\n";
+            outFile << "    \"border\": \"#444444\"\n";
             outFile << "  }\n";
             outFile << "}\n";
             outFile.close();
@@ -4497,6 +4523,10 @@ public:
                         theme = line.substr(start + 1, end - start - 1);
                     }
                 }
+                // Parse debugging
+                else if (line.find("\"debugging\"") != std::string::npos) {
+                    m_debugging = line.find("true") != std::string::npos;
+                }
             }
             file.close();
         } else {
@@ -4510,6 +4540,7 @@ public:
         std::ofstream outFile(configFile);
         outFile << "{\n";
         outFile << "    \"verbose\": " << (verboseMode ? "true" : "false") << ",\n";
+        outFile << "    \"debugging\": " << (m_debugging ? "true" : "false") << ",\n";
         outFile << "    \"max_clips\": " << maxClips << ",\n";
         outFile << "    \"encrypted\": " << (encrypted ? "true" : "false") << ",\n";
         outFile << "    \"encryption_key\": \"" << encryptionKey << "\",\n";
@@ -4523,6 +4554,7 @@ public:
         std::string configFile = configDir + "/config.json";
         std::ofstream outFile(configFile);
         outFile << "{\n";
+        outFile << "    \"debugging\": false,\n"; // Default debugging to true
         outFile << "    \"verbose\": false,\n";
         outFile << "    \"max_clips\": 500,\n";
         outFile << "    \"encrypted\": true,\n";
