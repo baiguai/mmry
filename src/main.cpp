@@ -2757,11 +2757,7 @@ private:
 
         writeLog("dims.x: " + std::to_string(dims.x) + ", dims.y: " + std::to_string(dims.y));
 
-#ifdef _WIN32
-        dims.y = dims.y - 40;
-        dims.height = dims.height - 60;
-        dims.contentHeight = dims.contentHeight - 60;
-#endif
+
         
         return dims;
     }
