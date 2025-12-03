@@ -2018,6 +2018,7 @@ private:
     bool pinnedDialogVisible = false;
     size_t selectedViewPinnedItem = 0;
     size_t viewPinnedScrollOffset = 0; // For scrolling long lists
+    int m_maxVisiblePinnedItems = 1; // Stores the number of currently visible pinned items
     
     // Add to bookmark dialog state
     bool addToBookmarkDialogVisible = false;
@@ -2633,12 +2634,10 @@ private:
     }
 
     void updatePinnedScrollOffset() {
-        const int VISIBLE_ITEMS = 20;
-        
         if (selectedViewPinnedItem < viewPinnedScrollOffset) {
             viewPinnedScrollOffset = selectedViewPinnedItem;
-        } else if (selectedViewPinnedItem >= viewPinnedScrollOffset + VISIBLE_ITEMS) {
-            viewPinnedScrollOffset = selectedViewPinnedItem - VISIBLE_ITEMS + 1;
+        } else if (selectedViewPinnedItem >= viewPinnedScrollOffset + m_maxVisiblePinnedItems) {
+            viewPinnedScrollOffset = selectedViewPinnedItem - m_maxVisiblePinnedItems + 1;
         }
     }
     
@@ -3846,7 +3845,7 @@ private:
         if (numItems == 0) {
             numItems = 1; // for the "No pinned clips" message
         }
-        int preferredHeight = (numItems * 20) + 80;
+        int preferredHeight = (numItems * LINE_HEIGHT) + 80;
         DialogDimensions dims = calculateDialogDimensions(windowWidth-40, preferredHeight);
         
         // Draw dialog background
@@ -3895,10 +3894,12 @@ private:
             
             // Draw items with scrolling
             int itemY = dims.y + 60;
-            const int VISIBLE_ITEMS = 20;
+            int maxVisibleItems = dims.contentHeight / LINE_HEIGHT;
+            if (maxVisibleItems < 1) maxVisibleItems = 1; // Ensure at least one item is visible
+            m_maxVisiblePinnedItems = maxVisibleItems; // Store for scrolling calculations
             
-            size_t startIdx = viewPinnedScrollOffset;  // Changed from viewBookmarksScrollOffset
-            size_t endIdx = std::min(startIdx + VISIBLE_ITEMS, pinnedItems.size());
+            size_t startIdx = viewPinnedScrollOffset;
+            size_t endIdx = std::min(startIdx + maxVisibleItems, pinnedItems.size());
             
             for (size_t i = startIdx; i < endIdx; ++i) {
                 std::string displayText = pinnedItems[i].second;
@@ -3919,7 +3920,7 @@ private:
                     displayText = "> " + displayText;
                     // Highlight selected
                     XSetForeground(display, gc, selectionColor);
-                    XFillRectangle(display, window, gc, dims.x + 15, itemY - 12, dims.width - 30, 15);
+                    XFillRectangle(display, window, gc, dims.x + 15, itemY - (LINE_HEIGHT / 2), dims.width - 30, LINE_HEIGHT);
                     XSetForeground(display, gc, textColor);
                 } else {
                     XSetForeground(display, gc, selectionColor);
@@ -3927,7 +3928,7 @@ private:
                 }
                 
                 XDrawString(display, window, gc, dims.x + 20, itemY, displayText.c_str(), displayText.length());
-                itemY += 18;
+                itemY += LINE_HEIGHT;
             }
             
             if (pinnedItems.empty()) {
@@ -3971,7 +3972,7 @@ private:
         if (numItems == 0) {
             numItems = 1; // for the "No pinned clips" message
         }
-        int preferredHeight = (numItems * 20) + 80;
+        int preferredHeight = (numItems * LINE_HEIGHT) + 80;
         DialogDimensions dims = calculateDialogDimensions(windowWidth-40, preferredHeight);
         RECT dialogRect = {dims.x, dims.y, dims.x + dims.width, dims.y + dims.height};
         HBRUSH bgBrush = CreateSolidBrush(RGB(bg_r, bg_g, bg_b));
@@ -4009,9 +4010,11 @@ private:
             std::sort(pinnedItems.begin(), pinnedItems.end(), [](const auto& a, const auto& b) { return a.first > b.first; });
 
             int itemY = dims.y + 60;
-            const int VISIBLE_ITEMS = 20;
+            int maxVisibleItems = dims.contentHeight / LINE_HEIGHT;
+            if (maxVisibleItems < 1) maxVisibleItems = 1; // Ensure at least one item is visible
+            m_maxVisiblePinnedItems = maxVisibleItems; // Store for scrolling calculations
             size_t startIdx = viewPinnedScrollOffset;
-            size_t endIdx = std::min(startIdx + VISIBLE_ITEMS, pinnedItems.size());
+            size_t endIdx = std::min(startIdx + maxVisibleItems, pinnedItems.size());
 
             writeLog("startIdx: " + std::to_string(startIdx) + ", endIdx: " + std::to_string(endIdx));
 
@@ -4023,10 +4026,10 @@ private:
                 }
                 for (char& c : displayText) { if (c == '\n' || c == '\r') c = ' '; }
 
-                RECT itemRect = {dims.x + 20, itemY, dims.x + dims.width - 20, itemY + 18};
+                RECT itemRect = {dims.x + 20, itemY, dims.x + dims.width - 20, itemY + LINE_HEIGHT};
                 if (i == selectedViewPinnedItem) {
                     std::string fullLine = "> " + displayText;
-                    RECT selRect = {dims.x + 15, itemY - 2, dims.x + dims.width - 15, itemY + 16};
+                    RECT selRect = {dims.x + 15, itemY - (LINE_HEIGHT / 2), dims.x + dims.width - 15, itemY + LINE_HEIGHT};
                     HBRUSH selBrush = CreateSolidBrush(RGB(sel_r, sel_g, sel_b));
                     FillRect(hdc, &selRect, selBrush);
                     DeleteObject(selBrush);
@@ -4035,7 +4038,7 @@ private:
                     std::string fullLine = "  " + displayText;
                     TextOutA(hdc, dims.x + 20, itemY, fullLine.c_str(), fullLine.length());
                 }
-                itemY += 18;
+                itemY += LINE_HEIGHT;
             }
 
             if (pinnedItems.empty()) {
