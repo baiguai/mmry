@@ -4063,19 +4063,19 @@ public:
             // Draw filter input
             std::string filterDisplay = "/" + filterText;
             XDrawString(display, window, gc, 10, startY, filterDisplay.c_str(), filterDisplay.length());
-            startY += 25;
+            startY += LINE_HEIGHT;
         }
         else if (commandMode) {
             // Draw command input
             std::string commandDisplay = ":" + commandText;
             XDrawString(display, window, gc, 10, startY, commandDisplay.c_str(), commandDisplay.length());
-            startY += 25;
+            startY += LINE_HEIGHT;
         }
         else if (cmd_themeSelectMode) {
             // Draw theme selection header
             std::string header = "Select theme (" + std::to_string(availableThemes.size()) + " total):";
             XDrawString(display, window, gc, 10, startY, header.c_str(), header.length());
-            startY += 25;
+            startY += LINE_HEIGHT;
             
             // Draw theme list
             const int VISIBLE_THEMES = 10;
