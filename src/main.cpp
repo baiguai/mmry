@@ -2680,8 +2680,8 @@ private:
         int maxHeight = windowHeight - 40; // 20px margin on each side
         
         // Ensure minimum usable size
-        int minDialogWidth = 300;
-        int minDialogHeight = 200;
+        int minDialogWidth = 200;
+        int minDialogHeight = 100;
         
         // Use preferred size if it fits, otherwise scale down
         dims.width = std::min(preferredWidth, std::max(minDialogWidth, maxWidth));
@@ -2704,6 +2704,10 @@ private:
     
     DialogDimensions getBookmarkDialogDimensions() const {
         return calculateDialogDimensions(400, 300);
+    }
+
+    DialogDimensions getPinnedDimensions() const {
+        return calculateDialogDimensions(200, 150);
     }
     
     DialogDimensions getAddBookmarkDialogDimensions() const {
@@ -3771,7 +3775,7 @@ private:
         if (!pinnedDialogVisible) return;
         
         // Get dynamic dialog dimensions
-        DialogDimensions dims = getViewBookmarksDialogDimensions();
+        DialogDimensions dims = getPinnedDimensions();
         
         // Draw dialog background
         XSetForeground(display, gc, backgroundColor);
@@ -3784,92 +3788,49 @@ private:
         int titleWidth = XTextWidth(font, title.c_str(), title.length());
         XDrawString(display, window, gc, dims.x + (dims.width - titleWidth) / 2, dims.y + 25, title.c_str(), title.length());
         
-                        std::ifstream file(pinnedFile);
+        std::ifstream file(pinnedFile);
+            
+        if (file.is_open()) {
+            std::string line;
+            std::vector<std::pair<long long, std::string>> pinnedItems;
+            
+            while (std::getline(file, line)) {
+                size_t pos = line.find('|');
+                if (pos != std::string::npos && pos > 0) {
+                    std::string timestampStr = line.substr(0, pos);
+                    std::string content = line.substr(line.find('|') + 1);
+                    try {
+                        std::string decryptedContent = decrypt(content);
+                        long long timestamp = std::stoll(timestampStr);
+                        pinnedItems.push_back({timestamp, decryptedContent});
+                    } catch (...) {
+                        try {
+                            long long timestamp = std::stoll(timestampStr);
+                            pinnedItems.push_back({timestamp, content});
+                        } catch (...) {
+                            // If timestamp parsing fails, use current time
+                            long long timestamp = std::chrono::system_clock::now().time_since_epoch().count();
+                            pinnedItems.push_back({timestamp, content});
+                        }
+                    }
+                }
+            }
+            file.close();
+            
+            // Sort by timestamp in descending order (most recent first)
+            std::sort(pinnedItems.begin(), pinnedItems.end(), 
+                     [](const auto& a, const auto& b) { return a.first > b.first; });
+            
+            // Draw items with scrolling
+            int itemY = dims.y + 60;
+            const int VISIBLE_ITEMS = 20;
+            
+            size_t startIdx = viewPinnedScrollOffset;  // Changed from viewBookmarksScrollOffset
+            size_t endIdx = std::min(startIdx + VISIBLE_ITEMS, pinnedItems.size());
+            
+            for (size_t i = startIdx; i < endIdx; ++i) {
+                std::string displayText = pinnedItems[i].second;
         
-                            
-        
-                        if (file.is_open()) {
-        
-                            std::string line;
-        
-                            std::vector<std::pair<long long, std::string>> pinnedItems;
-        
-                            
-        
-                            while (std::getline(file, line)) {
-        
-                                size_t pos = line.find('|');
-        
-                                if (pos != std::string::npos && pos > 0) {
-        
-                                    std::string timestampStr = line.substr(0, pos);
-        
-                                    std::string content = line.substr(line.find('|') + 1);
-        
-                                    try {
-        
-                                        std::string decryptedContent = decrypt(content);
-        
-                                        long long timestamp = std::stoll(timestampStr);
-        
-                                        pinnedItems.push_back({timestamp, decryptedContent});
-        
-                                    } catch (...) {
-        
-                                        try {
-        
-                                            long long timestamp = std::stoll(timestampStr);
-        
-                                            pinnedItems.push_back({timestamp, content});
-        
-                                        } catch (...) {
-        
-                                            // If timestamp parsing fails, use current time
-        
-                                            long long timestamp = std::chrono::system_clock::now().time_since_epoch().count();
-        
-                                            pinnedItems.push_back({timestamp, content});
-        
-                                        }
-        
-                                    }
-        
-                                }
-        
-                            }
-        
-                            file.close();
-        
-                            
-        
-                            // Sort by timestamp in descending order (most recent first)
-        
-                            std::sort(pinnedItems.begin(), pinnedItems.end(), 
-        
-                                     [](const auto& a, const auto& b) { return a.first > b.first; });
-        
-                            
-        
-                            // Draw items with scrolling
-        
-                            int itemY = dims.y + 60;
-        
-                            const int VISIBLE_ITEMS = 20;
-        
-                            
-        
-                            size_t startIdx = viewPinnedScrollOffset;  // Changed from viewBookmarksScrollOffset
-        
-                            size_t endIdx = std::min(startIdx + VISIBLE_ITEMS, pinnedItems.size());
-        
-                            
-        
-                            for (size_t i = startIdx; i < endIdx; ++i) {
-        
-                                std::string displayText = pinnedItems[i].second;
-        
-        
-                
                 // Truncate if too long
                 int maxContentLength = calculateDialogContentLength(dims);
                 if (displayText.length() > maxContentLength) {
