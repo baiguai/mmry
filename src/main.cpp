@@ -66,22 +66,27 @@ public:
             if (pinnedDialogVisible) {
                 pinnedDialogVisible = false;
                 drawConsole();
+                just_exited_mode = true;
             } else if (bookmarkDialogVisible) {
                 // Escape hides dialog but not window
                 bookmarkDialogVisible = false;
                 drawConsole();
+                just_exited_mode = true;
             } else if (addToBookmarkDialogVisible) {
                 // Escape hides dialog but not window
                 addToBookmarkDialogVisible = false;
                 drawConsole();
+                just_exited_mode = true;
             } else if (helpDialogVisible) {
                 // Escape hides help dialog but not window
                 helpDialogVisible = false;
                 drawConsole();
+                just_exited_mode = true;
             } else if (viewBookmarksDialogVisible) {
                 // Escape hides view bookmarks dialog but not window
                 viewBookmarksDialogVisible = false;
                 drawConsole();
+                just_exited_mode = true;
             } else if (filterMode) {
                 // Escape exits filter mode but doesn't hide window
                 filterMode = false;
@@ -89,14 +94,14 @@ public:
                 filteredItems.clear();
                 selectedItem = 0;
                 drawConsole();
-                just_exited_mode = true; // NEW
+                just_exited_mode = true;
             } else if (commandMode) {
                 // Escape exits command mode but doesn't hide window
                 commandMode = false;
                 commandText = "";
                 selectedItem = 0;
                 drawConsole();
-                just_exited_mode = true; // NEW
+                just_exited_mode = true;
             } else if (cmd_themeSelectMode) {
                 // Restore original theme and exit theme selection mode but doesn't hide window
                 if (!originalTheme.empty()) {
@@ -107,8 +112,10 @@ public:
                 originalTheme.clear();
                 selectedItem = 0;
                 drawConsole();
+                just_exited_mode = true;
             } else {
                 // Normal escape behavior - hide window
+#ifdef _WIN32
                 if (just_exited_mode) {
                     // This is the first Escape press after exiting a mode.
                     // We do nothing, but we consume the flag.
@@ -117,6 +124,10 @@ public:
                     // No mode was just exited, so this is a genuine hide request.
                     hideWindow();
                 }
+#endif
+#ifdef __linux__
+                hideWindow();
+#endif
             }
 
             return;
@@ -124,10 +135,10 @@ public:
 
         if (helpDialogVisible) {
 #ifdef __linux__
-            if (keysym == XK_Escape || keysym == XK_question) {
+            if (keysym == XK_question) {
 #endif
 #ifdef _WIN32
-            if (msg->wParam == VK_ESCAPE || (msg->wParam == VK_OEM_2 && (GetKeyState(VK_SHIFT) & 0x8000))) {
+            if ((msg->wParam == VK_OEM_2 && (GetKeyState(VK_SHIFT) & 0x8000))) {
 #endif
                 // Escape or '?' closes help dialog
                 helpDialogVisible = false;
@@ -264,10 +275,10 @@ public:
         if (viewBookmarksDialogVisible) {
             // View bookmarks dialog is visible - handle dialog-specific keys
 #ifdef __linux__
-            if (keysym == XK_Escape || keysym == XK_grave) {
+            if (keysym == XK_grave) {
 #endif
 #ifdef _WIN32
-            if (msg->wParam == VK_ESCAPE || msg->wParam == VK_OEM_3 && (GetKeyState(VK_SHIFT) & 0x8000)) {
+            if (msg->wParam == VK_OEM_3 && (GetKeyState(VK_SHIFT) & 0x8000)) {
 #endif
                 // Escape or '`' closes view bookmarks dialog or goes back to groups
                 if (!viewBookmarksShowingGroups) {
@@ -590,17 +601,6 @@ public:
         if (pinnedDialogVisible) {
             // View pinned dialog is visible - handle dialog-specific keys
 #ifdef __linux__
-            if (keysym == XK_Escape) {
-#endif
-#ifdef _WIN32
-            if (msg->wParam == VK_ESCAPE) {
-#endif
-                pinnedDialogVisible = false;
-                drawConsole();
-                return;
-            }
-
-#ifdef __linux__
             if (keysym == XK_j || keysym == XK_Down) {
 #endif
 #ifdef _WIN32
@@ -813,17 +813,7 @@ public:
         //
         if (addToBookmarkDialogVisible) {
             // Add to bookmark dialog is visible - handle dialog-specific keys
-#ifdef __linux__
-            if (keysym == XK_Escape) {
-#endif
-#ifdef _WIN32
-            if (msg->wParam == VK_ESCAPE) {
-#endif
-                // Escape closes dialog but not window
-                addToBookmarkDialogVisible = false;
-                drawConsole();
-                return;
-            }
+
 
 #ifdef __linux__
             if (keysym == XK_Return) {
@@ -1075,18 +1065,7 @@ public:
                 return;
             }
 
-#ifdef __linux__
-            if (keysym == XK_Escape) {
-#endif
-#ifdef _WIN32
-            if (msg->wParam == VK_ESCAPE) {
-#endif
-                // Exit command mode
-                commandMode = false;
-                commandText = "";
-                drawConsole();
-                return;
-            }
+
 
 #ifdef __linux__
             if (keysym == XK_Return) {
@@ -1827,7 +1806,7 @@ Comment=Autostart for )" << appLabel << R"(
                         "MMRY Clipboard Window",
                         WS_OVERLAPPEDWINDOW,
                         CW_USEDEFAULT, CW_USEDEFAULT,
-                        400, 300,
+                        800, 450,
                         NULL, NULL, GetModuleHandle(NULL), 
                         this); // Pass 'this' as lpParam
                     
@@ -3925,6 +3904,100 @@ private:
 #endif
     }
 
+#ifdef _WIN32
+    void drawBookmarkDialog(HDC hdc) { }
+    void drawAddToBookmarkDialog(HDC hdc) { }
+    void drawViewBookmarksDialog(HDC hdc) { }
+    void drawHelpDialog(HDC hdc) { }
+
+    void drawPinnedDialog(HDC hdc) {
+        if (!pinnedDialogVisible) return;
+
+        // Extract theme colors
+        BYTE bg_r = (backgroundColor >> 16) & 0xFF;
+        BYTE bg_g = (backgroundColor >> 8) & 0xFF;
+        BYTE bg_b = backgroundColor & 0xFF;
+        BYTE text_r = (textColor >> 16) & 0xFF;
+        BYTE text_g = (textColor >> 8) & 0xFF;
+        BYTE text_b = textColor & 0xFF;
+        BYTE sel_r = (selectionColor >> 16) & 0xFF;
+        BYTE sel_g = (selectionColor >> 8) & 0xFF;
+        BYTE sel_b = selectionColor & 0xFF;
+        BYTE border_r = (borderColor >> 16) & 0xFF;
+        BYTE border_g = (borderColor >> 8) & 0xFF;
+        BYTE border_b = borderColor & 0xFF;
+
+        DialogDimensions dims = getViewBookmarksDialogDimensions();
+        RECT dialogRect = {dims.x, dims.y, dims.x + dims.width, dims.y + dims.height};
+        HBRUSH bgBrush = CreateSolidBrush(RGB(bg_r, bg_g, bg_b));
+        FillRect(hdc, &dialogRect, bgBrush);
+        DeleteObject(bgBrush);
+        
+        HPEN borderPen = CreatePen(PS_SOLID, 2, RGB(border_r, border_g, border_b));
+        HGDIOBJ oldPen = SelectObject(hdc, borderPen);
+        SelectObject(hdc, GetStockObject(NULL_BRUSH));
+        Rectangle(hdc, dialogRect.left, dialogRect.top, dialogRect.right, dialogRect.bottom);
+        SelectObject(hdc, oldPen);
+        DeleteObject(borderPen);
+
+        SetTextColor(hdc, RGB(text_r, text_g, text_b));
+        SetBkMode(hdc, TRANSPARENT);
+
+        std::string title = "Pinned Clips";
+        RECT titleRect = {dims.x, dims.y + 10, dims.x + dims.width, dims.y + 40};
+        DrawTextA(hdc, title.c_str(), -1, &titleRect, DT_CENTER | DT_SINGLELINE | DT_VCENTER);
+
+        std::ifstream file(pinnedFile);
+        if (file.is_open()) {
+            std::string line;
+            std::vector<std::pair<long long, std::string>> pinnedItems;
+            while (std::getline(file, line)) {
+                size_t pos = line.find('|');
+                if (pos != std::string::npos && pos > 0) {
+                    try {
+                        pinnedItems.push_back({std::stoll(line.substr(0, pos)), decrypt(line.substr(pos + 1))});
+                    } catch (...) { }
+                }
+            }
+            file.close();
+
+            std::sort(pinnedItems.begin(), pinnedItems.end(), [](const auto& a, const auto& b) { return a.first > b.first; });
+
+            int itemY = dims.y + 60;
+            const int VISIBLE_ITEMS = 20;
+            size_t startIdx = viewPinnedScrollOffset;
+            size_t endIdx = std::min(startIdx + VISIBLE_ITEMS, pinnedItems.size());
+
+            for (size_t i = startIdx; i < endIdx; ++i) {
+                std::string displayText = pinnedItems[i].second;
+                int maxContentLength = calculateDialogContentLength(dims);
+                if (displayText.length() > maxContentLength) {
+                    displayText = smartTrim(displayText, maxContentLength);
+                }
+                for (char& c : displayText) { if (c == '\n' || c == '\r') c = ' '; }
+
+                RECT itemRect = {dims.x + 20, itemY, dims.x + dims.width - 20, itemY + 18};
+                if (i == selectedViewPinnedItem) {
+                    std::string fullLine = "> " + displayText;
+                    RECT selRect = {dims.x + 15, itemY - 2, dims.x + dims.width - 15, itemY + 16};
+                    HBRUSH selBrush = CreateSolidBrush(RGB(sel_r, sel_g, sel_b));
+                    FillRect(hdc, &selRect, selBrush);
+                    DeleteObject(selBrush);
+                    TextOutA(hdc, dims.x + 20, itemY, fullLine.c_str(), fullLine.length());
+                } else {
+                    std::string fullLine = "  " + displayText;
+                    TextOutA(hdc, dims.x + 20, itemY, fullLine.c_str(), fullLine.length());
+                }
+                itemY += 18;
+            }
+
+            if (pinnedItems.empty()) {
+                TextOutA(hdc, dims.x + 20, itemY, "No pinned clips", 16);
+            }
+        }
+    }
+#endif
+
 public:
     void drawConsole() {
         if (!visible) return;
@@ -4222,6 +4295,13 @@ public:
                 y += LINE_HEIGHT;
             }
         }
+
+        // Draw dialogs if visible
+        if (bookmarkDialogVisible) drawBookmarkDialog(hdc);
+        if (addToBookmarkDialogVisible) drawAddToBookmarkDialog(hdc);
+        if (viewBookmarksDialogVisible) drawViewBookmarksDialog(hdc);
+        if (pinnedDialogVisible) drawPinnedDialog(hdc);
+        if (helpDialogVisible) drawHelpDialog(hdc);
 
         ReleaseDC(hwnd, hdc);
 #endif
