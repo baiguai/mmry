@@ -7,9 +7,16 @@ class ClipboardManager {
 public:
     ClipboardManager() {
         logfile.open("mmry_debug.log");
+        writeLog("________ NEW MMRY SESSION ________");
+        writeLog("");
+        writeLog("");
     }
 
     ~ClipboardManager() {
+        writeLog("");
+        writeLog("");
+        writeLog("");
+        writeLog("");
         logfile.close();
         std::cout << "ClipboardManager destructor called - cleaning up resources" << std::endl;
         stop();
@@ -3912,7 +3919,7 @@ private:
                 }
                 
                 // Add selection indicator
-                if (i == selectedViewPinnedItem) {  // Changed from selectedViewBookmarkItem
+                if (i == selectedViewPinnedItem) {
                     displayText = "> " + displayText;
                     // Highlight selected
                     XSetForeground(display, gc, selectionColor);
@@ -4009,6 +4016,8 @@ private:
             const int VISIBLE_ITEMS = 20;
             size_t startIdx = viewPinnedScrollOffset;
             size_t endIdx = std::min(startIdx + VISIBLE_ITEMS, pinnedItems.size());
+
+            writeLog("startIdx: " + std::to_string(startIdx) + ", endIdx: " + std::to_string(endIdx));
 
             for (size_t i = startIdx; i < endIdx; ++i) {
                 std::string displayText = pinnedItems[i].second;
