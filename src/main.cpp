@@ -1552,6 +1552,32 @@ public:
     }
     //// End Key Press /////////////////////////////////////////////////////////
 
+    // Dynamic window and layout management functions
+    void updateWindowDimensions(int newWidth, int newHeight) {
+        // Enforce minimum window size constraints
+        if (newWidth < MIN_WINDOW_WIDTH) {
+            newWidth = MIN_WINDOW_WIDTH;
+        }
+        if (newHeight < MIN_WINDOW_HEIGHT) {
+            newHeight = MIN_WINDOW_HEIGHT;
+        }
+        
+        windowWidth = newWidth;
+        windowHeight = newHeight;
+        updateClipListWidth();
+        updateConsoleScrollOffset();
+    }
+    
+    void updateClipListWidth() {
+        // Calculate clip list width with margins (10px on each side)
+        clipListWidth = windowWidth - 20;
+        
+        // Ensure minimum width for usability
+        if (clipListWidth < 200) {
+            clipListWidth = 200;
+        }
+    }
+
 
 
 
@@ -2602,31 +2628,7 @@ private:
         }
     }
     
-    // Dynamic window and layout management functions
-    void updateWindowDimensions(int newWidth, int newHeight) {
-        // Enforce minimum window size constraints
-        if (newWidth < MIN_WINDOW_WIDTH) {
-            newWidth = MIN_WINDOW_WIDTH;
-        }
-        if (newHeight < MIN_WINDOW_HEIGHT) {
-            newHeight = MIN_WINDOW_HEIGHT;
-        }
-        
-        windowWidth = newWidth;
-        windowHeight = newHeight;
-        updateClipListWidth();
-        updateConsoleScrollOffset();
-    }
-    
-    void updateClipListWidth() {
-        // Calculate clip list width with margins (10px on each side)
-        clipListWidth = windowWidth - 20;
-        
-        // Ensure minimum width for usability
-        if (clipListWidth < 200) {
-            clipListWidth = 200;
-        }
-    }
+
     
     int getClipListWidth() const {
         return clipListWidth;
@@ -2687,17 +2689,17 @@ private:
         dims.width = std::min(preferredWidth, std::max(minDialogWidth, maxWidth));
         dims.height = std::min(preferredHeight, std::max(minDialogHeight, maxHeight));
         
-        // Center dialog in window
-        dims.x = (windowWidth - dims.width) / 2;
-        dims.y = (windowHeight - dims.height) / 2;
-        
         // Calculate content area (excluding borders and margins)
         dims.contentWidth = dims.width - 40;  // 20px margin on each side
-        dims.contentHeight = dims.height - 60; // 30px margin top/bottom for title and padding
+        dims.contentHeight = dims.height - 80; // 30px margin top/bottom for title and padding
         
         // Ensure minimum content area
         if (dims.contentWidth < 200) dims.contentWidth = 200;
         if (dims.contentHeight < 100) dims.contentHeight = 100;
+
+        // Center dialog in window
+        dims.x = (windowWidth - dims.width) / 2;
+        dims.y = (windowHeight - dims.height) / 2;
         
         return dims;
     }
@@ -3775,7 +3777,19 @@ private:
         if (!pinnedDialogVisible) return;
         
         // Get dynamic dialog dimensions
-        DialogDimensions dims = getPinnedDimensions();
+        std::ifstream file_counter(pinnedFile);
+        int numItems = 0;
+        std::string line_counter;
+        while (std::getline(file_counter, line_counter)) {
+            numItems++;
+        }
+        file_counter.close();
+
+        if (numItems == 0) {
+            numItems = 1; // for the "No pinned clips" message
+        }
+        int preferredHeight = (numItems * 20) + 80;
+        DialogDimensions dims = calculateDialogDimensions(windowWidth-40, preferredHeight);
         
         // Draw dialog background
         XSetForeground(display, gc, backgroundColor);
@@ -3888,7 +3902,19 @@ private:
         BYTE border_g = (borderColor >> 8) & 0xFF;
         BYTE border_b = borderColor & 0xFF;
 
-        DialogDimensions dims = getViewBookmarksDialogDimensions();
+        std::ifstream file_counter(pinnedFile);
+        int numItems = 0;
+        std::string line_counter;
+        while (std::getline(file_counter, line_counter)) {
+            numItems++;
+        }
+        file_counter.close();
+
+        if (numItems == 0) {
+            numItems = 1; // for the "No pinned clips" message
+        }
+        int preferredHeight = (numItems * 20) + 80;
+        DialogDimensions dims = calculateDialogDimensions(windowWidth-40, preferredHeight);
         RECT dialogRect = {dims.x, dims.y, dims.x + dims.width, dims.y + dims.height};
         HBRUSH bgBrush = CreateSolidBrush(RGB(bg_r, bg_g, bg_b));
         FillRect(hdc, &dialogRect, bgBrush);
@@ -4622,6 +4648,14 @@ LRESULT CALLBACK MMRYWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) 
     }
     
     switch (msg) {
+        case WM_SIZE:
+            if (manager) {
+                int newWidth = LOWORD(lParam);
+                int newHeight = HIWORD(lParam);
+                manager->updateWindowDimensions(newWidth, newHeight);
+                manager->drawConsole();
+            }
+            return 0;
         case WM_KEYDOWN:
         case WM_CHAR:
             if (manager) {
