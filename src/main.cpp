@@ -109,7 +109,7 @@ public:
             if (msg->wParam == VK_BACK) key_value = "BACKSPACE";
             if (msg->wParam == VK_DELETE) key_value = "DELETE";
             if (msg->wParam == VK_SPACE) key_value = "SPACE";
-            if (msg->wParam == VK_OEM_3 && (GetKeyState(VK_SHIFT) & 0x8000)) key_value = "`";
+            if (msg->wParam == VK_OEM_3) key_value = "`";
             if (msg->wParam == VK_OEM_7) key_value = "'";
             if (msg->wParam == VK_OEM_1 && (GetKeyState(VK_SHIFT) & 0x8000)) key_value = ":";
             if (msg->wParam == VK_OEM_2) key_value = "/";
