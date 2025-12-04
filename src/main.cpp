@@ -1,7 +1,4 @@
 #include "main.h"
-#include <fstream>
-#include <chrono>
-#include <iomanip>
 
 class ClipboardManager {
 public:
@@ -48,6 +45,8 @@ public:
 #endif
 
     void handleKeyPressCommon(void* eventPtr) {
+        std::string key_value = "";
+
         // !@!
 #ifdef __linux__
         XEvent* event = (XEvent*)eventPtr;
@@ -63,151 +62,94 @@ public:
         int virtualKey = (int)msg->wParam; 
         BYTE keyboardState[256] = {0};
         GetKeyboardState(keyboardState);
-        if (msg->wParam != VK_ESCAPE) { // NEW
-            just_exited_mode = false;    // NEW
-        }                                // NEW
 #endif
 
 
-
-
+        //---- Set the KeyValue ------------------------------------------------
+        // Linux Keys
 #ifdef __linux__
-        if (keysym == XK_Q && (keyEvent->state & ShiftMask)) {
+            if (keysym == XK_D && (keyEvent->state & ShiftMask)) key_value = "D";
+            if (keysym == XK_G && (keyEvent->state & ShiftMask)) key_value = "G";
+            if (keysym == XK_g) key_value = "g";
+            if (keysym == XK_h) key_value = "h";
+            if (keysym == XK_j) key_value = "j";
+            if (keysym == XK_k) key_value = "k";
+            if (keysym == XK_M && (keyEvent->state & ShiftMask)) key_value = "M";
+            if (keysym == XK_m) key_value = "m";
+            if (keysym == XK_p) key_value = "p";
+            if (keysym == XK_Q && (keyEvent->state & ShiftMask)) key_value = "Q";
+            if (keysym == XK_Up) key_value = "UP";
+            if (keysym == XK_Down) key_value = "DOWN";
+            if (keysym == XK_Escape) key_value = "ESCAPE";
+            if (keysym == XK_Return) key_value = "RETURN";
+            if (keysym == XK_BackSpace) key_value = "BACKSPACE";
+            if (keysym == XK_Delete) key_value = "DELETE";
+            if (keysym == XK_space) key_value = "SPACE";
+            if (keysym == XK_grave) key_value = "`";
+            if (keysym == XK_apostrophe) key_value = "'";
+            if (keysym == XK_colon) key_value = ":";
+            if (keysym == XK_slash) key_value = "/";
+            if (keysym == XK_question) key_value = "?";
 #endif
 #ifdef _WIN32
-        if (msg->wParam == 'Q' && (GetKeyState(VK_SHIFT) & 0x8000)) {
+        // Windows Keys
+            if (msg->wParam == 'D' && (GetKeyState(VK_SHIFT) & 0x8000)) key_value = "D";
+            if (msg->wParam == 'G' && (GetKeyState(VK_SHIFT) & 0x8000)) key_value = "G";
+            if (msg->wParam == 'G') key_value = "g";
+            if (msg->wParam == 'H') key_value = "h";
+            if (msg->wParam == 'J') key_value = "j";
+            if (msg->wParam == 'K') key_value = "k";
+            if (msg->wParam == 'M' && (GetKeyState(VK_SHIFT) & 0x8000)) key_value = "M";
+            if (msg->wParam == 'M') key_value = "m";
+            if (msg->wParam == 'P') key_value = "p";
+            if (msg->wParam == 'Q' && (GetKeyState(VK_SHIFT) & 0x8000)) key_value = "Q";
+            if (msg->wParam == VK_UP) key_value = "UP";
+            if (msg->wParam == VK_DOWN) key_value = "DOWN";
+            if (msg->wParam == VK_ESCAPE) key_value = "ESCAPE";
+            if (msg->wParam == VK_RETURN) key_value = "RETURN";
+            if (msg->wParam == VK_BACK) key_value = "BACKSPACE";
+            if (msg->wParam == VK_DELETE) key_value = "DELETE";
+            if (msg->wParam == VK_SPACE) key_value = "SPACE";
+            if (msg->wParam == VK_OEM_3 && (GetKeyState(VK_SHIFT) & 0x8000)) key_value = "`";
+            if (msg->wParam == VK_OEM_7) key_value = "'";
+            if (msg->wParam == VK_OEM_1 && (GetKeyState(VK_SHIFT) & 0x8000)) key_value = ":";
+            if (msg->wParam == VK_OEM_2) key_value = "/";
+            if ((msg->wParam == VK_OEM_2 && (GetKeyState(VK_SHIFT) & 0x8000))) key_value = "?";
 #endif
+        //---- End Set the KeyValue --------------------------------------------
+
+
+
+
+        if (key_value == "Q") {
             // Shift+Q quits application even from dialog
             std::cout << "Quitting MMRY..." << std::endl;
             running = false; // Let main loop exit naturally to avoid deadlock
         }
 
-#ifdef __linux__
-        if (keysym == XK_Escape) {
-#endif
-#ifdef _WIN32
-        if (msg->wParam == VK_ESCAPE) {
-            // TODO: Implement [specific feature] for Windows
-#endif
-            if (pinnedDialogVisible) {
-                pinnedDialogVisible = false;
-                drawConsole();
-                just_exited_mode = true;
-            } else if (bookmarkDialogVisible) {
-                // Escape hides dialog but not window
-                bookmarkDialogVisible = false;
-                drawConsole();
-                just_exited_mode = true;
-            } else if (addToBookmarkDialogVisible) {
-                // Escape hides dialog but not window
-                addToBookmarkDialogVisible = false;
-                drawConsole();
-                just_exited_mode = true;
-            } else if (helpDialogVisible) {
-                // Escape hides help dialog but not window
-                helpDialogVisible = false;
-                drawConsole();
-                just_exited_mode = true;
-            } else if (viewBookmarksDialogVisible) {
-                // Escape hides view bookmarks dialog but not window
-                viewBookmarksDialogVisible = false;
-                drawConsole();
-                just_exited_mode = true;
-            } else if (filterMode) {
-                // Escape exits filter mode but doesn't hide window
-                filterMode = false;
-                filterText = "";
-                filteredItems.clear();
-                selectedItem = 0;
-                drawConsole();
-                just_exited_mode = true;
-            } else if (commandMode) {
-                // Escape exits command mode but doesn't hide window
-                commandMode = false;
-                commandText = "";
-                selectedItem = 0;
-                drawConsole();
-                just_exited_mode = true;
-            } else if (cmd_themeSelectMode) {
-                // Restore original theme and exit theme selection mode but doesn't hide window
-                if (!originalTheme.empty()) {
-                    switchTheme(originalTheme);
-                }
-                cmd_themeSelectMode = false;
-                availableThemes.clear();
-                originalTheme.clear();
-                selectedItem = 0;
-                drawConsole();
-                just_exited_mode = true;
-            } else {
-                // Normal escape behavior - hide window
-#ifdef _WIN32
-                if (just_exited_mode) {
-                    // This is the first Escape press after exiting a mode.
-                    // We do nothing, but we consume the flag.
-                    just_exited_mode = false;
-                } else {
-                    // No mode was just exited, so this is a genuine hide request.
-                    hideWindow();
-                }
-#endif
-#ifdef __linux__
-                hideWindow();
-#endif
-            }
-
-            return;
+        //---- General Escape --------------------------------------------------
+        if (key_value == "ESCAPE") {
+            if (key_global_escape()) return;
         }
+        //----------------------------------------------------------------------
 
+
+        //---- Help Dialog -----------------------------------------------------
         if (helpDialogVisible) {
-#ifdef __linux__
-            if (keysym == XK_question) {
-#endif
-#ifdef _WIN32
-            if ((msg->wParam == VK_OEM_2 && (GetKeyState(VK_SHIFT) & 0x8000))) {
-#endif
-                // Escape or '?' closes help dialog
-                helpDialogVisible = false;
-                drawConsole();
-                return;
+            if (key_value == "?") {
+                if (key_help_show()) return;
             }
 
-#ifdef __linux__
-            if (keysym == XK_j || keysym == XK_Down) {
-#endif
-#ifdef _WIN32
-            if (msg->wParam == 'J' || msg->wParam == VK_DOWN) {
-#endif
-                // Scroll down
-                updateHelpDialogScrollOffset(-1);
-                drawConsole();
-                return;
+            if (key_value == "j" || key_value == "DOWN") {
+                if (key_help_scroll_down()) return;
             }
 
-#ifdef __linux__
-            if (keysym == XK_k || keysym == XK_Up) {
-#endif
-#ifdef _WIN32
-            if (msg->wParam == 'K' || msg->wParam == VK_UP) {
-#endif
-                // Scroll up
-                if (helpDialogScrollOffset > 0) {
-                    updateHelpDialogScrollOffset(1);
-                    drawConsole();
-                }
-                return;
+            if (key_value == "k" || key_value == "UP") {
+                if (key_help_scroll_up()) return;
             }
 
-#ifdef __linux__
-            if (keysym == XK_g) {
-#endif
-#ifdef _WIN32
-            if (msg->wParam == 'G') {
-#endif
-                // Scroll up
-                helpDialogScrollOffset = 0;
-                drawConsole();
-                return;
+            if (key_value == "g") {
+                if (key_help_scroll_top()) return;
             }
 
             return;
@@ -219,78 +161,31 @@ public:
         // Adding bookmark groups
         //
         if (bookmarkDialogVisible && !addToBookmarkDialogVisible) {
-#ifdef __linux__
-            if (keysym == XK_Return) {
-#endif
-#ifdef _WIN32
-            if (msg->wParam == VK_RETURN) {
-#endif
-                // Enter creates/selects bookmark group using input text only
-                if (!bookmarkDialogInput.empty()) {
-                    // Check if this is a new group
-                    bool groupExists = false;
-                    for (const auto& group : bookmarkGroups) {
-                        if (group == bookmarkDialogInput) {
-                            groupExists = true;
-                            break;
-                        }
-                    }
-                    
-                    if (!groupExists) {
-                        // Create new group and add current clip
-                        bookmarkGroups.push_back(bookmarkDialogInput);
-                        saveBookmarkGroups();
-                        
-                        // Add current clip to bookmark
-                        if (!items.empty() && selectedItem < getDisplayItemCount()) {
-                            size_t actualIndex = getActualItemIndex(selectedItem);
-                            addClipToBookmarkGroup(bookmarkDialogInput, items[actualIndex].content);
-                            std::cout << "Added clip to bookmark group: " << bookmarkDialogInput << std::endl;
-                        }
-                    } else {
-                        // Add current clip to existing group
-                        if (!items.empty() && selectedItem < getDisplayItemCount()) {
-                            size_t actualIndex = getActualItemIndex(selectedItem);
-                            addClipToBookmarkGroup(bookmarkDialogInput, items[actualIndex].content);
-                            std::cout << "Added clip to bookmark group: " << bookmarkDialogInput << std::endl;
-                        }
-                    }
-                    
-                    bookmarkDialogVisible = false;
-                    drawConsole();
-                }
-                return;
+            if (key_value == "RETURN") {
+                if (key_addgroup_add()) return;
             }
 
-#ifdef __linux__
-            if (keysym == XK_BackSpace) {
-#endif
-#ifdef _WIN32
-            if (msg->wParam == VK_BACK) {
-#endif
-                // Backspace in input field
-                if (!bookmarkDialogInput.empty()) {
-                    bookmarkDialogInput.pop_back();
-                    drawConsole();
-                }
-                return;
+            if (key_value == "BACKSPACE") {
+                if (key_addgroup_back()) return;
             }
 
             // Text input for bookmark dialog - exclude vim navigation keys
+            // Plain Text
 #ifdef _WIN32
-            // If it's a WM_CHAR message, use the character directly
-            if (msg->message == WM_CHAR && msg->wParam >= 32) { // Exclude control characters
-                bookmarkDialogInput += (char)msg->wParam;
-                drawConsole();
-            }
+                // If it's a WM_CHAR message, use the character directly
+                if (msg->message == WM_CHAR && msg->wParam >= 32) { // Exclude control characters
+                    bookmarkDialogInput += (char)msg->wParam;
+                    drawConsole();
+                }
 #else
-            char buffer[10];
-            int count = XLookupString(keyEvent, buffer, sizeof(buffer), nullptr, nullptr);
-            if (count > 0) {
-                bookmarkDialogInput += std::string(buffer, count);
-                drawConsole();
-            }
+                char buffer[10];
+                int count = XLookupString(keyEvent, buffer, sizeof(buffer), nullptr, nullptr);
+                if (count > 0) {
+                    bookmarkDialogInput += std::string(buffer, count);
+                    drawConsole();
+                }
 #endif
+            // End Plain Text
 
             return;
         }
@@ -299,323 +194,68 @@ public:
         // Accessing bookmarked clips
         //
         if (viewBookmarksDialogVisible) {
-            // View bookmarks dialog is visible - handle dialog-specific keys
-#ifdef __linux__
-            if (keysym == XK_grave) {
-#endif
-#ifdef _WIN32
-            if (msg->wParam == VK_OEM_3 && (GetKeyState(VK_SHIFT) & 0x8000)) {
-#endif
-                // Escape or '`' closes view bookmarks dialog or goes back to groups
-                if (!viewBookmarksShowingGroups) {
-                    // If viewing clips, go back to groups
-                    viewBookmarksShowingGroups = true;
-                    selectedViewBookmarkItem = 0;
-                    viewBookmarksScrollOffset = 0; // Reset scroll when going back
-                } else {
-                    // If viewing groups, close dialog
-                    viewBookmarksDialogVisible = false;
-                }
-                drawConsole();
-
-                return;
+            if (key_value == "`") {
+                if (key_marks_show()) return;
             }
 
 
             // Groups view
             //
             if (viewBookmarksShowingGroups) {
-                // In group selection mode
-#ifdef __linux__
-                if (keysym == XK_j || keysym == XK_Down) {
-#endif
-#ifdef _WIN32
-                if (msg->wParam == 'J' || msg->wParam == VK_DOWN) {
-#endif
-                    // Move down in groups
-                    if (selectedViewBookmarkGroup < bookmarkGroups.size() - 1) {
-                        selectedViewBookmarkGroup++;
-                        updateScrollOffset();
-                        drawConsole();
-                    }
-                    return;
+                if (key_value == "j" || key_value == "DOWN") {
+                    if (key_marks_groups_down()) return;
                 }
 
-#ifdef __linux__
-                if (keysym == XK_k || keysym == XK_Up) {
-#endif
-#ifdef _WIN32
-                if (msg->wParam == 'K' || msg->wParam == VK_UP) {
-#endif
-                    // Move up in groups
-                    if (selectedViewBookmarkGroup > 0) {
-                        selectedViewBookmarkGroup--;
-                        updateScrollOffset();
-                        drawConsole();
-                    }
-                    return;
+                if (key_value == "k" || key_value == "UP") {
+                    if (key_marks_groups_up()) return;
                 }
 
-#ifdef __linux__
-                if (keysym == XK_g) {
-#endif
-#ifdef _WIN32
-                if (msg->wParam == 'G') {
-#endif
-                    // Go to top
-                    selectedViewBookmarkGroup = 0;
-                    viewBookmarksScrollOffset = 0;
-                    drawConsole();
-                    return;
+                if (key_value == "g") {
+                    if (key_marks_groups_top()) return;
                 }
 
-#ifdef __linux__
-                if (keysym == XK_G && (keyEvent->state & ShiftMask)) {
-#endif
-#ifdef _WIN32
-                if (msg->wParam == 'G' && (GetKeyState(VK_SHIFT) & 0x8000)) {
-#endif
-                    // Go to bottom
-                    selectedViewBookmarkGroup = bookmarkGroups.size() - 1;
-                    updateScrollOffset();
-                    drawConsole();
-                    return;
+                if (key_value == "G") {
+                    if (key_marks_groups_bottom()) return;
                 }
 
-#ifdef __linux__
-                if (keysym == XK_D && (keyEvent->state & ShiftMask)) {
-#endif
-#ifdef _WIN32
-                if (msg->wParam == 'D' && (GetKeyState(VK_SHIFT) & 0x8000)) {
-#endif
-                    // Shift+D deletes selected group and its clips
-                    if (selectedViewBookmarkGroup < bookmarkGroups.size()) {
-                        std::string groupToDelete = bookmarkGroups[selectedViewBookmarkGroup];
-                        
-                        // Remove group from list
-                        bookmarkGroups.erase(bookmarkGroups.begin() + selectedViewBookmarkGroup);
-                        saveBookmarkGroups();
-                        
-                        // Delete bookmark file
-                        std::string bookmarkFile = bookmarksDir + "/bookmarks_" + groupToDelete + ".txt";
-                        unlink(bookmarkFile.c_str());
-                        
-                        std::cout << "Deleted bookmark group and all clips: " << groupToDelete << std::endl;
-                        
-                        // Adjust selection
-                        if (selectedViewBookmarkGroup > 0 && selectedViewBookmarkGroup >= bookmarkGroups.size()) {
-                            selectedViewBookmarkGroup = bookmarkGroups.size() - 1;
-                        }
-                        
-                        // Close dialog if no groups left
-                        if (bookmarkGroups.empty()) {
-                            viewBookmarksDialogVisible = false;
-                        }
-                        
-                        drawConsole();
-                    }
-                    return;
+                if (key_value == "D") {
+                    if (key_marks_groups_delete()) return;
                 }
 
-#ifdef __linux__
-                if (keysym == XK_Return) {
-#endif
-#ifdef _WIN32
-                if (msg->wParam == VK_RETURN) {
-#endif
-                    // Select this group and show its clips
-                    if (selectedViewBookmarkGroup < bookmarkGroups.size()) {
-                        viewBookmarksShowingGroups = false;
-                        selectedViewBookmarkItem = 0;
-                        viewBookmarksScrollOffset = 0; // Reset scroll when switching modes
-                        drawConsole();
-                    }
-                    return;
+                if (key_value == "RETURN") {
+                    if (key_marks_groups_clips()) return;
                 }
             }
 
             // Clips are being shown
             //
             else {
-#ifdef __linux__
-                if (keysym == XK_j || keysym == XK_Down) {
-#endif
-#ifdef _WIN32
-                if (msg->wParam == 'J' || msg->wParam == VK_DOWN) {
-#endif
-                    // Move down in bookmark items
-                    selectedViewBookmarkItem++;
-                    updateScrollOffset();
-                    drawConsole();
-                    return;
+                if (key_value == "j" || key_value == "DOWN") {
+                    if (key_marks_clips_down()) return;
                 }
 
-#ifdef __linux__
-                if (keysym == XK_k || keysym == XK_Up) {
-#endif
-#ifdef _WIN32
-                if (msg->wParam == 'K' || msg->wParam == VK_UP) {
-#endif
-                    // Move up in bookmark items
-                    if (selectedViewBookmarkItem > 0) {
-                        selectedViewBookmarkItem--;
-                        updateScrollOffset();
-                        drawConsole();
-                    }
-                    return;
+                if (key_value == "k" || key_value == "UP") {
+                    if (key_marks_clips_up()) return;
                 }
 
-#ifdef __linux__
-                if (keysym == XK_g) {
-#endif
-#ifdef _WIN32
-                if (msg->wParam == 'G') {
-#endif
-                    // Go to top
-                    selectedViewBookmarkItem = 0;
-                    viewBookmarksScrollOffset = 0;
-                    drawConsole();
-                    return;
+                if (key_value == "g") {
+                    if (key_marks_clips_top()) return;
                 }
 
-#ifdef __linux__
-                if (keysym == XK_G && (keyEvent->state & ShiftMask)) {
-#endif
-#ifdef _WIN32
-                if (msg->wParam == 'G' && (GetKeyState(VK_SHIFT) & 0x8000)) {
-#endif
-                    // Go to bottom
-                    if (selectedViewBookmarkGroup < bookmarkGroups.size()) {
-                        std::string selectedGroup = bookmarkGroups[selectedViewBookmarkGroup];
-                        std::string bookmarkFile = bookmarksDir + "/bookmarks_" + selectedGroup + ".txt";
-                        std::ifstream file(bookmarkFile);
-                        
-                        if (file.is_open()) {
-                            std::string line;
-                            size_t itemCount = 0;
-                            while (std::getline(file, line)) {
-                                size_t pos = line.find('|');
-                                if (pos != std::string::npos && pos > 0) {
-                                    itemCount++;
-                                }
-                            }
-                            file.close();
-                            
-                            if (itemCount > 0) {
-                                selectedViewBookmarkItem = itemCount - 1;
-                                updateScrollOffset();
-                                drawConsole();
-                            }
-                        }
-                    }
-                    return;
+                if (key_value == "G") {
+                    if (key_marks_clips_bottom()) return;
                 }
 
-#ifdef __linux__
-                if (keysym == XK_D && (keyEvent->state & ShiftMask)) {
-#endif
-#ifdef _WIN32
-                if (msg->wParam == 'D' && (GetKeyState(VK_SHIFT) & 0x8000)) {
-#endif
-                    // Shift+D deletes selected clip
-                    if (selectedViewBookmarkGroup < bookmarkGroups.size()) {
-                        std::string selectedGroup = bookmarkGroups[selectedViewBookmarkGroup];
-                        std::string bookmarkFile = bookmarksDir + "/bookmarks_" + selectedGroup + ".txt";
-                        std::ifstream file(bookmarkFile);
-                        
-                        if (file.is_open()) {
-                            std::string line;
-                            std::vector<std::string> lines;
-                            
-                            // Read all lines
-                            while (std::getline(file, line)) {
-                                lines.push_back(line);
-                            }
-                            file.close();
-                            
-                            // Remove the selected item if valid
-                            if (selectedViewBookmarkItem < lines.size()) {
-                                lines.erase(lines.begin() + selectedViewBookmarkItem);
-                                
-                                // Write back remaining lines
-                                std::ofstream outFile(bookmarkFile);
-                                if (outFile.is_open()) {
-                                    for (const auto& line : lines) {
-                                        outFile << line << "\n";
-                                    }
-                                    outFile.close();
-                                    
-                                    std::cout << "Deleted bookmark item from group: " << selectedGroup << std::endl;
-                                    
-                                    // Adjust selection
-                                    if (selectedViewBookmarkItem > 0 && selectedViewBookmarkItem >= lines.size()) {
-                                        selectedViewBookmarkItem = lines.size() - 1;
-                                    }
-                                    
-                                    drawConsole();
-                                }
-                            }
-                        }
-                    }
-                    return;
+                if (key_value == "D") {
+                    if (key_marks_clips_delete()) return;
                 }
 
-#ifdef __linux__
-                if (keysym == XK_Return) {
-#endif
-#ifdef _WIN32
-                if (msg->wParam == VK_RETURN) {
-#endif
-                    // Copy selected bookmark item to clipboard
-                    if (selectedViewBookmarkGroup < bookmarkGroups.size()) {
-                        std::string selectedGroup = bookmarkGroups[selectedViewBookmarkGroup];
-                        std::string bookmarkFile = bookmarksDir + "/bookmarks_" + selectedGroup + ".txt";
-                        std::ifstream file(bookmarkFile);
-                        
-                        if (file.is_open()) {
-                            std::string line;
-                            std::vector<std::string> bookmarkItems;
-                            
-                            while (std::getline(file, line)) {
-                                size_t pos = line.find('|');
-                                if (pos != std::string::npos && pos > 0) {
-                                    std::string content = line.substr(pos + 1);
-                                    try {
-                                        std::string decryptedContent = decrypt(content);
-                                        bookmarkItems.push_back(decryptedContent);
-                                    } catch (...) {
-                                        bookmarkItems.push_back(content);
-                                    }
-                                }
-                            }
-                            file.close();
-                            
-                            if (selectedViewBookmarkItem < bookmarkItems.size()) {
-                                copyToClipboard(bookmarkItems[selectedViewBookmarkItem]);
-                                int lines = countLines(bookmarkItems[selectedViewBookmarkItem]);
-                                if (lines > 1) {
-                                    std::cout << "Copied " << lines << " lines from bookmark" << std::endl;
-                                } else {
-                                    std::cout << "Copied from bookmark: " << bookmarkItems[selectedViewBookmarkItem].substr(0, 50) << "..." << std::endl;
-                                }
-                                viewBookmarksDialogVisible = false;
-                                hideWindow();
-                            }
-                        }
-                    }
-                    return;
+                if (key_value == "RETURN") {
+                    if (key_marks_clips_copy()) return;
                 }
 
-#ifdef __linux__
-                if (keysym == XK_h) {
-#endif
-#ifdef _WIN32
-                if (msg->wParam == 'H') {
-#endif
-                    // Go back to bookmark groups
-                    viewBookmarksShowingGroups = true;
-                    drawConsole();
-                    return;
+                if (key_value == "h") {
+                    if (key_marks_clips_groups()) return;
                 }
             }
             return;
@@ -625,210 +265,28 @@ public:
         // Accessing pinned clips
         //
         if (pinnedDialogVisible) {
-            // View pinned dialog is visible - handle dialog-specific keys
-#ifdef __linux__
-            if (keysym == XK_j || keysym == XK_Down) {
-#endif
-#ifdef _WIN32
-            if (msg->wParam == 'J' || msg->wParam == VK_DOWN) {
-#endif
-                // Move down in pinned items
-                std::ifstream file(pinnedFile);
-                if (file.is_open()) {
-                    std::string line;
-                    size_t itemCount = 0;
-                    while (std::getline(file, line)) {
-                        size_t pos = line.find('|');
-                        if (pos != std::string::npos && pos > 0) {
-                            itemCount++;
-                        }
-                    }
-                    file.close();
-                    
-                    if (selectedViewPinnedItem < itemCount - 1) {
-                        selectedViewPinnedItem++;
-                        updatePinnedScrollOffset();
-                        drawConsole();
-                    }
-                }
-                return;
+            if (key_value == "j" || key_value == "DOWN") {
+                if (key_pin_down()) return;
             }
 
-#ifdef __linux__
-            if (keysym == XK_k || keysym == XK_Up) {
-#endif
-#ifdef _WIN32
-            if (msg->wParam == 'K' || msg->wParam == VK_UP) {
-#endif
-                // Move up in pinned items
-                if (selectedViewPinnedItem > 0) {
-                    selectedViewPinnedItem--;
-                    updatePinnedScrollOffset();
-                    drawConsole();
-                }
-                return;
+            if (key_value == "k" || key_value == "UP") {
+                if (key_pin_up()) return;
             }
 
-#ifdef __linux__
-            if (keysym == XK_g) {
-#endif
-#ifdef _WIN32
-            if (msg->wParam == 'G') {
-#endif
-                // Go to top
-                selectedViewPinnedItem = 0;
-                viewPinnedScrollOffset = 0;
-                drawConsole();
-                return;
+            if (key_value == "g") {
+                if (key_pin_top()) return;
             }
 
-#ifdef __linux__
-            if (keysym == XK_G && (keyEvent->state & ShiftMask)) {
-#endif
-#ifdef _WIN32
-            if (msg->wParam == 'G' && (GetKeyState(VK_SHIFT) & 0x8000)) {
-#endif
-                // Go to bottom
-                std::ifstream file(pinnedFile);
-                if (file.is_open()) {
-                    std::string line;
-                    size_t itemCount = 0;
-                    while (std::getline(file, line)) {
-                        size_t pos = line.find('|');
-                        if (pos != std::string::npos && pos > 0) {
-                            itemCount++;
-                        }
-                    }
-                    file.close();
-                    
-                    if (itemCount > 0) {
-                        selectedViewPinnedItem = itemCount - 1;
-                        updatePinnedScrollOffset();
-                        drawConsole();
-                    }
-                }
-                return;
+            if (key_value == "G") {
+                if (key_pin_bottom()) return;
             }
 
-#ifdef __linux__
-            if (keysym == XK_D && (keyEvent->state & ShiftMask)) {
-#endif
-#ifdef _WIN32
-            if (msg->wParam == 'D' && (GetKeyState(VK_SHIFT) & 0x8000)) {
-#endif
-                // Shift+D deletes selected pinned clip
-                std::ifstream inFile(pinnedFile);
-                if (inFile.is_open()) {
-                    std::vector<std::pair<long long, std::string>> pinnedItems;
-                    std::string line;
-
-                    // Read and parse lines
-                    while (std::getline(inFile, line)) {
-                        size_t pos = line.find('|');
-                        if (pos != std::string::npos && pos > 0) {
-                            try {
-                                long long timestamp = std::stoll(line.substr(0, pos));
-                                pinnedItems.push_back({timestamp, line});
-                            } catch (...) {
-                                // Fallback for parsing error: use current time, keep original line
-                                long long timestamp = std::chrono::system_clock::now().time_since_epoch().count();
-                                pinnedItems.push_back({timestamp, line});
-                            }
-                        }
-                    }
-                    inFile.close();
-
-                    // Sort by timestamp to match display order
-                    std::sort(pinnedItems.begin(), pinnedItems.end(),
-                              [](const auto& a, const auto& b) { return a.first > b.first; });
-
-                    // Remove the selected item if valid
-                    if (selectedViewPinnedItem < pinnedItems.size()) {
-                        pinnedItems.erase(pinnedItems.begin() + selectedViewPinnedItem);
-
-                        // Write back remaining lines
-                        std::ofstream outFile(pinnedFile);
-                        if (outFile.is_open()) {
-                            for (const auto& item : pinnedItems) {
-                                outFile << item.second << "\n";
-                            }
-                            outFile.close();
-                            
-                            std::cout << "Deleted pinned clip" << std::endl;
-                            
-                            // Adjust selection
-                            if (selectedViewPinnedItem > 0 && selectedViewPinnedItem >= pinnedItems.size()) {
-                                selectedViewPinnedItem = pinnedItems.size() - 1;
-                            }
-                            
-                            // Close dialog if no pinned clips left
-                            if (pinnedItems.empty()) {
-                                pinnedDialogVisible = false;
-                            }
-                            
-                            drawConsole();
-                        }
-                    }
-                }
-                return;
+            if (key_value == "D") {
+                if (key_pin_delete()) return;
             }
 
-#ifdef __linux__
-            if (keysym == XK_Return) {
-#endif
-#ifdef _WIN32
-            if (msg->wParam == VK_RETURN) {
-#endif
-                // Copy selected pinned clip to clipboard and move to top
-                std::vector<std::string> lines;
-                std::string line;
-                std::ifstream inFile(pinnedFile);
-                while (std::getline(inFile, line)) {
-                    lines.push_back(line);
-                }
-                inFile.close();
-
-                if (selectedViewPinnedItem < lines.size()) {
-                    std::string selectedLine = lines[selectedViewPinnedItem];
-                    size_t pos = selectedLine.find('|');
-                    if (pos != std::string::npos) {
-                        std::string contentToCopy;
-                        std::string contentToSave = selectedLine.substr(pos + 1);
-                        try {
-                            contentToCopy = decrypt(contentToSave);
-                        } catch (...) {
-                            contentToCopy = contentToSave;
-                        }
-
-                        copyToClipboard(contentToCopy);
-
-                        int lineCount = countLines(contentToCopy);
-                        if (lineCount > 1) {
-                            std::cout << "Copied " << lineCount << " lines from pinned clips" << std::endl;
-                        } else {
-                            std::cout << "Copied from pinned clips: " << contentToCopy.substr(0, 50) << "..." << std::endl;
-                        }
-
-                        // Remove the old line
-                        lines.erase(lines.begin() + selectedViewPinnedItem);
-
-                        // Add the new line at the beginning
-                        auto newTimestamp = std::chrono::system_clock::now().time_since_epoch().count();
-                        std::string newLine = std::to_string(newTimestamp) + "|" + contentToSave;
-                        lines.insert(lines.begin(), newLine);
-                        
-                        // Write the updated lines back to the file
-                        std::ofstream outFile(pinnedFile);
-                        for (const auto& l : lines) {
-                            outFile << l << std::endl;
-                        }
-                        outFile.close();
-                    }
-
-                    pinnedDialogVisible = false;
-                    hideWindow();
-                }
-                return;
+            if (key_value == "RETURN") {
+                if (key_pin_copy()) return;
             }
 
             return;
@@ -841,107 +299,24 @@ public:
             // Add to bookmark dialog is visible - handle dialog-specific keys
 
 
-#ifdef __linux__
-            if (keysym == XK_Return) {
-#endif
-#ifdef _WIN32
-            if (msg->wParam == VK_RETURN) {
-#endif
-                // std::cout << "TEST: hit return" << std::endl;
-                // Enter adds clip to selected bookmark group
-                if (!bookmarkGroups.empty() && selectedAddBookmarkGroup < bookmarkGroups.size()) {
-                    std::string selectedGroup = bookmarkGroups[selectedAddBookmarkGroup];
-                    
-                    // Check if current clip is already in this group
-                    if (!items.empty() && selectedItem < getDisplayItemCount()) {
-                        size_t actualIndex = getActualItemIndex(selectedItem);
-                        std::string clipContent = items[actualIndex].content;
-                        
-                        // Read existing bookmarks in this group
-                        std::string bookmarkFile = bookmarksDir + "/bookmarks_" + selectedGroup + ".txt";
-                        std::ifstream file(bookmarkFile);
-                        std::string line;
-                        bool alreadyExists = false;
-                        
-                        while (std::getline(file, line)) {
-                            std::string decrypted = decrypt(line);
-                            if (decrypted == clipContent) {
-                                alreadyExists = true;
-                                break;
-                            }
-                        }
-                        file.close();
-                        
-                        if (!alreadyExists) {
-                            addClipToBookmarkGroup(selectedGroup, clipContent);
-                            std::cout << "Added clip to bookmark group: " << selectedGroup << std::endl;
-                        } else {
-                            std::cout << "Clip already exists in bookmark group: " << selectedGroup << std::endl;
-                        }
-                    }
-                    
-                    addToBookmarkDialogVisible = false;
-                    drawConsole();
-                }
-                return;
+            if (key_value == "RETURN") {
+                if (key_addmarks_add()) return;
             }
 
-#ifdef __linux__
-            if (keysym == XK_j || keysym == XK_Down) {
-#endif
-#ifdef _WIN32
-            if (msg->wParam == 'J' || msg->wParam == VK_DOWN) {
-#endif
-                // Move down in bookmark groups
-                if (!bookmarkGroups.empty() && selectedAddBookmarkGroup < bookmarkGroups.size() - 1) {
-                    selectedAddBookmarkGroup++;
-                    updateAddBookmarkScrollOffset();
-                    drawConsole();
-                }
-                return;
+            if (key_value == "j" || key_value == "DOWN") {
+                if (key_addmarks_down()) return;
             }
 
-#ifdef __linux__
-            if (keysym == XK_k || keysym == XK_Up) {
-#endif
-#ifdef _WIN32
-            if (msg->wParam == 'K' || msg->wParam == VK_UP) {
-#endif
-                // Move up in bookmark groups
-                if (selectedAddBookmarkGroup > 0) {
-                    selectedAddBookmarkGroup--;
-                    updateAddBookmarkScrollOffset();
-                    drawConsole();
-                }
-                return;
+            if (key_value == "k" || key_value == "UP") {
+                if (key_addmarks_up()) return;
             }
 
-#ifdef __linux__
-            if (keysym == XK_g) {
-#endif
-#ifdef _WIN32
-            if (msg->wParam == 'G') {
-#endif
-                // Go to top
-                selectedAddBookmarkGroup = 0;
-                addBookmarkScrollOffset = 0;
-                drawConsole();
-                return;
+            if (key_value == "g") {
+                if (key_addmarks_top()) return;
             }
 
-#ifdef __linux__
-            if (keysym == XK_G && (keyEvent->state & ShiftMask)) {
-#endif
-#ifdef _WIN32
-            if (msg->wParam == 'G' && (GetKeyState(VK_SHIFT) & 0x8000)) {
-#endif
-                // Go to bottom
-                if (!bookmarkGroups.empty()) {
-                    selectedAddBookmarkGroup = bookmarkGroups.size() - 1;
-                    updateAddBookmarkScrollOffset();
-                    drawConsole();
-                }
-                return;
+            if (key_value == "G") {
+                if (key_addmarks_bottom()) return;
             }
 
             return;
@@ -951,12 +326,7 @@ public:
         // Filter mode
         //
         if (filterMode) {
-#ifdef __linux__
-            if (keysym == XK_BackSpace) {
-#endif
-#ifdef _WIN32
-            if (msg->wParam == VK_BACK) {
-#endif
+            if (key_value == "BACKSPACE") {
                 // Remove last character from filter
                 if (!filterText.empty()) {
                     filterText.pop_back();
@@ -967,109 +337,47 @@ public:
                 return;
             }
 
-#ifdef __linux__
-            if (keysym == XK_Delete) {
-#endif
-#ifdef _WIN32
-            if (msg->wParam == VK_DELETE) {
-#endif
-                if (!items.empty() && selectedItem < getDisplayItemCount()) {
-                    size_t actualIndex = getActualItemIndex(selectedItem);
-                    items.erase(items.begin() + actualIndex);
-                    
-                    // Update filtered items after deletion
-                    updateFilteredItems();
-                    
-                    // Adjust selection if needed
-                    if (selectedItem >= getDisplayItemCount() && selectedItem > 0) {
-                        selectedItem--;
-                    }
-                    
-                    // Save changes and redraw
-                    saveToFile();
-                    drawConsole();
-                }
-                return;
+            if (key_value == "DELETE") {
+                if (key_filter_delete()) return;
             }
 
-#ifdef __linux__
-            if (keysym == XK_Return) {
-#endif
+            if (key_value == "RETURN") {
+                if (key_filter_copy()) return;
+            }
+
+            if (key_value == "DOWN") {
+                if (key_filter_down()) return;
+            }
+
+            if (key_value == "UP") {
+                if (key_filter_up()) return;
+            }
+
+            
+            // Free Text
 #ifdef _WIN32
-            if (msg->wParam == VK_RETURN) {
-#endif
-                // Copy selected item to clipboard and hide window
-                if (!items.empty() && selectedItem < getDisplayItemCount()) {
-                    size_t actualIndex = getActualItemIndex(selectedItem);
-                    copyToClipboard(items[actualIndex].content);
-                    int lines = countLines(items[actualIndex].content);
-                    if (lines > 1) {
-                        std::cout << "Copied " << lines << " lines to clipboard" << std::endl;
+                // If it's a WM_CHAR message, use the character directly
+                if (msg->message == WM_CHAR && msg->wParam >= 32) { // Exclude control characters
+                    // Don't add the triggering '/' as the first character
+                    if (filterText.empty() && msg->wParam == '/') {
+                        // do nothing
                     } else {
-                        std::cout << "Copied to clipboard: " << items[actualIndex].content.substr(0, 50) << "..." << std::endl;
+                        filterText += (char)msg->wParam;
+                        updateFilteredItems();
+                        selectedItem = 0;
+                        drawConsole();
                     }
-                    filterMode = false;
-                    filterText = "";
-                    filteredItems.clear();
-                    hideWindow();
                 }
-                return;
-            }
-
-#ifdef __linux__
-            if (keysym == XK_Down) {
-#endif
-#ifdef _WIN32
-            if (msg->wParam == VK_DOWN) {
-#endif
-                // Move down
-                size_t displayCount = getDisplayItemCount();
-                if (selectedItem < displayCount - 1) {
-                    selectedItem++;
-                    updateConsoleScrollOffset();
-                    drawConsole();
-                }
-                return;
-            }
-
-#ifdef __linux__
-            if (keysym == XK_Up) {
-#endif
-#ifdef _WIN32
-            if (msg->wParam == VK_UP) {
-#endif
-                // Move up
-                if (selectedItem > 0) {
-                    selectedItem--;
-                    updateConsoleScrollOffset();
-                    drawConsole();
-                }
-                return;
-            }
-
-
-#ifdef _WIN32
-            // If it's a WM_CHAR message, use the character directly
-            if (msg->message == WM_CHAR && msg->wParam >= 32) { // Exclude control characters
-                // Don't add the triggering '/' as the first character
-                if (filterText.empty() && msg->wParam == '/') {
-                    // do nothing
-                } else {
-                    filterText += (char)msg->wParam;
-                    updateFilteredItems();
-                    selectedItem = 0;
-                    drawConsole();
-                }
-            }
 #else
-            // Original Linux part
-            char buffer[10];
-            int count = XLookupString(keyEvent, buffer, sizeof(buffer), nullptr, nullptr);
-            filterText += std::string(buffer, count);
-            updateFilteredItems();
-            selectedItem = 0;
-            drawConsole();
+                // Original Linux part
+                char buffer[10];
+                int count = XLookupString(keyEvent, buffer, sizeof(buffer), nullptr, nullptr);
+                filterText += std::string(buffer, count);
+                updateFilteredItems();
+                selectedItem = 0;
+                drawConsole();
 #endif
+            // End Free Text
 
             return;
         }
@@ -1077,13 +385,7 @@ public:
         // Command mode
         //
         if (commandMode) {
-#ifdef __linux__
-            if (keysym == XK_BackSpace) {
-#endif
-#ifdef _WIN32
-            if (msg->wParam == VK_BACK) {
-#endif
-                // Remove last character from command
+            if (key_value == "BACKSPACE") {
                 if (!commandText.empty()) {
                     commandText.pop_back();
                     drawConsole();
@@ -1091,101 +393,42 @@ public:
                 return;
             }
 
-
-
-#ifdef __linux__
-            if (keysym == XK_Return) {
-#endif
-#ifdef _WIN32
-            if (msg->wParam == VK_RETURN) {
-#endif
-                // Execute command and exit command mode
-                if (!commandText.empty()) {
-                    executeCommand(commandText);
-                }
-                commandMode = false;
-                commandText = "";
-                drawConsole();
-                return;
+            if (key_value == "RETURN") {
+                if (key_command_execute()) return;
             }
 
-#ifdef __linux__
-            if (keysym == XK_Down) {
-#endif
-#ifdef _WIN32
-            if (msg->wParam == VK_DOWN) {
-#endif
-                // Move down
-                size_t displayCount = getDisplayItemCount();
-                if (selectedItem < displayCount - 1) {
-                    selectedItem++;
-                    updateConsoleScrollOffset();
-                    drawConsole();
-                }
-                return;
+            if (key_value == "DOWN") {
+                if (key_command_down()) return;
             }
 
-#ifdef __linux__
-            if (keysym == XK_Up) {
-#endif
-#ifdef _WIN32
-            if (msg->wParam == VK_UP) {
-#endif
-                // Move up
-                if (selectedItem > 0) {
-                    selectedItem--;
-                    updateConsoleScrollOffset();
-                    drawConsole();
-                }
-                return;
+            if (key_value == "UP") {
+                if (key_command_up()) return;
             }
 
-#ifdef __linux__
-            if (keysym == XK_space) {
-#endif
+            if (key_value == "SPACE") {
+                if (key_command_detect()) return;
+            }
+
+            // Free Text
 #ifdef _WIN32
-            if (msg->wParam == VK_SPACE) {
-#endif
-                // Handle space key - check if it's for theme command
-                if (commandText == "theme") {
-                    // Enter theme selection mode
-                    commandMode = false;
-                    cmd_themeSelectMode = true;
-                    discoverThemes();
-                    // Store original theme and apply first theme for preview
-                    if (!availableThemes.empty()) {
-                        originalTheme = theme;
-                        selectedTheme = 0;
-                        switchTheme(availableThemes[0]);
+                // If it's a WM_CHAR message, use the character directly
+                if (msg->message == WM_CHAR && msg->wParam >= 32) { // Exclude control characters
+                    // Don't add the triggering ':' as the first character
+                    if (commandText.empty() && msg->wParam == ':') {
+                        // do nothing
+                    } else {
+                        commandText += (char)msg->wParam;
+                        drawConsole();
                     }
-                    drawConsole();
-                    return;
                 }
-
-                // Add space to command text for other commands
-                commandText += " ";
-                drawConsole();
-                return;
-            }
-
-#ifdef _WIN32
-            // If it's a WM_CHAR message, use the character directly
-            if (msg->message == WM_CHAR && msg->wParam >= 32) { // Exclude control characters
-                // Don't add the triggering ':' as the first character
-                if (commandText.empty() && msg->wParam == ':') {
-                    // do nothing
-                } else {
-                    commandText += (char)msg->wParam;
-                    drawConsole();
-                }
-            }
 #else
-            // Original Linux part
-            char buffer[10];
-            int count = XLookupString(keyEvent, buffer, sizeof(buffer), nullptr, nullptr);
-            commandText += std::string(buffer, count);
-            drawConsole();
+                // Original Linux part
+                char buffer[10];
+                int count = XLookupString(keyEvent, buffer, sizeof(buffer), nullptr, nullptr);
+                commandText += std::string(buffer, count);
+                drawConsole();
 #endif
+            // End Free Text
 
             return;
         }
@@ -1193,106 +436,28 @@ public:
         // Theme selection mode
         //
         if (cmd_themeSelectMode) {
-#ifdef __linux__
-            if (keysym == XK_Escape) {
-#endif
-#ifdef _WIN32
-            if (msg->wParam == VK_ESCAPE) {
-#endif
-                // Restore original theme and exit theme selection mode
-                if (!originalTheme.empty()) {
-                    switchTheme(originalTheme);
-                }
-                cmd_themeSelectMode = false;
-                availableThemes.clear();
-                originalTheme.clear();
-                drawConsole();
-                return;
+            if (key_value == "ESCAPE") {
+                if (key_theme_cancel()) return;
             }
 
-#ifdef __linux__
-            if (keysym == XK_Return) {
-#endif
-#ifdef _WIN32
-            if (msg->wParam == VK_RETURN) {
-#endif
-                // Save current theme to config and exit theme selection mode
-                if (selectedTheme < availableThemes.size()) {
-                    switchTheme(availableThemes[selectedTheme]);
-                    // Save to config
-                    saveConfig();
-                }
-                cmd_themeSelectMode = false;
-                availableThemes.clear();
-                originalTheme.clear();
-                drawConsole();
-                return;
+            if (key_value == "RETURN") {
+                if (key_theme_apply()) return;
             }
 
-#ifdef __linux__
-            if (keysym == XK_j || keysym == XK_Down) {
-#endif
-#ifdef _WIN32
-            if (msg->wParam == 'J' || msg->wParam == VK_DOWN) {
-#endif
-                // Move down in theme list and apply live preview
-                if (selectedTheme < availableThemes.size() - 1) {
-                    selectedTheme++;
-                    updateThemeSelectScrollOffset();
-                    // Apply live preview
-                    if (selectedTheme < availableThemes.size()) {
-                        switchTheme(availableThemes[selectedTheme]);
-                    }
-                    drawConsole();
-                }
-                return;
+            if (key_value == "j" || key_value == "DOWN") {
+                if (key_theme_down()) return;
             }
 
-#ifdef __linux__
-            if (keysym == XK_k || keysym == XK_Up) {
-#endif
-#ifdef _WIN32
-            if (msg->wParam == 'K' || msg->wParam == VK_UP) {
-#endif
-                // Move up in theme list and apply live preview
-                if (selectedTheme > 0) {
-                    selectedTheme--;
-                    updateThemeSelectScrollOffset();
-                    // Apply live preview
-                    if (selectedTheme < availableThemes.size()) {
-                        switchTheme(availableThemes[selectedTheme]);
-                    }
-                    drawConsole();
-                }
-                return;
+            if (key_value == "k" || key_value == "UP") {
+                if (key_theme_up()) return;
             }
 
-#ifdef __linux__
-            if (keysym == XK_g) {
-#endif
-#ifdef _WIN32
-            if (msg->wParam == 'G') {
-#endif
-                // Go to top
-                selectedTheme = 0;
-                themeSelectScrollOffset = 0;
-                drawConsole();
-                return;
+            if (key_value == "g") {
+                if (key_theme_top()) return;
             }
 
-#ifdef __linux__
-            if (keysym == XK_G && (keyEvent->state & ShiftMask)) {
-#endif
-#ifdef _WIN32
-            if (msg->wParam == 'G' && (GetKeyState(VK_SHIFT) & 0x8000)) {
-#endif
-                // Go to bottom
-                if (!availableThemes.empty()) {
-                    selectedTheme = availableThemes.size() - 1;
-                    updateThemeSelectScrollOffset();
-                    drawConsole();
-                }
-                return;
+            if (key_value == "G") {
+                if (key_theme_bottom()) return;
             }
 
             return;
@@ -1301,246 +466,602 @@ public:
 
         // General keys - main clips list
         //
-#ifdef __linux__
-        if (keysym == XK_j || keysym == XK_Down) {
-#endif
-#ifdef _WIN32
-        if (msg->wParam == 'J' || msg->wParam == VK_DOWN) {
-#endif
-            // Move down
-            size_t displayCount = getDisplayItemCount();
-            if (selectedItem < displayCount - 1) {
-                selectedItem++;
-                updateConsoleScrollOffset();
-                drawConsole();
-            }
-            return;
+        if (key_value == "j" || key_value == "DOWN") {
+            if (key_main_down()) return;
         }
 
-#ifdef __linux__
-        if (keysym == XK_k || keysym == XK_Up) {
-#endif
-#ifdef _WIN32
-        if (msg->wParam == 'K' || msg->wParam == VK_UP) {
-#endif
-            // Move up
-            if (selectedItem > 0) {
-                selectedItem--;
-                updateConsoleScrollOffset();
-                drawConsole();
-            }
-            return;
+        if (key_value == "k" || key_value == "UP") {
+            if (key_main_up()) return;
         }
 
-#ifdef __linux__
-        if (keysym == XK_g) {
-#endif
-#ifdef _WIN32
-        if (msg->wParam == 'G') {
-#endif
-            // Go to top
-            selectedItem = 0;
-            updateConsoleScrollOffset();
+        if (key_value == "g") {
+            if (key_main_top()) return;
+        }
+
+        if (key_value == "G") {
+            if (key_main_bottom()) return;
+        }
+
+        if (key_value == "D") {
+            if (key_main_delete()) return;
+        }
+
+        if (key_value == "/") {
+            if (key_main_filter_start()) return;
+        }
+
+        if (key_value == ":") {
+            if (key_main_command_start()) return;
+        }
+
+        if (key_value == "RETURN") {
+            if (key_main_copy()) return;
+        }
+
+        if (key_value == "M") {
+            if (key_main_addgroup_start()) return;
+        }
+
+        if (key_value == "m") {
+            if (key_main_addclip_start()) return;
+        }
+
+        if (key_value == "?") {
+            if (key_main_help_start()) return;
+        }
+
+        if (key_value == "`") {
+            if (key_main_accessmarks_start()) return;
+        }
+
+        if (key_value == "p") {
+            if (key_main_pin_clip()) return;
+        }
+
+        // Pinned clips dialog
+        if (key_value == "'") {
+            if (key_main_pins_start()) return;
+        }
+    }
+    //// End Key Press /////////////////////////////////////////////////////////
+
+
+    //// Key Press Methods /////////////////////////////////////////////////////
+    bool key_global_escape() {
+        if (pinnedDialogVisible) {
+            pinnedDialogVisible = false;
             drawConsole();
-            return;
-        }
-
-#ifdef __linux__
-        if (keysym == XK_G && (keyEvent->state & ShiftMask)) {
-#endif
-#ifdef _WIN32
-        if (msg->wParam == 'G' && (GetKeyState(VK_SHIFT) & 0x8000)) {
-#endif
-            // Go to bottom
-            size_t displayCount = getDisplayItemCount();
-            if (displayCount > 0) {
-                selectedItem = displayCount - 1;
-                updateConsoleScrollOffset();
-                drawConsole();
-            }
-            return;
-        }
-
-#ifdef __linux__
-        if (keysym == XK_D && (keyEvent->state & ShiftMask)) {
-#endif
-#ifdef _WIN32
-        if (msg->wParam == 'D' && (GetKeyState(VK_SHIFT) & 0x8000)) {
-#endif
-            // Delete selected item (Shift+D)
-            if (!items.empty() && selectedItem < getDisplayItemCount()) {
-                size_t actualIndex = getActualItemIndex(selectedItem);
-                items.erase(items.begin() + actualIndex);
-                
-                // Adjust selection
-                size_t displayCount = getDisplayItemCount();
-                if (selectedItem >= displayCount && selectedItem > 0) {
-                    selectedItem--;
-                }
-                
-                // Update filtered items if in filter mode
-                if (filterMode) {
-                    updateFilteredItems();
-                }
-                
-                saveToFile();
-                drawConsole();
-            }
-            return;
-        }
-
-#ifdef __linux__
-        if (keysym == XK_slash) {
-#endif
-#ifdef _WIN32
-        if (msg->wParam == VK_OEM_2) {
-#endif
-            // Enter filter mode
-            filterMode = true;
+        } else if (bookmarkDialogVisible) {
+            // Escape hides dialog but not window
+            bookmarkDialogVisible = false;
+            drawConsole();
+        } else if (addToBookmarkDialogVisible) {
+            // Escape hides dialog but not window
+            addToBookmarkDialogVisible = false;
+            drawConsole();
+        } else if (helpDialogVisible) {
+            // Escape hides help dialog but not window
+            helpDialogVisible = false;
+            drawConsole();
+        } else if (viewBookmarksDialogVisible) {
+            // Escape hides view bookmarks dialog but not window
+            viewBookmarksDialogVisible = false;
+            drawConsole();
+        } else if (filterMode) {
+            // Escape exits filter mode but doesn't hide window
+            filterMode = false;
             filterText = "";
-            updateFilteredItems();
+            filteredItems.clear();
             selectedItem = 0;
             drawConsole();
-            return;
-        }
-
-#ifdef __linux__
-        if (keysym == XK_colon) {
-#endif
-#ifdef _WIN32
-        if (msg->wParam == VK_OEM_1 && (GetKeyState(VK_SHIFT) & 0x8000)) {
-#endif
-            // Enter command mode
-            commandMode = true;
+        } else if (commandMode) {
+            // Escape exits command mode but doesn't hide window
+            commandMode = false;
             commandText = "";
             selectedItem = 0;
             drawConsole();
-            return;
+        } else if (cmd_themeSelectMode) {
+            // Restore original theme and exit theme selection mode but doesn't hide window
+            if (!originalTheme.empty()) {
+                switchTheme(originalTheme);
+            }
+            cmd_themeSelectMode = false;
+            availableThemes.clear();
+            originalTheme.clear();
+            selectedItem = 0;
+            drawConsole();
+        } else {
+            // Normal escape behavior - hide window
+            hideWindow();
         }
 
-#ifdef __linux__
-        if (keysym == XK_Return) {
-#endif
-#ifdef _WIN32
-        if (msg->wParam == VK_RETURN) {
-#endif
-            // Copy selected item to clipboard and hide window
-            if (!items.empty() && selectedItem < getDisplayItemCount()) {
-                size_t actualIndex = getActualItemIndex(selectedItem);
-                std::string clipContent = items[actualIndex].content;
+        return true;
+    }
 
-                copyToClipboard(clipContent);
+    // Help
+    bool key_help_show() {
+        helpDialogVisible = false;
+        drawConsole();
+        return true;
+    }
 
-                // Update timestamp and move to top if not already at top
-                if (actualIndex != 0) {
-                    // Remove from current position
-                    items.erase(items.begin() + actualIndex);
+    bool key_help_scroll_down() {
+        updateHelpDialogScrollOffset(-1);
+        drawConsole();
+        return true;
+    }
 
-                    // Create new item with current timestamp and insert at top
-                    items.emplace(items.begin(), ClipboardItem(clipContent));
+    bool key_help_scroll_up() {
+        if (helpDialogScrollOffset > 0) {
+            updateHelpDialogScrollOffset(1);
+            drawConsole();
+        }
+        return true;
+    }
 
-                    // Reset selection to top
-                    selectedItem = 0;
+    bool key_help_scroll_top() {
+        helpDialogScrollOffset = 0;
+        drawConsole();
+        return true;
+    }
 
-                    // Update filtered items if in filter mode
-                    if (filterMode) {
-                        updateFilteredItems();
+    // Add Groups
+    bool key_addgroup_add() {
+        // Enter creates/selects bookmark group using input text only
+        if (!bookmarkDialogInput.empty()) {
+            // Check if this is a new group
+            bool groupExists = false;
+            for (const auto& group : bookmarkGroups) {
+                if (group == bookmarkDialogInput) {
+                    groupExists = true;
+                    break;
+                }
+            }
+            
+            if (!groupExists) {
+                // Create new group and add current clip
+                bookmarkGroups.push_back(bookmarkDialogInput);
+                saveBookmarkGroups();
+                
+                // Add current clip to bookmark
+                if (!items.empty() && selectedItem < getDisplayItemCount()) {
+                    size_t actualIndex = getActualItemIndex(selectedItem);
+                    addClipToBookmarkGroup(bookmarkDialogInput, items[actualIndex].content);
+                    std::cout << "Added clip to bookmark group: " << bookmarkDialogInput << std::endl;
+                }
+            } else {
+                // Add current clip to existing group
+                if (!items.empty() && selectedItem < getDisplayItemCount()) {
+                    size_t actualIndex = getActualItemIndex(selectedItem);
+                    addClipToBookmarkGroup(bookmarkDialogInput, items[actualIndex].content);
+                    std::cout << "Added clip to bookmark group: " << bookmarkDialogInput << std::endl;
+                }
+            }
+            
+            bookmarkDialogVisible = false;
+            drawConsole();
+        }
+        return true;
+    }
+
+    bool key_addgroup_back() {
+        if (!bookmarkDialogInput.empty()) {
+            bookmarkDialogInput.pop_back();
+            drawConsole();
+        }
+        return true;
+    }
+
+    // Bookmarks
+    bool key_marks_show() {
+        if (!viewBookmarksShowingGroups) {
+            // If viewing clips, go back to groups
+            viewBookmarksShowingGroups = true;
+            selectedViewBookmarkItem = 0;
+            viewBookmarksScrollOffset = 0; // Reset scroll when going back
+        } else {
+            // If viewing groups, close dialog
+            viewBookmarksDialogVisible = false;
+        }
+        drawConsole();
+
+        return true;
+    }
+
+    bool key_marks_groups_down() {
+        if (selectedViewBookmarkGroup < bookmarkGroups.size() - 1) {
+            selectedViewBookmarkGroup++;
+            updateScrollOffset();
+            drawConsole();
+        }
+        return true;
+    }
+
+    bool key_marks_groups_up() {
+        if (selectedViewBookmarkGroup > 0) {
+            selectedViewBookmarkGroup--;
+            updateScrollOffset();
+            drawConsole();
+        }
+        return true;
+    }
+
+    bool key_marks_groups_top() {
+        selectedViewBookmarkGroup = 0;
+        viewBookmarksScrollOffset = 0;
+        drawConsole();
+        return true;
+    }
+
+    bool key_marks_groups_bottom() {
+        selectedViewBookmarkGroup = bookmarkGroups.size() - 1;
+        updateScrollOffset();
+        drawConsole();
+        return true;
+    }
+
+    bool key_marks_groups_delete() {
+        if (selectedViewBookmarkGroup < bookmarkGroups.size()) {
+            std::string groupToDelete = bookmarkGroups[selectedViewBookmarkGroup];
+            
+            // Remove group from list
+            bookmarkGroups.erase(bookmarkGroups.begin() + selectedViewBookmarkGroup);
+            saveBookmarkGroups();
+            
+            // Delete bookmark file
+            std::string bookmarkFile = bookmarksDir + "/bookmarks_" + groupToDelete + ".txt";
+            unlink(bookmarkFile.c_str());
+            
+            std::cout << "Deleted bookmark group and all clips: " << groupToDelete << std::endl;
+            
+            // Adjust selection
+            if (selectedViewBookmarkGroup > 0 && selectedViewBookmarkGroup >= bookmarkGroups.size()) {
+                selectedViewBookmarkGroup = bookmarkGroups.size() - 1;
+            }
+            
+            // Close dialog if no groups left
+            if (bookmarkGroups.empty()) {
+                viewBookmarksDialogVisible = false;
+            }
+            
+            drawConsole();
+        }
+        return true;
+    }
+
+    bool key_marks_groups_clips() {
+        if (selectedViewBookmarkGroup < bookmarkGroups.size()) {
+            viewBookmarksShowingGroups = false;
+            selectedViewBookmarkItem = 0;
+            viewBookmarksScrollOffset = 0; // Reset scroll when switching modes
+            drawConsole();
+        }
+        return true;
+    }
+
+
+    bool key_marks_clips_down() {
+        selectedViewBookmarkItem++;
+        updateScrollOffset();
+        drawConsole();
+        return true;
+    }
+
+    bool key_marks_clips_up() {
+        if (selectedViewBookmarkItem > 0) {
+            selectedViewBookmarkItem--;
+            updateScrollOffset();
+            drawConsole();
+        }
+        return true;
+    }
+
+    bool key_marks_clips_top() {
+        selectedViewBookmarkItem = 0;
+        viewBookmarksScrollOffset = 0;
+        drawConsole();
+        return true;
+    }
+
+    bool key_marks_clips_bottom() {
+        if (selectedViewBookmarkGroup < bookmarkGroups.size()) {
+            std::string selectedGroup = bookmarkGroups[selectedViewBookmarkGroup];
+            std::string bookmarkFile = bookmarksDir + "/bookmarks_" + selectedGroup + ".txt";
+            std::ifstream file(bookmarkFile);
+            
+            if (file.is_open()) {
+                std::string line;
+                size_t itemCount = 0;
+                while (std::getline(file, line)) {
+                    size_t pos = line.find('|');
+                    if (pos != std::string::npos && pos > 0) {
+                        itemCount++;
                     }
+                }
+                file.close();
+                
+                if (itemCount > 0) {
+                    selectedViewBookmarkItem = itemCount - 1;
+                    updateScrollOffset();
+                    drawConsole();
+                }
+            }
+        }
+        return true;
+    }
 
-                    // Save to file with updated timestamp
-                    saveToFile();
+    bool key_marks_clips_delete() {
+        if (selectedViewBookmarkGroup < bookmarkGroups.size()) {
+            std::string selectedGroup = bookmarkGroups[selectedViewBookmarkGroup];
+            std::string bookmarkFile = bookmarksDir + "/bookmarks_" + selectedGroup + ".txt";
+            std::ifstream file(bookmarkFile);
+            
+            if (file.is_open()) {
+                std::string line;
+                std::vector<std::string> lines;
+                
+                // Read all lines
+                while (std::getline(file, line)) {
+                    lines.push_back(line);
+                }
+                file.close();
+                
+                // Remove the selected item if valid
+                if (selectedViewBookmarkItem < lines.size()) {
+                    lines.erase(lines.begin() + selectedViewBookmarkItem);
+                    
+                    // Write back remaining lines
+                    std::ofstream outFile(bookmarkFile);
+                    if (outFile.is_open()) {
+                        for (const auto& line : lines) {
+                            outFile << line << "\n";
+                        }
+                        outFile.close();
+                        
+                        std::cout << "Deleted bookmark item from group: " << selectedGroup << std::endl;
+                        
+                        // Adjust selection
+                        if (selectedViewBookmarkItem > 0 && selectedViewBookmarkItem >= lines.size()) {
+                            selectedViewBookmarkItem = lines.size() - 1;
+                        }
+                        
+                        drawConsole();
+                    }
+                }
+            }
+        }
+        return true;
+    }
 
-                    std::cout << "Clip moved to top after copying" << std::endl;
+    bool key_marks_clips_copy() {
+        if (selectedViewBookmarkGroup < bookmarkGroups.size()) {
+            std::string selectedGroup = bookmarkGroups[selectedViewBookmarkGroup];
+            std::string bookmarkFile = bookmarksDir + "/bookmarks_" + selectedGroup + ".txt";
+            std::ifstream file(bookmarkFile);
+            
+            if (file.is_open()) {
+                std::string line;
+                std::vector<std::string> bookmarkItems;
+                
+                while (std::getline(file, line)) {
+                    size_t pos = line.find('|');
+                    if (pos != std::string::npos && pos > 0) {
+                        std::string content = line.substr(pos + 1);
+                        try {
+                            std::string decryptedContent = decrypt(content);
+                            bookmarkItems.push_back(decryptedContent);
+                        } catch (...) {
+                            bookmarkItems.push_back(content);
+                        }
+                    }
+                }
+                file.close();
+                
+                if (selectedViewBookmarkItem < bookmarkItems.size()) {
+                    copyToClipboard(bookmarkItems[selectedViewBookmarkItem]);
+                    int lines = countLines(bookmarkItems[selectedViewBookmarkItem]);
+                    if (lines > 1) {
+                        std::cout << "Copied " << lines << " lines from bookmark" << std::endl;
+                    } else {
+                        std::cout << "Copied from bookmark: " << bookmarkItems[selectedViewBookmarkItem].substr(0, 50) << "..." << std::endl;
+                    }
+                    viewBookmarksDialogVisible = false;
+                    hideWindow();
+                }
+            }
+        }
+        return true;
+    }
+
+    bool key_marks_clips_groups() {
+        viewBookmarksShowingGroups = true;
+        drawConsole();
+        return true;
+    }
+
+    // Pinned Clips
+    bool key_pin_down() {
+        std::ifstream file(pinnedFile);
+        if (file.is_open()) {
+            std::string line;
+            size_t itemCount = 0;
+            while (std::getline(file, line)) {
+                size_t pos = line.find('|');
+                if (pos != std::string::npos && pos > 0) {
+                    itemCount++;
+                }
+            }
+            file.close();
+            
+            if (selectedViewPinnedItem < itemCount - 1) {
+                selectedViewPinnedItem++;
+                updatePinnedScrollOffset();
+                drawConsole();
+            }
+        }
+        return true;
+    }
+
+    bool key_pin_up() {
+        if (selectedViewPinnedItem > 0) {
+            selectedViewPinnedItem--;
+            updatePinnedScrollOffset();
+            drawConsole();
+        }
+        return true;
+    }
+
+    bool key_pin_top() {
+        selectedViewPinnedItem = 0;
+        viewPinnedScrollOffset = 0;
+        drawConsole();
+        return true;
+    }
+
+    bool key_pin_bottom() {
+        std::ifstream file(pinnedFile);
+        if (file.is_open()) {
+            std::string line;
+            size_t itemCount = 0;
+            while (std::getline(file, line)) {
+                size_t pos = line.find('|');
+                if (pos != std::string::npos && pos > 0) {
+                    itemCount++;
+                }
+            }
+            file.close();
+            
+            if (itemCount > 0) {
+                selectedViewPinnedItem = itemCount - 1;
+                updatePinnedScrollOffset();
+                drawConsole();
+            }
+        }
+        return true;
+    }
+
+    bool key_pin_delete() {
+        std::ifstream inFile(pinnedFile);
+        if (inFile.is_open()) {
+            std::vector<std::pair<long long, std::string>> pinnedItems;
+            std::string line;
+
+            // Read and parse lines
+            while (std::getline(inFile, line)) {
+                size_t pos = line.find('|');
+                if (pos != std::string::npos && pos > 0) {
+                    try {
+                        long long timestamp = std::stoll(line.substr(0, pos));
+                        pinnedItems.push_back({timestamp, line});
+                    } catch (...) {
+                        // Fallback for parsing error: use current time, keep original line
+                        long long timestamp = std::chrono::system_clock::now().time_since_epoch().count();
+                        pinnedItems.push_back({timestamp, line});
+                    }
+                }
+            }
+            inFile.close();
+
+            // Sort by timestamp to match display order
+            std::sort(pinnedItems.begin(), pinnedItems.end(),
+                      [](const auto& a, const auto& b) { return a.first > b.first; });
+
+            // Remove the selected item if valid
+            if (selectedViewPinnedItem < pinnedItems.size()) {
+                pinnedItems.erase(pinnedItems.begin() + selectedViewPinnedItem);
+
+                // Write back remaining lines
+                std::ofstream outFile(pinnedFile);
+                if (outFile.is_open()) {
+                    for (const auto& item : pinnedItems) {
+                        outFile << item.second << "\n";
+                    }
+                    outFile.close();
+                    
+                    std::cout << "Deleted pinned clip" << std::endl;
+                    
+                    // Adjust selection
+                    if (selectedViewPinnedItem > 0 && selectedViewPinnedItem >= pinnedItems.size()) {
+                        selectedViewPinnedItem = pinnedItems.size() - 1;
+                    }
+                    
+                    // Close dialog if no pinned clips left
+                    if (pinnedItems.empty()) {
+                        pinnedDialogVisible = false;
+                    }
+                    
+                    drawConsole();
+                }
+            }
+        }
+        return true;
+    }
+
+    bool key_pin_copy() {
+        std::vector<std::string> lines;
+        std::string line;
+        std::ifstream inFile(pinnedFile);
+        while (std::getline(inFile, line)) {
+            lines.push_back(line);
+        }
+        inFile.close();
+
+        if (selectedViewPinnedItem < lines.size()) {
+            std::string selectedLine = lines[selectedViewPinnedItem];
+            size_t pos = selectedLine.find('|');
+            if (pos != std::string::npos) {
+                std::string contentToCopy;
+                std::string contentToSave = selectedLine.substr(pos + 1);
+                try {
+                    contentToCopy = decrypt(contentToSave);
+                } catch (...) {
+                    contentToCopy = contentToSave;
                 }
 
-                int lines = countLines(clipContent);
+                copyToClipboard(contentToCopy);
 
-                if (lines > 1) {
-                    std::cout << "Copied " << lines << " lines to clipboard" << std::endl;
+                int lineCount = countLines(contentToCopy);
+                if (lineCount > 1) {
+                    std::cout << "Copied " << lineCount << " lines from pinned clips" << std::endl;
                 } else {
-                    std::cout << "Copied to clipboard: " << clipContent.substr(0, 50) << "..." << std::endl;
+                    std::cout << "Copied from pinned clips: " << contentToCopy.substr(0, 50) << "..." << std::endl;
                 }
-                hideWindow();
+
+                // Remove the old line
+                lines.erase(lines.begin() + selectedViewPinnedItem);
+
+                // Add the new line at the beginning
+                auto newTimestamp = std::chrono::system_clock::now().time_since_epoch().count();
+                std::string newLine = std::to_string(newTimestamp) + "|" + contentToSave;
+                lines.insert(lines.begin(), newLine);
+                
+                // Write the updated lines back to the file
+                std::ofstream outFile(pinnedFile);
+                for (const auto& l : lines) {
+                    outFile << l << std::endl;
+                }
+                outFile.close();
             }
-            return;
-        }
 
-#ifdef __linux__
-        if (keysym == XK_M && (keyEvent->state & ShiftMask)) {
-#endif
-#ifdef _WIN32
-        if (msg->wParam == 'M' && (GetKeyState(VK_SHIFT) & 0x8000)) {
-#endif
-            // Shift+M to show bookmark dialog
-            bookmarkDialogVisible = true;
-            bookmarkDialogInput = "";
-            selectedBookmarkGroup = 0;
-            bookmarkMgmtScrollOffset = 0; // Reset scroll when opening
-            drawConsole();
-            return;
+            pinnedDialogVisible = false;
+            hideWindow();
         }
+        return true;
+    }
 
-#ifdef __linux__
-        if (keysym == XK_m) {
-#endif
-#ifdef _WIN32
-        if (msg->wParam == 'M') {
-#endif
-            // Lowercase m to show add-to-bookmark dialog
-            if (!bookmarkGroups.empty()) {
-                addToBookmarkDialogVisible = true;
-                selectedAddBookmarkGroup = 0;
-                addBookmarkScrollOffset = 0; // Reset scroll when opening
-                drawConsole();
-            }
-            return;
-        }
-
-#ifdef __linux__
-        if (keysym == XK_question) {
-#endif
-#ifdef _WIN32
-        if (msg->wParam == VK_OEM_2 && (GetKeyState(VK_SHIFT) & 0x8000)) {
-#endif
-            // '?' to show help dialog
-            helpDialogVisible = true;
-            helpDialogScrollOffset = 0; // Reset scroll offset when opening help dialog
-            drawConsole();
-            return;
-        }
-
-#ifdef __linux__
-        if (keysym == XK_grave) {
-#endif
-#ifdef _WIN32
-        if (msg->wParam == VK_OEM_3) {
-#endif
-            // '`' to show view bookmarks dialog
-            if (!bookmarkGroups.empty()) {
-                viewBookmarksDialogVisible = true;
-                viewBookmarksShowingGroups = true; // Start with group selection
-                selectedViewBookmarkGroup = 0;
-                selectedViewBookmarkItem = 0;
-                viewBookmarksScrollOffset = 0; // Reset scroll when opening
-                drawConsole();
-            }
-            return;
-        }
-
-        // Pin current clip
-#ifdef __linux__
-        if (keysym == XK_p) {
-#endif
-#ifdef _WIN32
-        if (msg->wParam == 'P') {
-#endif
-            // Check if current clip is already pinned
+    // Add Bookmarks
+    bool key_addmarks_add() {
+        if (!bookmarkGroups.empty() && selectedAddBookmarkGroup < bookmarkGroups.size()) {
+            std::string selectedGroup = bookmarkGroups[selectedAddBookmarkGroup];
+            
+            // Check if current clip is already in this group
             if (!items.empty() && selectedItem < getDisplayItemCount()) {
                 size_t actualIndex = getActualItemIndex(selectedItem);
                 std::string clipContent = items[actualIndex].content;
                 
                 // Read existing bookmarks in this group
-                std::ifstream file(pinnedFile);
+                std::string bookmarkFile = bookmarksDir + "/bookmarks_" + selectedGroup + ".txt";
+                std::ifstream file(bookmarkFile);
                 std::string line;
                 bool alreadyExists = false;
                 
@@ -1554,29 +1075,434 @@ public:
                 file.close();
                 
                 if (!alreadyExists) {
-                    addClipToPinned(clipContent);
-                    std::cout << "Added clip to pinned" << std::endl;
+                    addClipToBookmarkGroup(selectedGroup, clipContent);
+                    std::cout << "Added clip to bookmark group: " << selectedGroup << std::endl;
                 } else {
-                    std::cout << "Clip is already pinned" << std::endl;
+                    std::cout << "Clip already exists in bookmark group: " << selectedGroup << std::endl;
                 }
             }
-            return;
-        }
-
-        // Pinned clips dialog
-#ifdef __linux__
-        if (keysym == XK_apostrophe) {
-#endif
-#ifdef _WIN32
-        if (msg->wParam == VK_OEM_7) {
-#endif
-            pinnedDialogVisible = true;
-            selectedViewPinnedItem = 0;
-            viewPinnedScrollOffset = 0; // Reset scroll when opening
+            
+            addToBookmarkDialogVisible = false;
             drawConsole();
         }
+        return true;
     }
-    //// End Key Press /////////////////////////////////////////////////////////
+
+    bool key_addmarks_down() {
+        if (!bookmarkGroups.empty() && selectedAddBookmarkGroup < bookmarkGroups.size() - 1) {
+            selectedAddBookmarkGroup++;
+            updateAddBookmarkScrollOffset();
+            drawConsole();
+        }
+        return true;
+    }
+
+    bool key_addmarks_up() {
+        if (selectedAddBookmarkGroup > 0) {
+            selectedAddBookmarkGroup--;
+            updateAddBookmarkScrollOffset();
+            drawConsole();
+        }
+        return true;
+    }
+
+    bool key_addmarks_top() {
+        selectedAddBookmarkGroup = 0;
+        addBookmarkScrollOffset = 0;
+        drawConsole();
+        return true;
+    }
+
+    bool key_addmarks_bottom() {
+        if (!bookmarkGroups.empty()) {
+            selectedAddBookmarkGroup = bookmarkGroups.size() - 1;
+            updateAddBookmarkScrollOffset();
+            drawConsole();
+        }
+        return true;
+    }
+
+    // Filter Mode
+    bool key_filter_delete() {
+        if (!items.empty() && selectedItem < getDisplayItemCount()) {
+            size_t actualIndex = getActualItemIndex(selectedItem);
+            items.erase(items.begin() + actualIndex);
+            
+            // Update filtered items after deletion
+            updateFilteredItems();
+            
+            // Adjust selection if needed
+            if (selectedItem >= getDisplayItemCount() && selectedItem > 0) {
+                selectedItem--;
+            }
+            
+            // Save changes and redraw
+            saveToFile();
+            drawConsole();
+        }
+        return true;
+    }
+
+    bool key_filter_copy() {
+        if (!items.empty() && selectedItem < getDisplayItemCount()) {
+            size_t actualIndex = getActualItemIndex(selectedItem);
+            copyToClipboard(items[actualIndex].content);
+            int lines = countLines(items[actualIndex].content);
+            if (lines > 1) {
+                std::cout << "Copied " << lines << " lines to clipboard" << std::endl;
+            } else {
+                std::cout << "Copied to clipboard: " << items[actualIndex].content.substr(0, 50) << "..." << std::endl;
+            }
+            filterMode = false;
+            filterText = "";
+            filteredItems.clear();
+            hideWindow();
+        }
+        return true;
+    }
+
+    bool key_filter_down() {
+        size_t displayCount = getDisplayItemCount();
+        if (selectedItem < displayCount - 1) {
+            selectedItem++;
+            updateConsoleScrollOffset();
+            drawConsole();
+        }
+        return true;
+    }
+
+    bool key_filter_up() {
+        if (selectedItem > 0) {
+            selectedItem--;
+            updateConsoleScrollOffset();
+            drawConsole();
+        }
+        return true;
+    }
+
+    // Command
+    bool key_command_execute() {
+        if (!commandText.empty()) {
+            executeCommand(commandText);
+        }
+        commandMode = false;
+        commandText = "";
+        drawConsole();
+        return true;
+    }
+
+    bool key_command_down() {
+        size_t displayCount = getDisplayItemCount();
+        if (selectedItem < displayCount - 1) {
+            selectedItem++;
+            updateConsoleScrollOffset();
+            drawConsole();
+        }
+        return true;
+    }
+
+    bool key_command_up() {
+        if (selectedItem > 0) {
+            selectedItem--;
+            updateConsoleScrollOffset();
+            drawConsole();
+        }
+        return true;
+    }
+
+    bool key_command_detect() {
+        if (commandText == "theme") {
+            // Enter theme selection mode
+            commandMode = false;
+            cmd_themeSelectMode = true;
+            discoverThemes();
+            // Store original theme and apply first theme for preview
+            if (!availableThemes.empty()) {
+                originalTheme = theme;
+                selectedTheme = 0;
+                switchTheme(availableThemes[0]);
+            }
+            drawConsole();
+            return true;
+        }
+
+        // Add space to command text for other commands
+        commandText += " ";
+        drawConsole();
+
+        return true;
+    }
+
+    // Theme Command
+    bool key_theme_cancel() {
+        if (!originalTheme.empty()) {
+            switchTheme(originalTheme);
+        }
+        cmd_themeSelectMode = false;
+        availableThemes.clear();
+        originalTheme.clear();
+        drawConsole();
+
+        return true;
+    }
+
+    bool key_theme_apply() {
+        if (selectedTheme < availableThemes.size()) {
+            switchTheme(availableThemes[selectedTheme]);
+            // Save to config
+            saveConfig();
+        }
+        cmd_themeSelectMode = false;
+        availableThemes.clear();
+        originalTheme.clear();
+        drawConsole();
+
+        return true;
+    }
+
+    bool key_theme_down() {
+        if (selectedTheme < availableThemes.size() - 1) {
+            selectedTheme++;
+            updateThemeSelectScrollOffset();
+            // Apply live preview
+            if (selectedTheme < availableThemes.size()) {
+                switchTheme(availableThemes[selectedTheme]);
+            }
+            drawConsole();
+        }
+        return true;
+    }
+
+    bool key_theme_up() {
+        if (selectedTheme > 0) {
+            selectedTheme--;
+            updateThemeSelectScrollOffset();
+            // Apply live preview
+            if (selectedTheme < availableThemes.size()) {
+                switchTheme(availableThemes[selectedTheme]);
+            }
+            drawConsole();
+        }
+        return true;
+    }
+
+    bool key_theme_top() {
+        selectedTheme = 0;
+        themeSelectScrollOffset = 0;
+        drawConsole();
+
+        return true;
+    }
+
+    bool key_theme_bottom() {
+        if (!availableThemes.empty()) {
+            selectedTheme = availableThemes.size() - 1;
+            updateThemeSelectScrollOffset();
+            drawConsole();
+        }
+        return true;
+    }
+
+    // Main Clips List
+    bool key_main_down() {
+        size_t displayCount = getDisplayItemCount();
+        if (selectedItem < displayCount - 1) {
+            selectedItem++;
+            updateConsoleScrollOffset();
+            drawConsole();
+        }
+        return true;
+    }
+
+    bool key_main_up() {
+        if (selectedItem > 0) {
+            selectedItem--;
+            updateConsoleScrollOffset();
+            drawConsole();
+        }
+        return true;
+    }
+
+    bool key_main_top() {
+        selectedItem = 0;
+        updateConsoleScrollOffset();
+        drawConsole();
+
+        return true;
+    }
+
+    bool key_main_bottom() {
+        size_t displayCount = getDisplayItemCount();
+        if (displayCount > 0) {
+            selectedItem = displayCount - 1;
+            updateConsoleScrollOffset();
+            drawConsole();
+        }
+        return true;
+    }
+
+    bool key_main_delete() {
+        if (!items.empty() && selectedItem < getDisplayItemCount()) {
+            size_t actualIndex = getActualItemIndex(selectedItem);
+            items.erase(items.begin() + actualIndex);
+            
+            // Adjust selection
+            size_t displayCount = getDisplayItemCount();
+            if (selectedItem >= displayCount && selectedItem > 0) {
+                selectedItem--;
+            }
+            
+            // Update filtered items if in filter mode
+            if (filterMode) {
+                updateFilteredItems();
+            }
+            
+            saveToFile();
+            drawConsole();
+        }
+        return true;
+    }
+
+    bool key_main_filter_start() {
+        filterMode = true;
+        filterText = "";
+        updateFilteredItems();
+        selectedItem = 0;
+        drawConsole();
+
+        return true;
+    }
+
+    bool key_main_command_start() {
+        commandMode = true;
+        commandText = "";
+        selectedItem = 0;
+        drawConsole();
+
+        return true;
+    }
+
+    bool key_main_copy() {
+        if (!items.empty() && selectedItem < getDisplayItemCount()) {
+            size_t actualIndex = getActualItemIndex(selectedItem);
+            std::string clipContent = items[actualIndex].content;
+
+            copyToClipboard(clipContent);
+
+            // Update timestamp and move to top if not already at top
+            if (actualIndex != 0) {
+                // Remove from current position
+                items.erase(items.begin() + actualIndex);
+
+                // Create new item with current timestamp and insert at top
+                items.emplace(items.begin(), ClipboardItem(clipContent));
+
+                // Reset selection to top
+                selectedItem = 0;
+
+                // Update filtered items if in filter mode
+                if (filterMode) {
+                    updateFilteredItems();
+                }
+
+                // Save to file with updated timestamp
+                saveToFile();
+
+                std::cout << "Clip moved to top after copying" << std::endl;
+            }
+
+            int lines = countLines(clipContent);
+
+            if (lines > 1) {
+                std::cout << "Copied " << lines << " lines to clipboard" << std::endl;
+            } else {
+                std::cout << "Copied to clipboard: " << clipContent.substr(0, 50) << "..." << std::endl;
+            }
+            hideWindow();
+        }
+        return true;
+    }
+
+    bool key_main_addgroup_start() {
+        bookmarkDialogVisible = true;
+        bookmarkDialogInput = "";
+        selectedBookmarkGroup = 0;
+        bookmarkMgmtScrollOffset = 0; // Reset scroll when opening
+        drawConsole();
+
+        return true;
+    }
+
+    bool key_main_addclip_start() {
+        if (!bookmarkGroups.empty()) {
+            addToBookmarkDialogVisible = true;
+            selectedAddBookmarkGroup = 0;
+            addBookmarkScrollOffset = 0; // Reset scroll when opening
+            drawConsole();
+        }
+        return true;
+    }
+
+    bool key_main_help_start() {
+        helpDialogVisible = true;
+        helpDialogScrollOffset = 0; // Reset scroll offset when opening help dialog
+        drawConsole();
+
+        return true;
+    }
+
+    bool key_main_accessmarks_start() {
+        if (!bookmarkGroups.empty()) {
+            viewBookmarksDialogVisible = true;
+            viewBookmarksShowingGroups = true; // Start with group selection
+            selectedViewBookmarkGroup = 0;
+            selectedViewBookmarkItem = 0;
+            viewBookmarksScrollOffset = 0; // Reset scroll when opening
+            drawConsole();
+        }
+        return true;
+    }
+
+    bool key_main_pin_clip() {
+        if (!items.empty() && selectedItem < getDisplayItemCount()) {
+            size_t actualIndex = getActualItemIndex(selectedItem);
+            std::string clipContent = items[actualIndex].content;
+            
+            // Read existing bookmarks in this group
+            std::ifstream file(pinnedFile);
+            std::string line;
+            bool alreadyExists = false;
+            
+            while (std::getline(file, line)) {
+                std::string decrypted = decrypt(line);
+                if (decrypted == clipContent) {
+                    alreadyExists = true;
+                    break;
+                }
+            }
+            file.close();
+            
+            if (!alreadyExists) {
+                addClipToPinned(clipContent);
+                std::cout << "Added clip to pinned" << std::endl;
+            } else {
+                std::cout << "Clip is already pinned" << std::endl;
+            }
+        }
+        return true;
+    }
+
+    bool key_main_pins_start() {
+        pinnedDialogVisible = true;
+        selectedViewPinnedItem = 0;
+        viewPinnedScrollOffset = 0; // Reset scroll when opening
+        drawConsole();
+
+        return true;
+    }
+    //// End Key Press Methods /////////////////////////////////////////////////
+
+
 
     // Dynamic window and layout management functions
     void updateWindowDimensions(int newWidth, int newHeight) {
@@ -1954,7 +1880,6 @@ private:
     
             std::atomic<bool> running;
             std::atomic<bool> visible;
-            bool just_exited_mode = false; // NEW        
         // Window properties
         int windowWidth = 800;
         int windowHeight = 600;

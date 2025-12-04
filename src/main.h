@@ -2,6 +2,7 @@
 #define MAIN_H
 
 #include <iostream>
+#include <string>
 #include <cstdio>
 #include <unistd.h>
 #include <sys/file.h>
@@ -23,6 +24,9 @@
 #include <limits.h>
 #include <signal.h>
 #include <dirent.h>
+#include <fstream>
+#include <chrono>
+#include <iomanip>
 
 
 #ifdef __linux__
