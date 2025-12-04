@@ -1712,6 +1712,7 @@ Comment=Autostart for )" << appLabel << R"(
         wc.lpfnWndProc   = MMRYWndProc;
         wc.hInstance     = GetModuleHandle(NULL);
         wc.lpszClassName = "MMRY_Window_Class";
+        wc.hbrBackground = NULL; // We'll handle background painting ourselves
 
         RegisterClass(&wc);
 
@@ -2786,7 +2787,14 @@ private:
             unsigned long r = std::stoul(hex.substr(1, 2), nullptr, 16);
             unsigned long g = std::stoul(hex.substr(3, 2), nullptr, 16);
             unsigned long b = std::stoul(hex.substr(5, 2), nullptr, 16);
+            
+#ifdef _WIN32
+            // Windows COLORREF uses BGR format (0x00BBGGRR)
+            return b * 256 * 256 + g * 256 + r;
+#else
+            // Linux/X11 uses RGB format
             return r * 256 * 256 + g * 256 + b;
+#endif
         } catch (...) {
             return 0; // Default to black if conversion fails
         }
@@ -2794,10 +2802,19 @@ private:
     
     void loadTheme() {
         // Set default colors (console theme)
+#ifdef _WIN32
+        // Windows COLORREF uses BGR format
+        backgroundColor = 0x000000; // Black (0x000000 works in both formats)
+        textColor = 0xFFFFFF;      // White (0xFFFFFF works in both formats)
+        selectionColor = 0x333333;  // Dark gray (0x333333 works in both formats)
+        borderColor = 0x888888;    // Gray (0x888888 works in both formats)
+#else
+        // Linux/X11 uses RGB format
         backgroundColor = 0x000000; // Black
         textColor = 0xFFFFFF;      // White
         selectionColor = 0x333333;  // Dark gray
         borderColor = 0x888888;    // Gray
+#endif
         
         // Cross-platform path separator
 #ifdef _WIN32
@@ -3368,9 +3385,8 @@ private:
     
 
     void drawHelpTopic(int x, int y, int contentTop, int contentBottom, std::string topic) {
-        int topicLen = topic.length();
 #ifdef __linux__
-        if (y >= contentTop && y < contentBottom) { XDrawString(display, window, gc, x, y, topic.c_str(), topicLen); }
+        if (y >= contentTop && y < contentBottom) { XDrawString(display, window, gc, x, y, topic.c_str(), topic.length()); }
 #endif
     }
 
@@ -4004,24 +4020,753 @@ public:
             drawHelpTopic(topicLeft, y, contentTop, contentBottom, "Ctrl+Alt+C     - Show/hide window");
         }
 #endif
+    // End Linux UI Methods
 
     // Wayland UI Methods
+    // End Wayland UI Methods
 
 
     // Windows UI Methods
 #ifdef _WIN32
+        void drawConsole() {
+            if (!visible) return;
+            
+            HDC hdc = GetDC(hwnd);
+            if (!hdc) return;
+            
+            // Set up font and colors
+            HFONT hFont = CreateFont(14, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
+                                   DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
+                                   CLEARTYPE_QUALITY, DEFAULT_PITCH | FF_DONTCARE, "Consolas");
+            HFONT hOldFont = (HFONT)SelectObject(hdc, hFont);
+            
+            // Clear window with theme background
+            RECT clientRect;
+            GetClientRect(hwnd, &clientRect);
+            
+            // Clear window with theme background
+            HBRUSH hBgBrush = CreateSolidBrush(backgroundColor);
+            FillRect(hdc, &clientRect, hBgBrush);
+            DeleteObject(hBgBrush);
+            
+            // Set text color
+            SetTextColor(hdc, textColor);
+            SetBkMode(hdc, TRANSPARENT);
+            
+            // Draw filter or command textbox if in respective mode
+            int startY = 20;
+            if (filterMode) {
+                // Draw filter input
+                std::string filterDisplay = "/" + filterText;
+                TextOut(hdc, 10, startY, filterDisplay.c_str(), filterDisplay.length());
+                startY += LINE_HEIGHT;
+            }
+            else if (commandMode) {
+                // Draw command input
+                std::string commandDisplay = ":" + commandText;
+                TextOut(hdc, 10, startY, commandDisplay.c_str(), commandDisplay.length());
+                startY += LINE_HEIGHT;
+            }
+            else if (cmd_themeSelectMode) {
+                // Draw theme selection header
+                std::string header = "Select theme (" + std::to_string(availableThemes.size()) + " total):";
+                TextOut(hdc, 10, startY, header.c_str(), header.length());
+                startY += LINE_HEIGHT;
+                
+                // Draw theme list
+                const int VISIBLE_THEMES = 10;
+                size_t startIdx = themeSelectScrollOffset;
+                size_t endIdx = std::min(startIdx + VISIBLE_THEMES, availableThemes.size());
+                
+                for (size_t i = startIdx; i < endIdx; ++i) {
+                    std::string themeDisplay = (i == selectedTheme ? "> " : "  ") + availableThemes[i];
+                    // Highlight selected theme
+                    if (i == selectedTheme) {
+                        RECT highlightRect = {5, startY - 12, getClipListWidth(), startY + 3};
+                        HBRUSH hHighlightBrush = CreateSolidBrush(selectionColor);
+                        FillRect(hdc, &highlightRect, hHighlightBrush);
+                        DeleteObject(hHighlightBrush);
+                    }
+                    
+                    // Ensure text color is set before drawing
+                    SetTextColor(hdc, textColor);
+                    TextOut(hdc, 10, startY, themeDisplay.c_str(), themeDisplay.length());
+                    startY += LINE_HEIGHT;
+                }
+                
+                // Show scroll indicator if there are more themes
+                if (availableThemes.size() > VISIBLE_THEMES) {
+                    std::string scrollInfo = "Showing " + std::to_string(startIdx + 1) + "-" + std::to_string(endIdx) + " of " + std::to_string(availableThemes.size());
+                    TextOut(hdc, 10, startY, scrollInfo.c_str(), scrollInfo.length());
+                }
+                
+                // Cleanup and return
+                SelectObject(hdc, hOldFont);
+                DeleteObject(hFont);
+            ReleaseDC(hwnd, hdc);
+                return;
+            }
+            
+            // Draw clipboard items
+            int y = startY;
+            size_t displayCount = getDisplayItemCount();
+            const int SCROLL_INDICATOR_HEIGHT = 15;
+            int availableHeight = windowHeight - startY - 10;
+
+            // If we need a scroll indicator, account for its space
+            if (displayCount > (availableHeight / LINE_HEIGHT)) {
+                availableHeight -= SCROLL_INDICATOR_HEIGHT;
+            }
+
+            int maxItems = availableHeight / LINE_HEIGHT;
+            if (maxItems > 0) maxItems += 1;
+            if (maxItems < 1) maxItems = 1;
+
+            size_t startIdx = consoleScrollOffset;
+            size_t endIdx = std::min(startIdx + maxItems, displayCount);
+
+            // Adjust for the scroll indicator
+            if (displayCount > maxItems) {
+                std::string scrollText = "[" + std::to_string(selectedItem + 1) + "/" + std::to_string(displayCount) + "]";
+                TextOut(hdc, windowWidth - 80, 15, scrollText.c_str(), scrollText.length());
+                y = y + 15;
+                maxItems = maxItems - 1;  // Reduce max items to account for scroll indicator space
+            }
+            
+            for (size_t i = startIdx; i < endIdx; ++i) {
+                size_t actualIndex = getActualItemIndex(i);
+                const auto& item = items[actualIndex];
+                
+                std::string line;
+                
+                // Add selection indicator
+                if (i == selectedItem) {
+                    line = "> ";
+                } else {
+                    line = "  ";
+                }
+                
+                if (verboseMode) {
+                    // Verbose mode: timestamp | lines | content
+                    auto time_t = std::chrono::system_clock::to_time_t(item.timestamp);
+                    auto tm = *std::localtime(&time_t);
+                    
+                    std::ostringstream timeStream;
+                    timeStream << std::put_time(&tm, "%H:%M:%S");
+                    
+                    // Count lines in content
+                    size_t lineCount = 1;
+                    for (char c : item.content) {
+                        if (c == '\n') lineCount++;
+                    }
+                    
+                    line += timeStream.str() + " | " + std::to_string(lineCount) + " lines | ";
+                    
+                    // Truncate content if too long
+                    std::string content = item.content;
+                    int maxContentLength = calculateMaxContentLength(true);
+                    if (content.length() > maxContentLength) {
+                        content = smartTrim(content, maxContentLength);
+                    }
+                    
+                    // Replace newlines with spaces for display
+                    for (char& c : content) {
+                        if (c == '\n' || c == '\r') c = ' ';
+                    }
+                    
+                    line += content;
+                } else {
+                    // Normal mode: content (line count if > 1)
+                    
+                    // Count lines in content
+                    size_t lineCount = 1;
+                    for (char c : item.content) {
+                        if (c == '\n') lineCount++;
+                    }
+                    
+                    // Truncate content if too long
+                    std::string content = item.content;
+                    int maxContentLength = calculateMaxContentLength(false);
+                    if (content.length() > maxContentLength) {
+                        content = smartTrim(content, maxContentLength);
+                    }
+                    
+                    // Replace newlines with spaces for display
+                    for (char& c : content) {
+                        if (c == '\n' || c == '\r') c = ' ';
+                    }
+                    
+                    line += content;
+                    
+                    // Add line count if more than one line
+                    if (lineCount > 1) {
+                        line += " (" + std::to_string(lineCount) + " lines)";
+                    }
+                }
+                
+                // Highlight selected item with theme selection color
+                if (i == selectedItem) {
+                    RECT highlightRect = {5, y - 12, getClipListWidth(), y + 3};
+                    HBRUSH hHighlightBrush = CreateSolidBrush(selectionColor);
+                    FillRect(hdc, &highlightRect, hHighlightBrush);
+                    DeleteObject(hHighlightBrush);
+                }
+                
+                // Ensure text color is set before drawing (matches Linux behavior)
+                SetTextColor(hdc, textColor);
+                TextOut(hdc, 10, y, line.c_str(), line.length());
+                
+                y += LINE_HEIGHT;
+            }
+            
+            if (displayCount == 0 && !cmd_themeSelectMode) {
+                std::string empty;
+                if (filterMode) {
+                    empty = "No matching items...";
+                } else if (commandMode) {
+                    empty = "Enter command...";
+                } else {
+                    empty = "No clipboard items yet...";
+                }
+                // Ensure text color is set before drawing
+                SetTextColor(hdc, textColor);
+                TextOut(hdc, 10, y, empty.c_str(), empty.length());
+            }
+            
+            // Draw dialogs if visible
+            drawBookmarkDialog(hdc);
+            drawAddToBookmarkDialog(hdc);
+            drawViewBookmarksDialog(hdc);
+            drawPinnedDialog(hdc);
+            drawHelpDialog(hdc);
+            
+            // Cleanup
+            SelectObject(hdc, hOldFont);
+            DeleteObject(hFont);
+            ReleaseDC(hwnd, hdc);
+        }
+
+        void drawBookmarkDialog(HDC hdc) {
+            if (!bookmarkDialogVisible) return;
+            
+            // Get dynamic dialog dimensions
+            DialogDimensions dims = getBookmarkDialogDimensions();
+            
+            // Draw dialog background
+            HBRUSH hBgBrush = CreateSolidBrush(backgroundColor);
+            RECT bgRect = {dims.x, dims.y, dims.x + dims.width, dims.y + dims.height};
+            FillRect(hdc, &bgRect, hBgBrush);
+            DeleteObject(hBgBrush);
+            
+            // Draw border
+            HPEN hBorderPen = CreatePen(PS_SOLID, 1, borderColor);
+            HPEN hOldPen = (HPEN)SelectObject(hdc, hBorderPen);
+            Rectangle(hdc, dims.x, dims.y, dims.x + dims.width, dims.y + dims.height);
+            SelectObject(hdc, hOldPen);
+            DeleteObject(hBorderPen);
+            
+            // Draw title
+            std::string title = "Bookmark Groups";
+            int titleWidth = 100; // Approximate width
+            SetTextColor(hdc, textColor);
+            TextOut(hdc, dims.x + (dims.width - titleWidth) / 2, dims.y + 25, title.c_str(), title.length());
+            
+            // Draw input field
+            SetTextColor(hdc, textColor);
+            TextOut(hdc, dims.x + 20, dims.y + 60, "New group name:", 16);
+            
+            // Draw input box
+            HBRUSH hInputBrush = CreateSolidBrush(selectionColor);
+            RECT inputRect = {dims.x + 20, dims.y + 70, dims.x + dims.width - 20, dims.y + 95};
+            FillRect(hdc, &inputRect, hInputBrush);
+            DeleteObject(hInputBrush);
+            
+            HPEN hInputPen = CreatePen(PS_SOLID, 1, textColor);
+            HPEN hOldInputPen = (HPEN)SelectObject(hdc, hInputPen);
+            Rectangle(hdc, dims.x + 20, dims.y + 70, dims.x + dims.width - 20, dims.y + 95);
+            SelectObject(hdc, hOldInputPen);
+            DeleteObject(hInputPen);
+            
+            // Draw input text
+            std::string displayInput = bookmarkDialogInput + "_";
+            TextOut(hdc, dims.x + 25, dims.y + 87, displayInput.c_str(), displayInput.length());
+            
+            // Draw existing groups
+            SetTextColor(hdc, textColor);
+            TextOut(hdc, dims.x + 20, dims.y + 120, "Existing groups:", 15);
+            
+            // Filter and display groups
+            std::vector<std::string> filteredGroups;
+            for (const auto& group : bookmarkGroups) {
+                if (bookmarkDialogInput.empty() || group.find(bookmarkDialogInput) != std::string::npos) {
+                    filteredGroups.push_back(group);
+                }
+            }
+            
+            int y = dims.y + 140;
+            const int VISIBLE_ITEMS = 8;
+            
+            size_t startIdx = bookmarkMgmtScrollOffset;
+            size_t endIdx = std::min(startIdx + VISIBLE_ITEMS, filteredGroups.size());
+            
+            for (size_t i = startIdx; i < endIdx; ++i) {
+                std::string displayText = "  " + filteredGroups[i];
+                
+                if (i == selectedBookmarkGroup) {
+                    // Highlight selected
+                    HBRUSH hHighlightBrush = CreateSolidBrush(selectionColor);
+                    RECT highlightRect = {dims.x + 15, y - 12, dims.x + dims.width - 15, y + 3};
+                    FillRect(hdc, &highlightRect, hHighlightBrush);
+                    DeleteObject(hHighlightBrush);
+                }
+                
+                // Ensure text color is set before drawing
+                SetTextColor(hdc, textColor);
+                TextOut(hdc, dims.x + 20, y, displayText.c_str(), displayText.length());
+                y += 18;
+            }
+        }
+
+        void drawAddToBookmarkDialog(HDC hdc) {
+            if (!addToBookmarkDialogVisible) return;
+            
+            // Get dynamic dialog dimensions
+            DialogDimensions dims = getAddBookmarkDialogDimensions();
+            
+            // Draw dialog background
+            HBRUSH hBgBrush = CreateSolidBrush(backgroundColor);
+            RECT bgRect = {dims.x, dims.y, dims.x + dims.width, dims.y + dims.height};
+            FillRect(hdc, &bgRect, hBgBrush);
+            DeleteObject(hBgBrush);
+            
+            // Draw border
+            HPEN hBorderPen = CreatePen(PS_SOLID, 1, borderColor);
+            HPEN hOldPen = (HPEN)SelectObject(hdc, hBorderPen);
+            Rectangle(hdc, dims.x, dims.y, dims.x + dims.width, dims.y + dims.height);
+            SelectObject(hdc, hOldPen);
+            DeleteObject(hBorderPen);
+            
+            // Draw title
+            std::string title = "Add to Bookmark Group";
+            int titleWidth = 150; // Approximate width
+            SetTextColor(hdc, textColor);
+            TextOut(hdc, dims.x + (dims.width - titleWidth) / 2, dims.y + 25, title.c_str(), title.length());
+            
+            // Draw bookmark groups
+            SetTextColor(hdc, textColor);
+            
+            int y = dims.y + 50;
+            const int VISIBLE_ITEMS = 10;
+            
+            size_t startIdx = addBookmarkScrollOffset;
+            size_t endIdx = std::min(startIdx + VISIBLE_ITEMS, bookmarkGroups.size());
+            
+            for (size_t i = startIdx; i < endIdx; ++i) {
+                std::string displayText = "  " + bookmarkGroups[i];
+                if (i == selectedAddBookmarkGroup) {
+                    displayText = "> " + bookmarkGroups[i];
+                    // Highlight selected
+                    HBRUSH hHighlightBrush = CreateSolidBrush(selectionColor);
+                    RECT highlightRect = {dims.x + 15, y - 12, dims.x + dims.width - 15, y + 3};
+                    FillRect(hdc, &highlightRect, hHighlightBrush);
+                    DeleteObject(hHighlightBrush);
+                }
+                
+                // Ensure text color is set before drawing
+                SetTextColor(hdc, textColor);
+                TextOut(hdc, dims.x + 20, y, displayText.c_str(), displayText.length());
+                y += 18;
+            }
+        }
+
+        void drawViewBookmarksDialog(HDC hdc) {
+            if (!viewBookmarksDialogVisible) return;
+            
+            // Get dynamic dialog dimensions
+            DialogDimensions dims = getViewBookmarksDialogDimensions();
+            
+            // Draw dialog background
+            HBRUSH hBgBrush = CreateSolidBrush(backgroundColor);
+            RECT bgRect = {dims.x, dims.y, dims.x + dims.width, dims.y + dims.height};
+            FillRect(hdc, &bgRect, hBgBrush);
+            DeleteObject(hBgBrush);
+            
+            // Draw border
+            HPEN hBorderPen = CreatePen(PS_SOLID, 1, borderColor);
+            HPEN hOldPen = (HPEN)SelectObject(hdc, hBorderPen);
+            Rectangle(hdc, dims.x, dims.y, dims.x + dims.width, dims.y + dims.height);
+            SelectObject(hdc, hOldPen);
+            DeleteObject(hBorderPen);
+            
+            // Draw title
+            std::string title = viewBookmarksShowingGroups ? "Select Bookmark Group" : "View Bookmarks: " + bookmarkGroups[selectedViewBookmarkGroup];
+            int titleWidth = 200; // Approximate width
+            SetTextColor(hdc, textColor);
+            TextOut(hdc, dims.x + (dims.width - titleWidth) / 2, dims.y + 25, title.c_str(), title.length());
+            
+            if (viewBookmarksShowingGroups) {
+                // Show bookmark groups list with scrolling
+                SetTextColor(hdc, textColor);
+                int y = dims.y + 60;
+                const int VISIBLE_ITEMS = 20;
+                
+                size_t startIdx = viewBookmarksScrollOffset;
+                size_t endIdx = std::min(startIdx + VISIBLE_ITEMS, bookmarkGroups.size());
+                
+                for (size_t i = startIdx; i < endIdx; ++i) {
+                    std::string displayText = bookmarkGroups[i];
+                    
+                    // Add selection indicator
+                    if (i == selectedViewBookmarkGroup) {
+                        displayText = "> " + displayText;
+                        // Highlight selected
+                        HBRUSH hHighlightBrush = CreateSolidBrush(selectionColor);
+                        RECT highlightRect = {dims.x + 15, y - 12, dims.x + dims.width - 15, y + 3};
+                        FillRect(hdc, &highlightRect, hHighlightBrush);
+                        DeleteObject(hHighlightBrush);
+                    } else {
+                        displayText = "  " + displayText;
+                    }
+                    
+                    // Ensure text color is set before drawing
+                    SetTextColor(hdc, textColor);
+                    TextOut(hdc, dims.x + 20, y, displayText.c_str(), displayText.length());
+                    y += 18;
+                }
+                
+            } else {
+                // Show bookmark items for selected group
+                if (selectedViewBookmarkGroup < bookmarkGroups.size()) {
+                    std::string selectedGroup = bookmarkGroups[selectedViewBookmarkGroup];
+                    std::string bookmarkFile = bookmarksDir + "/bookmarks_" + selectedGroup + ".txt";
+                    std::ifstream file(bookmarkFile);
+                    
+                    if (file.is_open()) {
+                        std::string line;
+                        std::vector<std::string> bookmarkItems;
+                        
+                        while (std::getline(file, line)) {
+                            size_t pos = line.find('|');
+                            if (pos != std::string::npos && pos > 0) {
+                                std::string content = line.substr(pos + 1);
+                                try {
+                                    std::string decryptedContent = decrypt(content);
+                                    bookmarkItems.push_back(decryptedContent);
+                                } catch (...) {
+                                    bookmarkItems.push_back(content);
+                                }
+                            }
+                        }
+                        file.close();
+                        
+                        // Draw items with scrolling
+                        int itemY = dims.y + 60;
+                        const int VISIBLE_ITEMS = 20;
+                        
+                        size_t startIdx = viewBookmarksScrollOffset;
+                        size_t endIdx = std::min(startIdx + VISIBLE_ITEMS, bookmarkItems.size());
+                        
+                        for (size_t i = startIdx; i < endIdx; ++i) {
+                            std::string displayText = bookmarkItems[i];
+                            
+                            // Truncate if too long
+                            int maxContentLength = calculateDialogContentLength(dims);
+                            if (displayText.length() > maxContentLength) {
+                                displayText = smartTrim(displayText, maxContentLength);
+                            }
+                            
+                            // Replace newlines with spaces for display
+                            for (char& c : displayText) {
+                                if (c == '\n' || c == '\r') c = ' ';
+                            }
+                            
+                            // Add selection indicator
+                            if (i == selectedViewBookmarkItem) {
+                                displayText = "> " + displayText;
+                                // Highlight selected
+                                HBRUSH hHighlightBrush = CreateSolidBrush(selectionColor);
+                                RECT highlightRect = {dims.x + 15, itemY - 12, dims.x + dims.width - 15, itemY + 3};
+                                FillRect(hdc, &highlightRect, hHighlightBrush);
+                                DeleteObject(hHighlightBrush);
+                            } else {
+                                displayText = "  " + displayText;
+                            }
+                            
+                            // Ensure text color is set before drawing
+                            SetTextColor(hdc, textColor);
+                            TextOut(hdc, dims.x + 20, itemY, displayText.c_str(), displayText.length());
+                            itemY += 18;
+                        }
+                        
+                        if (bookmarkItems.empty()) {
+                            // Ensure text color is set before drawing
+                            SetTextColor(hdc, textColor);
+                            TextOut(hdc, dims.x + 20, itemY, "No bookmarks in this group", 26);
+                        }
+                    }
+                }
+            }
+        }
+
+        void drawPinnedDialog(HDC hdc) {
+            if (!pinnedDialogVisible) return;
+            
+            // Get sorted pinned items using our helper method
+            auto sortedItems = getSortedPinnedItems();
+            
+            // Get dynamic dialog dimensions
+            int numItems = sortedItems.size();
+            if (numItems == 0) {
+                numItems = 1; // for the "No pinned clips" message
+            }
+            int preferredHeight = (numItems * LINE_HEIGHT) + 80;
+            DialogDimensions dims = calculateDialogDimensions(windowWidth-40, preferredHeight);
+            
+            // Draw dialog background
+            HBRUSH hBgBrush = CreateSolidBrush(backgroundColor);
+            RECT bgRect = {dims.x, dims.y, dims.x + dims.width, dims.y + dims.height};
+            FillRect(hdc, &bgRect, hBgBrush);
+            DeleteObject(hBgBrush);
+            
+            // Draw border
+            HPEN hBorderPen = CreatePen(PS_SOLID, 1, borderColor);
+            HPEN hOldPen = (HPEN)SelectObject(hdc, hBorderPen);
+            Rectangle(hdc, dims.x, dims.y, dims.x + dims.width, dims.y + dims.height);
+            SelectObject(hdc, hOldPen);
+            DeleteObject(hBorderPen);
+            
+            // Draw title
+            std::string title = "Pinned Clips";
+            int titleWidth = 100; // Approximate width
+            SetTextColor(hdc, textColor);
+            TextOut(hdc, dims.x + (dims.width - titleWidth) / 2, dims.y + 25, title.c_str(), title.length());
+            
+            // Parse items for display (decrypt content)
+            std::vector<std::pair<long long, std::string>> displayItems;
+            for (const auto& line : sortedItems) {
+                size_t pos = line.find('|');
+                if (pos != std::string::npos && pos > 0) {
+                    std::string timestampStr = line.substr(0, pos);
+                    std::string content = line.substr(pos + 1);
+                    try {
+                        std::string decryptedContent = decrypt(content);
+                        long long timestamp = std::stoll(timestampStr);
+                        displayItems.push_back({timestamp, decryptedContent});
+                    } catch (...) {
+                        try {
+                            long long timestamp = std::stoll(timestampStr);
+                            displayItems.push_back({timestamp, content});
+                        } catch (...) {
+                            // If timestamp parsing fails, use current time
+                            long long timestamp = std::chrono::system_clock::now().time_since_epoch().count();
+                            displayItems.push_back({timestamp, content});
+                        }
+                    }
+                }
+            }
+            
+            // Draw items with scrolling
+            int itemY = dims.y + 60;
+            int maxVisibleItems = dims.contentHeight / LINE_HEIGHT;
+            if (maxVisibleItems < 1) maxVisibleItems = 1; // Ensure at least one item is visible
+            m_maxVisiblePinnedItems = maxVisibleItems; // Store for scrolling calculations
+            
+            size_t startIdx = viewPinnedScrollOffset;
+            size_t endIdx = std::min(startIdx + maxVisibleItems, displayItems.size());
+            
+            for (size_t i = startIdx; i < endIdx; ++i) {
+                std::string displayText = displayItems[i].second;
+        
+                // Truncate if too long
+                int maxContentLength = calculateDialogContentLength(dims);
+                if (displayText.length() > maxContentLength) {
+                    displayText = smartTrim(displayText, maxContentLength);
+                }
+                
+                // Replace newlines with spaces for display
+                for (char& c : displayText) {
+                    if (c == '\n' || c == '\r') c = ' ';
+                }
+                
+                // Add selection indicator
+                if (i == selectedViewPinnedItem) {
+                    displayText = "> " + displayText;
+                    // Highlight selected
+                    HBRUSH hHighlightBrush = CreateSolidBrush(selectionColor);
+                    RECT highlightRect = {dims.x + 15, itemY - (LINE_HEIGHT / 2), dims.x + dims.width - 15, itemY + (LINE_HEIGHT / 2)};
+                    FillRect(hdc, &highlightRect, hHighlightBrush);
+                    DeleteObject(hHighlightBrush);
+                } else {
+                    displayText = "  " + displayText;
+                }
+                
+                // Ensure text color is set before drawing
+                SetTextColor(hdc, textColor);
+                TextOut(hdc, dims.x + 20, itemY, displayText.c_str(), displayText.length());
+                itemY += LINE_HEIGHT;
+            }
+            
+            if (displayItems.empty()) {
+                // Ensure text color is set before drawing
+                SetTextColor(hdc, textColor);
+                TextOut(hdc, dims.x + 20, itemY, "No pinned clips", 16);
+            }
+        }
+
+        void drawHelpDialog(HDC hdc) {
+            if (!helpDialogVisible) return;
+            
+            // Get dynamic dialog dimensions
+            DialogDimensions dims = getHelpDialogDimensions();
+            
+            // Draw dialog background
+            HBRUSH hBgBrush = CreateSolidBrush(backgroundColor);
+            RECT bgRect = {dims.x, dims.y, dims.x + dims.width, dims.y + dims.height};
+            FillRect(hdc, &bgRect, hBgBrush);
+            DeleteObject(hBgBrush);
+            
+            // Draw border
+            HPEN hBorderPen = CreatePen(PS_SOLID, 1, borderColor);
+            HPEN hOldPen = (HPEN)SelectObject(hdc, hBorderPen);
+            Rectangle(hdc, dims.x, dims.y, dims.x + dims.width, dims.y + dims.height);
+            SelectObject(hdc, hOldPen);
+            DeleteObject(hBorderPen);
+            
+            // Draw help content
+            SetTextColor(hdc, textColor);
+            int y = dims.y + 20;
+            const int contentTop = y;
+            const int contentBottom = dims.y + dims.height;
+            const int titleLeft = dims.x + 20;
+            const int topicLeft = dims.x + 30;
+            const int lineHeight = 15;
+            const int gap = 10;
+
+            y = y + helpDialogScrollOffset;
+
+            // Main Window shortcuts
+            drawHelpTopic(titleLeft, y, contentTop, contentBottom, "Main Window:");
+            y += lineHeight;
+            drawHelpTopic(topicLeft, y, contentTop, contentBottom, "j/k            - Navigate items");
+            y += lineHeight;
+            drawHelpTopic(topicLeft, y, contentTop, contentBottom, "g/G            - Top/bottom");
+            y += lineHeight;
+            drawHelpTopic(topicLeft, y, contentTop, contentBottom, "Enter          - Copy item");
+            y += lineHeight;
+            drawHelpTopic(topicLeft, y, contentTop, contentBottom, "/              - Filter mode");
+            y += lineHeight;
+            drawHelpTopic(topicLeft, y, contentTop, contentBottom, "Shift+M        - Manage bookmark groups");
+            y += lineHeight;
+            drawHelpTopic(topicLeft, y, contentTop, contentBottom, "m              - Add clip to group");
+            y += lineHeight;
+            drawHelpTopic(topicLeft, y, contentTop, contentBottom, "`              - View bookmarks");
+            y += lineHeight;
+            drawHelpTopic(topicLeft, y, contentTop, contentBottom, "?              - This help");
+            y += lineHeight;
+            drawHelpTopic(topicLeft, y, contentTop, contentBottom, "Shift+D        - Delete item");
+            y += lineHeight;
+            drawHelpTopic(topicLeft, y, contentTop, contentBottom, "Shift+Q        - Quit");
+            y += lineHeight;
+            drawHelpTopic(topicLeft, y, contentTop, contentBottom, "Escape         - Hide window");
+            y += lineHeight + gap;
+            
+            // Help
+            drawHelpTopic(titleLeft, y, contentTop, contentBottom, "Help Window:");
+            y += lineHeight;
+            drawHelpTopic(topicLeft, y, contentTop, contentBottom, "j/k            - Navigate topics");
+            y += lineHeight;
+            drawHelpTopic(topicLeft, y, contentTop, contentBottom, "g              - Top");
+            y += lineHeight + gap;
+
+            // Filter Mode shortcuts
+            drawHelpTopic(titleLeft, y, contentTop, contentBottom, "Filter Mode:");
+            y += lineHeight;
+            drawHelpTopic(topicLeft, y, contentTop, contentBottom, "Type text      - Filter items");
+            y += lineHeight;
+            drawHelpTopic(topicLeft, y, contentTop, contentBottom, "Backspace      - Delete char");
+            y += lineHeight;
+            drawHelpTopic(topicLeft, y, contentTop, contentBottom, "Up/down arrow  - Navigate items");
+            y += lineHeight;
+            drawHelpTopic(topicLeft, y, contentTop, contentBottom, "Delete         - Delete item");
+            y += lineHeight;
+            drawHelpTopic(topicLeft, y, contentTop, contentBottom, "Enter          - Copy item");
+            y += lineHeight;
+            drawHelpTopic(topicLeft, y, contentTop, contentBottom, "Escape         - Exit filter");
+            y += lineHeight + gap;
+            
+            // Add bookmark group shortcuts
+            drawHelpTopic(titleLeft, y, contentTop, contentBottom, "Add Bookmark Group Dialog:");
+            y += lineHeight;
+            drawHelpTopic(topicLeft, y, contentTop, contentBottom, "Type text      - Define Group Name / Filter Existing");
+            y += lineHeight;
+            drawHelpTopic(topicLeft, y, contentTop, contentBottom, "Backspace      - Delete char");
+            y += lineHeight;
+            drawHelpTopic(topicLeft, y, contentTop, contentBottom, "Enter          - Create group");
+            y += lineHeight;
+            drawHelpTopic(topicLeft, y, contentTop, contentBottom, "Escape         - Exit dialog");
+            y += lineHeight + gap;
+
+            // Add clip to group shortcuts
+            drawHelpTopic(titleLeft, y, contentTop, contentBottom, "Add Clip to Group Dialog:");
+            y += lineHeight;
+            drawHelpTopic(topicLeft, y, contentTop, contentBottom, "j/k            - Navigate group");
+            y += lineHeight;
+            drawHelpTopic(topicLeft, y, contentTop, contentBottom, "g/G            - Top/bottom");
+            y += lineHeight;
+            drawHelpTopic(topicLeft, y, contentTop, contentBottom, "Enter          - Add clip to group");
+            y += lineHeight;
+            drawHelpTopic(topicLeft, y, contentTop, contentBottom, "Escape         - Exit dialog");
+            y += lineHeight + gap;
+
+            // View/Edit/Use bookmarks
+            drawHelpTopic(titleLeft, y, contentTop, contentBottom, "View/Delete/Use Bookmarks Dialog");
+            y += lineHeight;
+            drawHelpTopic(topicLeft, y, contentTop, contentBottom, "j/k            - Navigate groups/clips");
+            y += lineHeight;
+            drawHelpTopic(topicLeft, y, contentTop, contentBottom, "g/G            - Top/bottom");
+            y += lineHeight;
+            drawHelpTopic(topicLeft, y, contentTop, contentBottom, "Enter          - View group clips/copy clip");
+            y += lineHeight;
+            drawHelpTopic(topicLeft, y, contentTop, contentBottom, "h              - Back to groups list");
+            y += lineHeight;
+            drawHelpTopic(topicLeft, y, contentTop, contentBottom, "Escape         - Exit dialog");
+            y += lineHeight + gap + 5;
+
+            // Commands
+            drawHelpTopic(titleLeft, y, contentTop, contentBottom, "Commands");
+            y += lineHeight;
+            drawHelpTopic(topicLeft, y, contentTop, contentBottom, ":              - Activate commands");
+            y += lineHeight;
+            drawHelpTopic(topicLeft, y, contentTop, contentBottom, "theme          - Select theme to apply");
+            y += lineHeight;
+            drawHelpTopic(topicLeft, y, contentTop, contentBottom, "Enter          - Apply command");
+            y += lineHeight;
+            drawHelpTopic(topicLeft, y, contentTop, contentBottom, "Escape         - Cancel command");
+            y += lineHeight + gap + 5;
+
+            // Global hotkey
+            drawHelpTopic(titleLeft, y, contentTop, contentBottom, "Global Hotkey:");
+            y += lineHeight;
+            drawHelpTopic(topicLeft, y, contentTop, contentBottom, "Ctrl+Alt+C     - Show/hide window");
+        }
 #endif
+    // End Windows UI Methods
 
 
     // MacOs UI Methods
+#ifdef __APPLE__
+#endif
+    // End MacOs UI Methods
 
     
 
     
+#ifdef __linux__
     void requestClipboardContent() {
         // Request clipboard content as UTF8_STRING
         XConvertSelection(display, clipboardAtom, utf8Atom, clipboardAtom, window, CurrentTime);
     }
+#endif
 
 #ifdef __linux__
     void handleSelectionNotify(XEvent* event) {
@@ -4389,6 +5134,18 @@ LRESULT CALLBACK MMRYWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) 
             // Skip WM_CHAR to prevent double processing
             // All key handling is done via WM_KEYDOWN
             return 0;
+        case WM_PAINT:
+            if (manager) {
+                PAINTSTRUCT ps;
+                BeginPaint(hwnd, &ps);
+                manager->drawConsole();
+                EndPaint(hwnd, &ps);
+            }
+            return 0;
+        case WM_ERASEBKGND:
+            // Return 1 to indicate we handled background erasing
+            // This prevents Windows from erasing to white
+            return 1;
         case WM_CLIPBOARDUPDATE:
             if (manager) {
                 if (OpenClipboard(hwnd)) {
