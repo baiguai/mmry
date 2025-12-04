@@ -58,7 +58,6 @@ public:
 #endif
 #ifdef _WIN32
         MSG* msg = (MSG*)eventPtr;
-        std::cout << "Key received: " << (int)msg->wParam << std::endl;
         int virtualKey = (int)msg->wParam; 
         BYTE keyboardState[256] = {0};
         GetKeyboardState(keyboardState);
@@ -92,7 +91,7 @@ public:
             if (keysym == XK_question) key_value = "?";
 #endif
 #ifdef _WIN32
-        // Windows Keys
+            // Windows Keys - Handle WM_KEYDOWN only (WM_CHAR is skipped to prevent double processing)
             if (msg->wParam == 'D' && (GetKeyState(VK_SHIFT) & 0x8000)) key_value = "D";
             if (msg->wParam == 'G' && (GetKeyState(VK_SHIFT) & 0x8000)) key_value = "G";
             if (msg->wParam == 'G') key_value = "g";
@@ -172,8 +171,8 @@ public:
             // Text input for bookmark dialog - exclude vim navigation keys
             // Plain Text
 #ifdef _WIN32
-                // If it's a WM_CHAR message, use the character directly
-                if (msg->message == WM_CHAR && msg->wParam >= 32) { // Exclude control characters
+                // Handle character input from WM_KEYDOWN
+                if (msg->wParam >= 32 && msg->wParam <= 126 && key_value.empty()) { // Printable characters with no key_value set
                     bookmarkDialogInput += (char)msg->wParam;
                     drawConsole();
                 }
@@ -356,8 +355,8 @@ public:
             
             // Free Text
 #ifdef _WIN32
-                // If it's a WM_CHAR message, use the character directly
-                if (msg->message == WM_CHAR && msg->wParam >= 32) { // Exclude control characters
+                // Handle character input from WM_KEYDOWN
+                if (msg->wParam >= 32 && msg->wParam <= 126 && key_value.empty()) { // Printable characters with no key_value set
                     // Don't add the triggering '/' as the first character
                     if (filterText.empty() && msg->wParam == '/') {
                         // do nothing
@@ -411,8 +410,8 @@ public:
 
             // Free Text
 #ifdef _WIN32
-                // If it's a WM_CHAR message, use the character directly
-                if (msg->message == WM_CHAR && msg->wParam >= 32) { // Exclude control characters
+                // Handle character input from WM_KEYDOWN
+                if (msg->wParam >= 32 && msg->wParam <= 126 && key_value.empty()) { // Printable characters with no key_value set
                     // Don't add the triggering ':' as the first character
                     if (commandText.empty() && msg->wParam == ':') {
                         // do nothing
@@ -4620,11 +4619,15 @@ LRESULT CALLBACK MMRYWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) 
             }
             return 0;
         case WM_KEYDOWN:
-        case WM_CHAR:
+            // Process WM_KEYDOWN only - this prevents double processing
             if (manager) {
                 MSG winMsg = {hwnd, msg, wParam, lParam};
                 manager->handleKeyPressCommon(&winMsg);
             }
+            return 0;
+        case WM_CHAR:
+            // Skip WM_CHAR to prevent double processing
+            // All key handling is done via WM_KEYDOWN
             return 0;
         case WM_CLIPBOARDUPDATE:
             if (manager) {
