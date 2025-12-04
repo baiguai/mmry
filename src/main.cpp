@@ -881,23 +881,11 @@ public:
 
     // Pinned Clips
     bool key_pin_down() {
-        std::ifstream file(pinnedFile);
-        if (file.is_open()) {
-            std::string line;
-            size_t itemCount = 0;
-            while (std::getline(file, line)) {
-                size_t pos = line.find('|');
-                if (pos != std::string::npos && pos > 0) {
-                    itemCount++;
-                }
-            }
-            file.close();
-            
-            if (selectedViewPinnedItem < itemCount - 1) {
-                selectedViewPinnedItem++;
-                updatePinnedScrollOffset();
-                drawConsole();
-            }
+        auto sortedItems = getSortedPinnedItems();
+        if (selectedViewPinnedItem < sortedItems.size() - 1) {
+            selectedViewPinnedItem++;
+            updatePinnedScrollOffset();
+            drawConsole();
         }
         return true;
     }
@@ -919,95 +907,53 @@ public:
     }
 
     bool key_pin_bottom() {
-        std::ifstream file(pinnedFile);
-        if (file.is_open()) {
-            std::string line;
-            size_t itemCount = 0;
-            while (std::getline(file, line)) {
-                size_t pos = line.find('|');
-                if (pos != std::string::npos && pos > 0) {
-                    itemCount++;
+        auto sortedItems = getSortedPinnedItems();
+        if (!sortedItems.empty()) {
+            selectedViewPinnedItem = sortedItems.size() - 1;
+            updatePinnedScrollOffset();
+            drawConsole();
+        }
+        return true;
+    }
+
+    bool key_pin_delete() {
+        auto sortedItems = getSortedPinnedItems();
+        
+        // Remove the selected item if valid
+        if (selectedViewPinnedItem < sortedItems.size()) {
+            sortedItems.erase(sortedItems.begin() + selectedViewPinnedItem);
+
+            // Write back remaining lines
+            std::ofstream outFile(pinnedFile);
+            if (outFile.is_open()) {
+                for (const auto& item : sortedItems) {
+                    outFile << item << "\n";
                 }
-            }
-            file.close();
-            
-            if (itemCount > 0) {
-                selectedViewPinnedItem = itemCount - 1;
-                updatePinnedScrollOffset();
+                outFile.close();
+                
+                std::cout << "Deleted pinned clip" << std::endl;
+                
+                // Adjust selection
+                if (selectedViewPinnedItem > 0 && selectedViewPinnedItem >= sortedItems.size()) {
+                    selectedViewPinnedItem = sortedItems.size() - 1;
+                }
+                
+                // Close dialog if no pinned clips left
+                if (sortedItems.empty()) {
+                    pinnedDialogVisible = false;
+                }
+                
                 drawConsole();
             }
         }
         return true;
     }
 
-    bool key_pin_delete() {
-        std::ifstream inFile(pinnedFile);
-        if (inFile.is_open()) {
-            std::vector<std::pair<long long, std::string>> pinnedItems;
-            std::string line;
-
-            // Read and parse lines
-            while (std::getline(inFile, line)) {
-                size_t pos = line.find('|');
-                if (pos != std::string::npos && pos > 0) {
-                    try {
-                        long long timestamp = std::stoll(line.substr(0, pos));
-                        pinnedItems.push_back({timestamp, line});
-                    } catch (...) {
-                        // Fallback for parsing error: use current time, keep original line
-                        long long timestamp = std::chrono::system_clock::now().time_since_epoch().count();
-                        pinnedItems.push_back({timestamp, line});
-                    }
-                }
-            }
-            inFile.close();
-
-            // Sort by timestamp to match display order
-            std::sort(pinnedItems.begin(), pinnedItems.end(),
-                      [](const auto& a, const auto& b) { return a.first > b.first; });
-
-            // Remove the selected item if valid
-            if (selectedViewPinnedItem < pinnedItems.size()) {
-                pinnedItems.erase(pinnedItems.begin() + selectedViewPinnedItem);
-
-                // Write back remaining lines
-                std::ofstream outFile(pinnedFile);
-                if (outFile.is_open()) {
-                    for (const auto& item : pinnedItems) {
-                        outFile << item.second << "\n";
-                    }
-                    outFile.close();
-                    
-                    std::cout << "Deleted pinned clip" << std::endl;
-                    
-                    // Adjust selection
-                    if (selectedViewPinnedItem > 0 && selectedViewPinnedItem >= pinnedItems.size()) {
-                        selectedViewPinnedItem = pinnedItems.size() - 1;
-                    }
-                    
-                    // Close dialog if no pinned clips left
-                    if (pinnedItems.empty()) {
-                        pinnedDialogVisible = false;
-                    }
-                    
-                    drawConsole();
-                }
-            }
-        }
-        return true;
-    }
-
     bool key_pin_copy() {
-        std::vector<std::string> lines;
-        std::string line;
-        std::ifstream inFile(pinnedFile);
-        while (std::getline(inFile, line)) {
-            lines.push_back(line);
-        }
-        inFile.close();
+        auto sortedItems = getSortedPinnedItems();
 
-        if (selectedViewPinnedItem < lines.size()) {
-            std::string selectedLine = lines[selectedViewPinnedItem];
+        if (selectedViewPinnedItem < sortedItems.size()) {
+            std::string selectedLine = sortedItems[selectedViewPinnedItem];
             size_t pos = selectedLine.find('|');
             if (pos != std::string::npos) {
                 std::string contentToCopy;
@@ -1027,17 +973,17 @@ public:
                     std::cout << "Copied from pinned clips: " << contentToCopy.substr(0, 50) << "..." << std::endl;
                 }
 
-                // Remove the old line
-                lines.erase(lines.begin() + selectedViewPinnedItem);
+                // Remove the old line from sorted items
+                sortedItems.erase(sortedItems.begin() + selectedViewPinnedItem);
 
                 // Add the new line at the beginning
                 auto newTimestamp = std::chrono::system_clock::now().time_since_epoch().count();
                 std::string newLine = std::to_string(newTimestamp) + "|" + contentToSave;
-                lines.insert(lines.begin(), newLine);
+                sortedItems.insert(sortedItems.begin(), newLine);
                 
                 // Write the updated lines back to the file
                 std::ofstream outFile(pinnedFile);
-                for (const auto& l : lines) {
+                for (const auto& l : sortedItems) {
                     outFile << l << std::endl;
                 }
                 outFile.close();
@@ -1962,6 +1908,42 @@ private:
     size_t viewBookmarksScrollOffset = 0; // For scrolling long lists
     
     // Helper methods
+
+    // Pinned clips helper methods
+    ////////////////////////////////////////////////////////////////////////////
+    std::vector<std::string> getSortedPinnedItems() {
+        std::vector<std::pair<long long, std::string>> pinnedItems;
+        std::string line;
+        std::ifstream inFile(pinnedFile);
+        
+        // Read and parse lines
+        while (std::getline(inFile, line)) {
+            size_t pos = line.find('|');
+            if (pos != std::string::npos && pos > 0) {
+                try {
+                    long long timestamp = std::stoll(line.substr(0, pos));
+                    pinnedItems.push_back({timestamp, line});
+                } catch (...) {
+                    // Fallback for parsing error: use current time, keep original line
+                    long long timestamp = std::chrono::system_clock::now().time_since_epoch().count();
+                    pinnedItems.push_back({timestamp, line});
+                }
+            }
+        }
+        inFile.close();
+
+        // Sort by timestamp (newest first) to match display order
+        std::sort(pinnedItems.begin(), pinnedItems.end(),
+                  [](const auto& a, const auto& b) { return a.first > b.first; });
+
+        // Extract just the line strings in sorted order
+        std::vector<std::string> sortedLines;
+        for (const auto& item : pinnedItems) {
+            sortedLines.push_back(item.second);
+        }
+        
+        return sortedLines;
+    }
 
     // Custom Trimming
     ////////////////////////////////////////////////////////////////////////////
@@ -3758,15 +3740,11 @@ private:
 #ifdef __linux__
         if (!pinnedDialogVisible) return;
         
+        // Get sorted pinned items using our helper method
+        auto sortedItems = getSortedPinnedItems();
+        
         // Get dynamic dialog dimensions
-        std::ifstream file_counter(pinnedFile);
-        int numItems = 0;
-        std::string line_counter;
-        while (std::getline(file_counter, line_counter)) {
-            numItems++;
-        }
-        file_counter.close();
-
+        int numItems = sortedItems.size();
         if (numItems == 0) {
             numItems = 1; // for the "No pinned clips" message
         }
@@ -3784,81 +3762,71 @@ private:
         int titleWidth = XTextWidth(font, title.c_str(), title.length());
         XDrawString(display, window, gc, dims.x + (dims.width - titleWidth) / 2, dims.y + 25, title.c_str(), title.length());
         
-        std::ifstream file(pinnedFile);
-            
-        if (file.is_open()) {
-            std::string line;
-            std::vector<std::pair<long long, std::string>> pinnedItems;
-            
-            while (std::getline(file, line)) {
-                size_t pos = line.find('|');
-                if (pos != std::string::npos && pos > 0) {
-                    std::string timestampStr = line.substr(0, pos);
-                    std::string content = line.substr(line.find('|') + 1);
+        // Parse items for display (decrypt content)
+        std::vector<std::pair<long long, std::string>> displayItems;
+        for (const auto& line : sortedItems) {
+            size_t pos = line.find('|');
+            if (pos != std::string::npos && pos > 0) {
+                std::string timestampStr = line.substr(0, pos);
+                std::string content = line.substr(pos + 1);
+                try {
+                    std::string decryptedContent = decrypt(content);
+                    long long timestamp = std::stoll(timestampStr);
+                    displayItems.push_back({timestamp, decryptedContent});
+                } catch (...) {
                     try {
-                        std::string decryptedContent = decrypt(content);
                         long long timestamp = std::stoll(timestampStr);
-                        pinnedItems.push_back({timestamp, decryptedContent});
+                        displayItems.push_back({timestamp, content});
                     } catch (...) {
-                        try {
-                            long long timestamp = std::stoll(timestampStr);
-                            pinnedItems.push_back({timestamp, content});
-                        } catch (...) {
-                            // If timestamp parsing fails, use current time
-                            long long timestamp = std::chrono::system_clock::now().time_since_epoch().count();
-                            pinnedItems.push_back({timestamp, content});
-                        }
+                        // If timestamp parsing fails, use current time
+                        long long timestamp = std::chrono::system_clock::now().time_since_epoch().count();
+                        displayItems.push_back({timestamp, content});
                     }
                 }
             }
-            file.close();
-            
-            // Sort by timestamp in descending order (most recent first)
-            std::sort(pinnedItems.begin(), pinnedItems.end(), 
-                     [](const auto& a, const auto& b) { return a.first > b.first; });
-            
-            // Draw items with scrolling
-            int itemY = dims.y + 60;
-            int maxVisibleItems = dims.contentHeight / LINE_HEIGHT;
-            if (maxVisibleItems < 1) maxVisibleItems = 1; // Ensure at least one item is visible
-            m_maxVisiblePinnedItems = maxVisibleItems; // Store for scrolling calculations
-            
-            size_t startIdx = viewPinnedScrollOffset;
-            size_t endIdx = std::min(startIdx + maxVisibleItems, pinnedItems.size());
-            
-            for (size_t i = startIdx; i < endIdx; ++i) {
-                std::string displayText = pinnedItems[i].second;
+        }
         
-                // Truncate if too long
-                int maxContentLength = calculateDialogContentLength(dims);
-                if (displayText.length() > maxContentLength) {
-                    displayText = smartTrim(displayText, maxContentLength);
-                }
-                
-                // Replace newlines with spaces for display
-                for (char& c : displayText) {
-                    if (c == '\n' || c == '\r') c = ' ';
-                }
-                
-                // Add selection indicator
-                if (i == selectedViewPinnedItem) {
-                    displayText = "> " + displayText;
-                    // Highlight selected
-                    XSetForeground(display, gc, selectionColor);
-                    XFillRectangle(display, window, gc, dims.x + 15, itemY - (LINE_HEIGHT / 2), dims.width - 30, LINE_HEIGHT);
-                    XSetForeground(display, gc, textColor);
-                } else {
-                    XSetForeground(display, gc, selectionColor);
-                    displayText = "  " + displayText;
-                }
-                
-                XDrawString(display, window, gc, dims.x + 20, itemY, displayText.c_str(), displayText.length());
-                itemY += LINE_HEIGHT;
+        // Draw items with scrolling
+        int itemY = dims.y + 60;
+        int maxVisibleItems = dims.contentHeight / LINE_HEIGHT;
+        if (maxVisibleItems < 1) maxVisibleItems = 1; // Ensure at least one item is visible
+        m_maxVisiblePinnedItems = maxVisibleItems; // Store for scrolling calculations
+        
+        size_t startIdx = viewPinnedScrollOffset;
+        size_t endIdx = std::min(startIdx + maxVisibleItems, displayItems.size());
+        
+        for (size_t i = startIdx; i < endIdx; ++i) {
+            std::string displayText = displayItems[i].second;
+    
+            // Truncate if too long
+            int maxContentLength = calculateDialogContentLength(dims);
+            if (displayText.length() > maxContentLength) {
+                displayText = smartTrim(displayText, maxContentLength);
             }
             
-            if (pinnedItems.empty()) {
-                XDrawString(display, window, gc, dims.x + 20, itemY, "No pinned clips", 16);
+            // Replace newlines with spaces for display
+            for (char& c : displayText) {
+                if (c == '\n' || c == '\r') c = ' ';
             }
+            
+            // Add selection indicator
+            if (i == selectedViewPinnedItem) {
+                displayText = "> " + displayText;
+                // Highlight selected
+                XSetForeground(display, gc, selectionColor);
+                XFillRectangle(display, window, gc, dims.x + 15, itemY - (LINE_HEIGHT / 2), dims.width - 30, LINE_HEIGHT);
+                XSetForeground(display, gc, textColor);
+            } else {
+                XSetForeground(display, gc, selectionColor);
+                displayText = "  " + displayText;
+            }
+            
+            XDrawString(display, window, gc, dims.x + 20, itemY, displayText.c_str(), displayText.length());
+            itemY += LINE_HEIGHT;
+        }
+        
+        if (displayItems.empty()) {
+            XDrawString(display, window, gc, dims.x + 20, itemY, "No pinned clips", 16);
         }
 #endif
     }
@@ -3869,7 +3837,7 @@ private:
     void drawViewBookmarksDialog(HDC hdc) { }
     void drawHelpDialog(HDC hdc) { }
 
-    void drawPinnedDialog(HDC hdc) {
+void drawPinnedDialog(HDC hdc) {
         if (!pinnedDialogVisible) return;
 
         // Extract theme colors
@@ -3886,14 +3854,9 @@ private:
         BYTE border_g = (borderColor >> 8) & 0xFF;
         BYTE border_b = borderColor & 0xFF;
 
-        std::ifstream file_counter(pinnedFile);
-        int numItems = 0;
-        std::string line_counter;
-        while (std::getline(file_counter, line_counter)) {
-            numItems++;
-        }
-        file_counter.close();
-
+        // Get sorted pinned items using our helper method
+        auto sortedItems = getSortedPinnedItems();
+        int numItems = sortedItems.size();
         if (numItems == 0) {
             numItems = 1; // for the "No pinned clips" message
         }
@@ -3918,57 +3881,59 @@ private:
         RECT titleRect = {dims.x, dims.y + 10, dims.x + dims.width, dims.y + 40};
         DrawTextA(hdc, title.c_str(), -1, &titleRect, DT_CENTER | DT_SINGLELINE | DT_VCENTER);
 
-        std::ifstream file(pinnedFile);
-        if (file.is_open()) {
-            std::string line;
-            std::vector<std::pair<long long, std::string>> pinnedItems;
-            while (std::getline(file, line)) {
-                size_t pos = line.find('|');
-                if (pos != std::string::npos && pos > 0) {
+        // Parse items for display (decrypt content)
+        std::vector<std::pair<long long, std::string>> displayItems;
+        for (const auto& line : sortedItems) {
+            size_t pos = line.find('|');
+            if (pos != std::string::npos && pos > 0) {
+                try {
+                    displayItems.push_back({std::stoll(line.substr(0, pos)), decrypt(line.substr(pos + 1))});
+                } catch (...) { 
                     try {
-                        pinnedItems.push_back({std::stoll(line.substr(0, pos)), decrypt(line.substr(pos + 1))});
-                    } catch (...) { }
+                        displayItems.push_back({std::stoll(line.substr(0, pos)), line.substr(pos + 1)});
+                    } catch (...) {
+                        // If timestamp parsing fails, use current time
+                        long long timestamp = std::chrono::system_clock::now().time_since_epoch().count();
+                        displayItems.push_back({timestamp, line.substr(pos + 1)});
+                    }
                 }
             }
-            file.close();
+        }
+        
+        int itemY = dims.y + 60;
+        int maxVisibleItems = dims.contentHeight / LINE_HEIGHT;
+        if (maxVisibleItems < 1) maxVisibleItems = 1; // Ensure at least one item is visible
+        m_maxVisiblePinnedItems = maxVisibleItems; // Store for scrolling calculations
+        size_t startIdx = viewPinnedScrollOffset;
+        size_t endIdx = std::min(startIdx + maxVisibleItems, displayItems.size());
 
-            std::sort(pinnedItems.begin(), pinnedItems.end(), [](const auto& a, const auto& b) { return a.first > b.first; });
+        writeLog("startIdx: " + std::to_string(startIdx) + ", endIdx: " + std::to_string(endIdx));
 
-            int itemY = dims.y + 60;
-            int maxVisibleItems = dims.contentHeight / LINE_HEIGHT;
-            if (maxVisibleItems < 1) maxVisibleItems = 1; // Ensure at least one item is visible
-            m_maxVisiblePinnedItems = maxVisibleItems; // Store for scrolling calculations
-            size_t startIdx = viewPinnedScrollOffset;
-            size_t endIdx = std::min(startIdx + maxVisibleItems, pinnedItems.size());
-
-            writeLog("startIdx: " + std::to_string(startIdx) + ", endIdx: " + std::to_string(endIdx));
-
-            for (size_t i = startIdx; i < endIdx; ++i) {
-                std::string displayText = pinnedItems[i].second;
-                int maxContentLength = calculateDialogContentLength(dims);
-                if (displayText.length() > maxContentLength) {
-                    displayText = smartTrim(displayText, maxContentLength);
-                }
-                for (char& c : displayText) { if (c == '\n' || c == '\r') c = ' '; }
-
-                RECT itemRect = {dims.x + 20, itemY, dims.x + dims.width - 20, itemY + LINE_HEIGHT};
-                if (i == selectedViewPinnedItem) {
-                    std::string fullLine = "> " + displayText;
-                    RECT selRect = {dims.x + 15, itemY - (LINE_HEIGHT / 2), dims.x + dims.width - 15, itemY + LINE_HEIGHT};
-                    HBRUSH selBrush = CreateSolidBrush(RGB(sel_r, sel_g, sel_b));
-                    FillRect(hdc, &selRect, selBrush);
-                    DeleteObject(selBrush);
-                    TextOutA(hdc, dims.x + 20, itemY, fullLine.c_str(), fullLine.length());
-                } else {
-                    std::string fullLine = "  " + displayText;
-                    TextOutA(hdc, dims.x + 20, itemY, fullLine.c_str(), fullLine.length());
-                }
-                itemY += LINE_HEIGHT;
+        for (size_t i = startIdx; i < endIdx; ++i) {
+            std::string displayText = displayItems[i].second;
+            int maxContentLength = calculateDialogContentLength(dims);
+            if (displayText.length() > maxContentLength) {
+                displayText = smartTrim(displayText, maxContentLength);
             }
+            for (char& c : displayText) { if (c == '\n' || c == '\r') c = ' '; }
 
-            if (pinnedItems.empty()) {
-                TextOutA(hdc, dims.x + 20, itemY, "No pinned clips", 16);
+            RECT itemRect = {dims.x + 20, itemY, dims.x + dims.width - 20, itemY + LINE_HEIGHT};
+            if (i == selectedViewPinnedItem) {
+                std::string fullLine = "> " + displayText;
+                RECT selRect = {dims.x + 15, itemY - (LINE_HEIGHT / 2), dims.x + dims.width - 15, itemY + LINE_HEIGHT};
+                HBRUSH selBrush = CreateSolidBrush(RGB(sel_r, sel_g, sel_b));
+                FillRect(hdc, &selRect, selBrush);
+                DeleteObject(selBrush);
+                TextOutA(hdc, dims.x + 20, itemY, fullLine.c_str(), fullLine.length());
+            } else {
+                std::string fullLine = "  " + displayText;
+                TextOutA(hdc, dims.x + 20, itemY, fullLine.c_str(), fullLine.length());
             }
+            itemY += LINE_HEIGHT;
+        }
+
+        if (displayItems.empty()) {
+            TextOutA(hdc, dims.x + 20, itemY, "No pinned clips", 16);
         }
     }
 #endif
