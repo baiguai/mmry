@@ -56,6 +56,7 @@ x86_64-w64-mingw32-g++ -std=c++17 \
     -static-libstdc++ \
     -static \
     $BUILD_TYPE_FLAGS \
+    -mwindows \
     -o mmry.exe \
     ../src/main.cpp \
     -luser32 \
