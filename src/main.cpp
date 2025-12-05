@@ -62,7 +62,6 @@ public:
 #endif
 #ifdef _WIN32
         MSG* msg = (MSG*)eventPtr;
-        int virtualKey = (int)msg->wParam; 
         BYTE keyboardState[256] = {0};
         GetKeyboardState(keyboardState);
 #endif
@@ -1727,7 +1726,7 @@ Comment=Autostart for )" << appLabel << R"(
         }
 
         // --- Win32 window class (blank window for now) ---
-        WNDCLASS wc = {0};
+        WNDCLASS wc = {};
         wc.lpfnWndProc   = MMRYWndProc;
         wc.hInstance     = GetModuleHandle(NULL);
         wc.lpszClassName = "MMRY_Window_Class";
@@ -2551,7 +2550,7 @@ private:
         // logfile << "updateConsoleScrollOffset: windowHeight=" << windowHeight << ", availableHeight=" << availableHeight << ", LINE_HEIGHT=" << LINE_HEIGHT << ", maxVisibleItems (initial)=" << maxVisibleItems << std::endl;
         
         // If we have more items than fit, reserve space for scroll indicator
-        if (displayCount > maxVisibleItems) {
+        if (static_cast<int>(displayCount) > maxVisibleItems) {
             availableHeight -= SCROLL_INDICATOR_HEIGHT;
             maxVisibleItems = availableHeight / LINE_HEIGHT;
         }
@@ -2619,12 +2618,11 @@ private:
     }
     
     void updateHelpDialogScrollOffset(int adjustment) {
-        const int VISIBLE_ITEMS = 50; // Number of items visible in help dialog
         const int STEP = 10;
        
         helpDialogScrollOffset = helpDialogScrollOffset + (adjustment * STEP);
 
-        if (helpDialogScrollOffset > -1)
+        if (static_cast<int>(helpDialogScrollOffset) > -1)
         {
             helpDialogScrollOffset = 0;
         }
@@ -2959,7 +2957,7 @@ private:
     void createDefaultThemeFile() {
         // Create themes directory if it doesn't exist
         std::string themesDir = configDir + "/themes";
-        struct stat st = {0};
+        struct stat st = {};
         if (stat(themesDir.c_str(), &st) == -1) {
 #ifdef _WIN32
             mkdir(themesDir.c_str());
@@ -3178,7 +3176,7 @@ private:
         };
         
         // Create config directory if it doesn't exist
-        struct stat st = {0};
+        struct stat st = {};
         if (stat(configDir.c_str(), &st) == -1) {
             if (createDirectory(configDir)) {
                 std::cout << "Created config directory: " << configDir << std::endl;
@@ -3224,7 +3222,7 @@ private:
     void ensureRequiredFiles() {
         // Check and create config.json if needed
         std::string configFile = configDir + "/config.json";
-        struct stat st = {0};
+        struct stat st = {};
         if (stat(configFile.c_str(), &st) == -1) {
             createDefaultConfig();
         }
@@ -3326,7 +3324,7 @@ private:
         std::this_thread::sleep_for(std::chrono::milliseconds(200));
         
         // Install X11 error handler to catch grab failures
-        auto oldHandler = XSetErrorHandler([](Display* d, XErrorEvent* e) -> int {
+        auto oldHandler = XSetErrorHandler([](Display* /*d*/, XErrorEvent* e) -> int {
             if (e->error_code == BadAccess) {
                 std::cerr << "X11 Error: BadAccess when trying to grab key" << std::endl;
                 return 0;
@@ -3439,14 +3437,15 @@ private:
 //// HELP TOPICS ///////////////////////////////////////////////////////////////
 ///
 ///
-    void drawHelpTopic(HDC hdc, int x, int y, int contentTop, int contentBottom, const std::string& topic) {
 #ifdef __linux__
+    void drawHelpTopic(HDC /*hdc*/, int x, int y, int contentTop, int contentBottom, const std::string& topic) {
         if (y >= contentTop && y < contentBottom) {
             XDrawString(display, window, gc, x, y, topic.c_str(), topic.length());
         }
 #endif
 
 #ifdef _WIN32
+    void drawHelpTopic(HDC hdc, int x, int y, int contentTop, int contentBottom, const std::string& topic) {
         if (hdc && y >= contentTop && y < contentBottom) {
             RECT rc;
             rc.left   = x;
@@ -3648,7 +3647,7 @@ public:
             int availableHeight = windowHeight - startY - 10;
 
             // If we need a scroll indicator, account for its space
-            if (displayCount > (availableHeight / LINE_HEIGHT)) {
+            if (static_cast<int>(displayCount) > (availableHeight / LINE_HEIGHT)) {
                 availableHeight -= SCROLL_INDICATOR_HEIGHT;
             }
 
@@ -3660,7 +3659,7 @@ public:
             size_t endIdx = std::min(startIdx + maxItems, displayCount);
 
             // Adjust for the scroll indicator
-            if (displayCount > maxItems) {
+            if (static_cast<int>(displayCount) > maxItems) {
                 std::string scrollText = "[" + std::to_string(selectedItem + 1) + "/" + std::to_string(displayCount) + "]";
                 XDrawString(display, window, gc, windowWidth - 80, 15, scrollText.c_str(), scrollText.length());
                 y = y + 15;
@@ -3699,7 +3698,7 @@ public:
                     // Truncate content if too long
                     std::string content = item.content;
                     int maxContentLength = calculateMaxContentLength(true);
-                    if (content.length() > maxContentLength) {
+                    if (static_cast<int>(content.length()) > maxContentLength) {
                         content = smartTrim(content, maxContentLength);
                     }
                     
@@ -3721,7 +3720,7 @@ public:
                     // Truncate content if too long
                     std::string content = item.content;
                     int maxContentLength = calculateMaxContentLength(false);
-                    if (content.length() > maxContentLength) {
+                    if (static_cast<int>(content.length()) > maxContentLength) {
                         content = smartTrim(content, maxContentLength);
                     }
                     
@@ -3956,7 +3955,7 @@ public:
                             
                             // Truncate if too long
                             int maxContentLength = calculateDialogContentLength(dims);
-                            if (displayText.length() > maxContentLength) {
+                            if (static_cast<int>(displayText.length()) > maxContentLength) {
                                 displayText = smartTrim(displayText, maxContentLength);
                             }
                             
@@ -4054,7 +4053,7 @@ public:
         
                 // Truncate if too long
                 int maxContentLength = calculateDialogContentLength(dims);
-                if (displayText.length() > maxContentLength) {
+                if (static_cast<int>(displayText.length()) > maxContentLength) {
                     displayText = smartTrim(displayText, maxContentLength);
                 }
                 
@@ -4068,7 +4067,7 @@ public:
                     displayText = "> " + displayText;
                     // Highlight selected
                     XSetForeground(display, gc, selectionColor);
-                    XFillRectangle(display, window, gc, dims.x + 15, itemY - (LINE_HEIGHT / 2), dims.width - 30, LINE_HEIGHT);
+                    XFillRectangle(display, window, gc, dims.x + 15, itemY - 12, dims.width - 30, 15);
                     XSetForeground(display, gc, textColor);
                 } else {
                     XSetForeground(display, gc, selectionColor);
@@ -4205,7 +4204,7 @@ public:
             int availableHeight = windowHeight - startY - 10;
 
             // If we need a scroll indicator, account for its space
-            if (displayCount > (availableHeight / LINE_HEIGHT)) {
+            if (static_cast<int>(displayCount) > (availableHeight / LINE_HEIGHT)) {
                 availableHeight -= SCROLL_INDICATOR_HEIGHT;
             }
 
@@ -4217,7 +4216,7 @@ public:
             size_t endIdx = std::min(startIdx + maxItems, displayCount);
 
             // Adjust for the scroll indicator
-            if (displayCount > maxItems) {
+            if (static_cast<int>(displayCount) > maxItems) {
                 std::string scrollText = "[" + std::to_string(selectedItem + 1) + "/" + std::to_string(displayCount) + "]";
                 TextOut(hdc, windowWidth - 80, 15, scrollText.c_str(), scrollText.length());
                 y = y + 15;
@@ -4256,7 +4255,7 @@ public:
                     // Truncate content if too long
                     std::string content = item.content;
                     int maxContentLength = calculateMaxContentLength(true);
-                    if (content.length() > maxContentLength) {
+                    if (static_cast<int>(content.length()) > maxContentLength) {
                         content = smartTrim(content, maxContentLength);
                     }
                     
@@ -4278,7 +4277,7 @@ public:
                     // Truncate content if too long
                     std::string content = item.content;
                     int maxContentLength = calculateMaxContentLength(false);
-                    if (content.length() > maxContentLength) {
+                    if (static_cast<int>(content.length()) > maxContentLength) {
                         content = smartTrim(content, maxContentLength);
                     }
                     
@@ -4346,7 +4345,6 @@ public:
                                    CLEARTYPE_QUALITY, DEFAULT_PITCH | FF_DONTCARE, "Consolas");
             HFONT hOldFont = (HFONT)SelectObject(hdc, hFont);
             SetBkMode(hdc, TRANSPARENT);
-            HBRUSH hNullBrush = (HBRUSH)GetStockObject(NULL_BRUSH); // Added this line
             
             // Get dynamic dialog dimensions
             DialogDimensions dims = getBookmarkDialogDimensions();
@@ -4601,7 +4599,7 @@ public:
                             
                             // Truncate if too long
                             int maxContentLength = calculateDialogContentLength(dims);
-                            if (displayText.length() > maxContentLength) {
+                            if (static_cast<int>(displayText.length()) > maxContentLength) {
                                 displayText = smartTrim(displayText, maxContentLength);
                             }
                             
@@ -4717,7 +4715,7 @@ public:
         
                 // Truncate if too long
                 int maxContentLength = calculateDialogContentLength(dims);
-                if (displayText.length() > maxContentLength) {
+                if (static_cast<int>(displayText.length()) > maxContentLength) {
                     displayText = smartTrim(displayText, maxContentLength);
                 }
                 
@@ -4823,7 +4821,7 @@ public:
             );
 
             // Restore clipping region (VERY important)
-            SelectClipRgn(hdc, oldClip == NULLREGION ? NULL : HRGN(oldClip));
+            SelectClipRgn(hdc, oldClip == NULLREGION ? nullptr : reinterpret_cast<HRGN>(oldClip));
         }
 #endif
     // End Windows UI Methods
@@ -5206,7 +5204,7 @@ LRESULT CALLBACK MMRYWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) 
         case WM_KEYDOWN:
             // Process WM_KEYDOWN only - this prevents double processing
             if (manager) {
-                MSG winMsg = {hwnd, msg, wParam, lParam};
+                MSG winMsg = {hwnd, msg, wParam, lParam, 0, 0, 0};
                 manager->handleKeyPressCommon(&winMsg);
             }
             return 0;
