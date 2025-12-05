@@ -45,6 +45,10 @@
 #include <ApplicationServices/ApplicationServices.h>
 #endif
 
+#if defined(__linux__) || defined(__APPLE__)
+typedef void* HDC;
+#endif
+
 struct ClipboardItem {
     std::string content;
     std::chrono::system_clock::time_point timestamp;
