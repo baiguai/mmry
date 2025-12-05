@@ -2,6 +2,8 @@
 #define MAIN_H
 
 #include <iostream>
+#include <string>
+#include <cstdio>
 #include <unistd.h>
 #include <sys/file.h>
 #include <fcntl.h>
@@ -22,6 +24,9 @@
 #include <limits.h>
 #include <signal.h>
 #include <dirent.h>
+#include <fstream>
+#include <chrono>
+#include <iomanip>
 
 
 #ifdef __linux__
@@ -38,6 +43,10 @@
 
 #ifdef __APPLE__
 #include <ApplicationServices/ApplicationServices.h>
+#endif
+
+#if defined(__linux__) || defined(__APPLE__)
+typedef void* HDC;
 #endif
 
 struct ClipboardItem {
@@ -112,8 +121,8 @@ public:
 };
 
 
-
 // Temporary error handler to swallow BadAccess errors
+#ifdef __linux__
 int ignore_x11_errors(Display* d, XErrorEvent* e) {
     (void)d; // Suppress unused parameter warning
     // 10 = BadAccess
@@ -122,5 +131,10 @@ int ignore_x11_errors(Display* d, XErrorEvent* e) {
     }
     return 0; // ignore all other errors too
 }
+#endif
 
-#endif MAIN_H
+#ifdef _WIN32
+    LRESULT CALLBACK MMRYWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam);
+#endif
+
+#endif // End main_h
