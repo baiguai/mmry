@@ -4306,6 +4306,7 @@ public:
                                    CLEARTYPE_QUALITY, DEFAULT_PITCH | FF_DONTCARE, "Consolas");
             HFONT hOldFont = (HFONT)SelectObject(hdc, hFont);
             SetBkMode(hdc, TRANSPARENT);
+            HBRUSH hNullBrush = (HBRUSH)GetStockObject(NULL_BRUSH); // Added this line
             
             // Get dynamic dialog dimensions
             DialogDimensions dims = getBookmarkDialogDimensions();
@@ -4316,14 +4317,19 @@ public:
             FillRect(hdc, &bgRect, hBgBrush);
             DeleteObject(hBgBrush);
             
-            // Draw border - use NULL brush
-            HBRUSH hNullBrush = (HBRUSH)GetStockObject(NULL_BRUSH);
-            HBRUSH hOldBrush = (HBRUSH)SelectObject(hdc, hNullBrush);
+            // --- Draw border safely (manually, to avoid Win32 Rectangle() quirks) ---
             HPEN hBorderPen = CreatePen(PS_SOLID, 1, borderColor);
             HPEN hOldPen = (HPEN)SelectObject(hdc, hBorderPen);
-            Rectangle(hdc, dims.x, dims.y, dims.x + dims.width, dims.y + dims.height);
-            SelectObject(hdc, hOldPen);
+            HBRUSH hOldBrush = (HBRUSH)SelectObject(hdc, GetStockObject(NULL_BRUSH));
+
+            MoveToEx(hdc, dims.x,               dims.y,                NULL);
+            LineTo(hdc,   dims.x + dims.width,  dims.y);
+            LineTo(hdc,   dims.x + dims.width,  dims.y + dims.height);
+            LineTo(hdc,   dims.x,               dims.y + dims.height);
+            LineTo(hdc,   dims.x,               dims.y);
+
             SelectObject(hdc, hOldBrush);
+            SelectObject(hdc, hOldPen);
             DeleteObject(hBorderPen);
             
             // Draw title
@@ -4342,7 +4348,7 @@ public:
             
             // Draw input box border
             HPEN hInputPen = CreatePen(PS_SOLID, 1, textColor);
-            hOldBrush = (HBRUSH)SelectObject(hdc, hNullBrush);
+            hOldBrush = (HBRUSH)SelectObject(hdc, GetStockObject(NULL_BRUSH));
             hOldPen = (HPEN)SelectObject(hdc, hInputPen);
             Rectangle(hdc, dims.x + 20, dims.y + 70, dims.x + dims.width - 20, dims.y + 95);
             SelectObject(hdc, hOldPen);
@@ -4403,10 +4409,18 @@ public:
             FillRect(hdc, &bgRect, hBgBrush);
             DeleteObject(hBgBrush);
             
-            // Draw border
+            // --- Draw border safely (manually, to avoid Win32 Rectangle() quirks) ---
             HPEN hBorderPen = CreatePen(PS_SOLID, 1, borderColor);
             HPEN hOldPen = (HPEN)SelectObject(hdc, hBorderPen);
-            Rectangle(hdc, dims.x, dims.y, dims.x + dims.width, dims.y + dims.height);
+            HBRUSH hOldBrush = (HBRUSH)SelectObject(hdc, GetStockObject(NULL_BRUSH));
+
+            MoveToEx(hdc, dims.x,               dims.y,                NULL);
+            LineTo(hdc,   dims.x + dims.width,  dims.y);
+            LineTo(hdc,   dims.x + dims.width,  dims.y + dims.height);
+            LineTo(hdc,   dims.x,               dims.y + dims.height);
+            LineTo(hdc,   dims.x,               dims.y);
+
+            SelectObject(hdc, hOldBrush);
             SelectObject(hdc, hOldPen);
             DeleteObject(hBorderPen);
             
@@ -4455,10 +4469,18 @@ public:
             FillRect(hdc, &bgRect, hBgBrush);
             DeleteObject(hBgBrush);
             
-            // Draw border
+            // --- Draw border safely (manually, to avoid Win32 Rectangle() quirks) ---
             HPEN hBorderPen = CreatePen(PS_SOLID, 1, borderColor);
             HPEN hOldPen = (HPEN)SelectObject(hdc, hBorderPen);
-            Rectangle(hdc, dims.x, dims.y, dims.x + dims.width, dims.y + dims.height);
+            HBRUSH hOldBrush = (HBRUSH)SelectObject(hdc, GetStockObject(NULL_BRUSH));
+
+            MoveToEx(hdc, dims.x,               dims.y,                NULL);
+            LineTo(hdc,   dims.x + dims.width,  dims.y);
+            LineTo(hdc,   dims.x + dims.width,  dims.y + dims.height);
+            LineTo(hdc,   dims.x,               dims.y + dims.height);
+            LineTo(hdc,   dims.x,               dims.y);
+
+            SelectObject(hdc, hOldBrush);
             SelectObject(hdc, hOldPen);
             DeleteObject(hBorderPen);
             
@@ -4592,10 +4614,18 @@ public:
             FillRect(hdc, &bgRect, hBgBrush);
             DeleteObject(hBgBrush);
             
-            // Draw border
+            // --- Draw border safely (manually, to avoid Win32 Rectangle() quirks) ---
             HPEN hBorderPen = CreatePen(PS_SOLID, 1, borderColor);
             HPEN hOldPen = (HPEN)SelectObject(hdc, hBorderPen);
-            Rectangle(hdc, dims.x, dims.y, dims.x + dims.width, dims.y + dims.height);
+            HBRUSH hOldBrush = (HBRUSH)SelectObject(hdc, GetStockObject(NULL_BRUSH));
+
+            MoveToEx(hdc, dims.x,               dims.y,                NULL);
+            LineTo(hdc,   dims.x + dims.width,  dims.y);
+            LineTo(hdc,   dims.x + dims.width,  dims.y + dims.height);
+            LineTo(hdc,   dims.x,               dims.y + dims.height);
+            LineTo(hdc,   dims.x,               dims.y);
+
+            SelectObject(hdc, hOldBrush);
             SelectObject(hdc, hOldPen);
             DeleteObject(hBorderPen);
             
