@@ -13,6 +13,16 @@ set -e
 
 echo "Building MMRY for Windows..."
 
+# Determine build type
+BUILD_TYPE_FLAGS=""
+BUILD_MESSAGE="DEBUG"
+if [ "$1" == "y" ]; then
+    BUILD_TYPE_FLAGS="-s" # Strip all symbol tables
+    BUILD_MESSAGE="RELEASE"
+fi
+echo "Performing $BUILD_MESSAGE build."
+
+
 # Check if source files exist
 if [ ! -f "src/main.cpp" ]; then
     echo "Error: src/main.cpp not found"
@@ -45,6 +55,7 @@ x86_64-w64-mingw32-g++ -std=c++17 \
     -static-libgcc \
     -static-libstdc++ \
     -static \
+    $BUILD_TYPE_FLAGS \
     -o mmry.exe \
     ../src/main.cpp \
     -luser32 \

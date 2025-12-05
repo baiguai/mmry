@@ -7,6 +7,15 @@ set -e  # Exit on any error
 
 echo "Building MMRY Clipboard Manager..."
 
+# Determine build type
+BUILD_TYPE="Debug"
+if [ "$1" == "y" ]; then
+    BUILD_TYPE="Release"
+    echo "Performing RELEASE build."
+else
+    echo "Performing DEBUG build (default)."
+fi
+
 # Check if build directory exists
 if [ ! -d "build" ]; then
     echo "Creating build directory..."
@@ -19,7 +28,7 @@ cd build
 # Configure with CMake if needed
 if [ ! -f "Makefile" ]; then
     echo "Configuring with CMake..."
-    cmake ..
+    cmake -DCMAKE_BUILD_TYPE=$BUILD_TYPE ..
 fi
 
 # Build the project
