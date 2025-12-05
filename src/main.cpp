@@ -180,7 +180,7 @@ public:
             // Plain Text
 #ifdef _WIN32
                 // Handle character input from WM_KEYDOWN
-                if (msg->wParam >= 32 && msg->wParam <= 126 && key_value.empty()) { // Printable characters with no key_value set
+                if (msg->wParam >= 32 && msg->wParam <= 126) { // Printable characters with no key_value set
                     bookmarkDialogInput += (char)msg->wParam;
                     drawConsole();
                 }
@@ -364,7 +364,7 @@ public:
             // Free Text
 #ifdef _WIN32
                 // Handle character input from WM_KEYDOWN
-                if (msg->wParam >= 32 && msg->wParam <= 126 && key_value.empty()) { // Printable characters with no key_value set
+                if (msg->wParam >= 32 && msg->wParam <= 126) { // Printable characters with no key_value set
                     // Don't add the triggering '/' as the first character
                     if (filterText.empty() && msg->wParam == '/') {
                         // do nothing
@@ -419,7 +419,7 @@ public:
             // Free Text
 #ifdef _WIN32
                 // Handle character input from WM_KEYDOWN
-                if (msg->wParam >= 32 && msg->wParam <= 126 && key_value.empty()) { // Printable characters with no key_value set
+                if (msg->wParam >= 32 && msg->wParam <= 126) { // Printable characters with no key_value set
                     // Don't add the triggering ':' as the first character
                     if (commandText.empty() && msg->wParam == ':') {
                         // do nothing
