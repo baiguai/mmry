@@ -3399,123 +3399,143 @@ private:
 //// HELP TOPICS ///////////////////////////////////////////////////////////////
 ///
 ///
-    void drawHelpTopic(int x, int y, int contentTop, int contentBottom, std::string topic) {
+    void drawHelpTopic(HDC hdc, int x, int y, int contentTop, int contentBottom, const std::string& topic) {
 #ifdef __linux__
-        if (y >= contentTop && y < contentBottom) { XDrawString(display, window, gc, x, y, topic.c_str(), topic.length()); }
+        if (y >= contentTop && y < contentBottom) {
+            XDrawString(display, window, gc, x, y, topic.c_str(), topic.length());
+        }
 #endif
+
 #ifdef _WIN32
+        if (hdc && y >= contentTop && y < contentBottom) {
+            RECT rc;
+            rc.left   = x;
+            rc.top    = y - 12;     // baseline to bounding box adjustment
+            rc.right  = x + 2000;   // wide; parent clipping restricts it
+            rc.bottom = y + 4;
+
+            DrawTextA(
+                hdc,
+                topic.c_str(),
+                (int)topic.length(),
+                &rc,
+                DT_LEFT | DT_NOPREFIX | DT_SINGLELINE
+            );
+        }
 #endif
+
 #ifdef __APPLE__
+        // (If you eventually implement macOS)
 #endif
     }
 
-    void drawAllHelpTopics(int titleLeft, int topicLeft, int lineHeight, int gap, int y, int contentTop, int contentBottom) {
+    void drawAllHelpTopics(HDC hdc, int titleLeft, int topicLeft, int lineHeight, int gap, int y, int contentTop, int contentBottom) {
         // Main Window shortcuts
-        drawHelpTopic(titleLeft, y, contentTop, contentBottom, "Main Window:");
+        drawHelpTopic(hdc, titleLeft, y, contentTop, contentBottom, "Main Window:");
         y += lineHeight;
-        drawHelpTopic(topicLeft, y, contentTop, contentBottom, "j/k            - Navigate items");
+        drawHelpTopic(hdc, topicLeft, y, contentTop, contentBottom, "j/k            - Navigate items");
         y += lineHeight;
-        drawHelpTopic(topicLeft, y, contentTop, contentBottom, "g/G            - Top/bottom");
+        drawHelpTopic(hdc, topicLeft, y, contentTop, contentBottom, "g/G            - Top/bottom");
         y += lineHeight;
-        drawHelpTopic(topicLeft, y, contentTop, contentBottom, "Enter          - Copy item");
+        drawHelpTopic(hdc, topicLeft, y, contentTop, contentBottom, "Enter          - Copy item");
         y += lineHeight;
-        drawHelpTopic(topicLeft, y, contentTop, contentBottom, "/              - Filter mode");
+        drawHelpTopic(hdc, topicLeft, y, contentTop, contentBottom, "/              - Filter mode");
         y += lineHeight;
-        drawHelpTopic(topicLeft, y, contentTop, contentBottom, "Shift+M        - Manage bookmark groups");
+        drawHelpTopic(hdc, topicLeft, y, contentTop, contentBottom, "Shift+M        - Manage bookmark groups");
         y += lineHeight;
-        drawHelpTopic(topicLeft, y, contentTop, contentBottom, "m              - Add clip to group");
+        drawHelpTopic(hdc, topicLeft, y, contentTop, contentBottom, "m              - Add clip to group");
         y += lineHeight;
-        drawHelpTopic(topicLeft, y, contentTop, contentBottom, "`              - View bookmarks");
+        drawHelpTopic(hdc, topicLeft, y, contentTop, contentBottom, "`              - View bookmarks");
         y += lineHeight;
-        drawHelpTopic(topicLeft, y, contentTop, contentBottom, "?              - This help");
+        drawHelpTopic(hdc, topicLeft, y, contentTop, contentBottom, "?              - This help");
         y += lineHeight;
-        drawHelpTopic(topicLeft, y, contentTop, contentBottom, "Shift+D        - Delete item");
+        drawHelpTopic(hdc, topicLeft, y, contentTop, contentBottom, "Shift+D        - Delete item");
         y += lineHeight;
-        drawHelpTopic(topicLeft, y, contentTop, contentBottom, "Shift+Q        - Quit");
+        drawHelpTopic(hdc, topicLeft, y, contentTop, contentBottom, "Shift+Q        - Quit");
         y += lineHeight;
-        drawHelpTopic(topicLeft, y, contentTop, contentBottom, "Escape         - Hide window");
+        drawHelpTopic(hdc, topicLeft, y, contentTop, contentBottom, "Escape         - Hide window");
         y += lineHeight + gap;
         
         // Help
-        drawHelpTopic(titleLeft, y, contentTop, contentBottom, "Help Window:");
+        drawHelpTopic(hdc, titleLeft, y, contentTop, contentBottom, "Help Window:");
         y += lineHeight;
-        drawHelpTopic(topicLeft, y, contentTop, contentBottom, "j/k            - Navigate topics");
+        drawHelpTopic(hdc, topicLeft, y, contentTop, contentBottom, "j/k            - Navigate topics");
         y += lineHeight;
-        drawHelpTopic(topicLeft, y, contentTop, contentBottom, "g              - Top");
+        drawHelpTopic(hdc, topicLeft, y, contentTop, contentBottom, "g              - Top");
         y += lineHeight + gap;
 
 
         // Filter Mode shortcuts
-        drawHelpTopic(titleLeft, y, contentTop, contentBottom, "Filter Mode:");
+        drawHelpTopic(hdc, titleLeft, y, contentTop, contentBottom, "Filter Mode:");
         y += lineHeight;
-        drawHelpTopic(topicLeft, y, contentTop, contentBottom, "Type text      - Filter items");
+        drawHelpTopic(hdc, topicLeft, y, contentTop, contentBottom, "Type text      - Filter items");
         y += lineHeight;
-        drawHelpTopic(topicLeft, y, contentTop, contentBottom, "Backspace      - Delete char");
+        drawHelpTopic(hdc, topicLeft, y, contentTop, contentBottom, "Backspace      - Delete char");
         y += lineHeight;
-        drawHelpTopic(topicLeft, y, contentTop, contentBottom, "Up/down arrow  - Navigate items");
+        drawHelpTopic(hdc, topicLeft, y, contentTop, contentBottom, "Up/down arrow  - Navigate items");
         y += lineHeight;
-        drawHelpTopic(topicLeft, y, contentTop, contentBottom, "Delete         - Delete item");
+        drawHelpTopic(hdc, topicLeft, y, contentTop, contentBottom, "Delete         - Delete item");
         y += lineHeight;
-        drawHelpTopic(topicLeft, y, contentTop, contentBottom, "Enter          - Copy item");
+        drawHelpTopic(hdc, topicLeft, y, contentTop, contentBottom, "Enter          - Copy item");
         y += lineHeight;
-        drawHelpTopic(topicLeft, y, contentTop, contentBottom, "Escape         - Exit filter");
+        drawHelpTopic(hdc, topicLeft, y, contentTop, contentBottom, "Escape         - Exit filter");
         y += lineHeight + gap;
         
         // Add bookmark group shortcuts
-        drawHelpTopic(titleLeft, y, contentTop, contentBottom, "Add Bookmark Group Dialog:");
+        drawHelpTopic(hdc, titleLeft, y, contentTop, contentBottom, "Add Bookmark Group Dialog:");
         y += lineHeight;
-        drawHelpTopic(topicLeft, y, contentTop, contentBottom, "Type text      - Define Group Name / Filter Existing");
+        drawHelpTopic(hdc, topicLeft, y, contentTop, contentBottom, "Type text      - Define Group Name / Filter Existing");
         y += lineHeight;
-        drawHelpTopic(topicLeft, y, contentTop, contentBottom, "Backspace      - Delete char");
+        drawHelpTopic(hdc, topicLeft, y, contentTop, contentBottom, "Backspace      - Delete char");
         y += lineHeight;
-        drawHelpTopic(topicLeft, y, contentTop, contentBottom, "Enter          - Create group");
+        drawHelpTopic(hdc, topicLeft, y, contentTop, contentBottom, "Enter          - Create group");
         y += lineHeight;
-        drawHelpTopic(topicLeft, y, contentTop, contentBottom, "Escape         - Exit dialog");
+        drawHelpTopic(hdc, topicLeft, y, contentTop, contentBottom, "Escape         - Exit dialog");
         y += lineHeight + gap;
 
         // Add clip to group shortcuts
-        drawHelpTopic(titleLeft, y, contentTop, contentBottom, "Add Clip to Group Dialog:");
+        drawHelpTopic(hdc, titleLeft, y, contentTop, contentBottom, "Add Clip to Group Dialog:");
         y += lineHeight;
-        drawHelpTopic(topicLeft, y, contentTop, contentBottom, "j/k            - Navigate group");
+        drawHelpTopic(hdc, topicLeft, y, contentTop, contentBottom, "j/k            - Navigate group");
         y += lineHeight;
-        drawHelpTopic(topicLeft, y, contentTop, contentBottom, "g/G            - Top/bottom");
+        drawHelpTopic(hdc, topicLeft, y, contentTop, contentBottom, "g/G            - Top/bottom");
         y += lineHeight;
-        drawHelpTopic(topicLeft, y, contentTop, contentBottom, "Enter          - Add clip to group");
+        drawHelpTopic(hdc, topicLeft, y, contentTop, contentBottom, "Enter          - Add clip to group");
         y += lineHeight;
-        drawHelpTopic(topicLeft, y, contentTop, contentBottom, "Escape         - Exit dialog");
+        drawHelpTopic(hdc, topicLeft, y, contentTop, contentBottom, "Escape         - Exit dialog");
         y += lineHeight + gap;
 
         // View/Edit/Use bookmarks
-        drawHelpTopic(titleLeft, y, contentTop, contentBottom, "View/Delete/Use Bookmarks Dialog");
+        drawHelpTopic(hdc, titleLeft, y, contentTop, contentBottom, "View/Delete/Use Bookmarks Dialog");
         y += lineHeight;
-        drawHelpTopic(topicLeft, y, contentTop, contentBottom, "j/k            - Navigate groups/clips");
+        drawHelpTopic(hdc, topicLeft, y, contentTop, contentBottom, "j/k            - Navigate groups/clips");
         y += lineHeight;
-        drawHelpTopic(topicLeft, y, contentTop, contentBottom, "g/G            - Top/bottom");
+        drawHelpTopic(hdc, topicLeft, y, contentTop, contentBottom, "g/G            - Top/bottom");
         y += lineHeight;
-        drawHelpTopic(topicLeft, y, contentTop, contentBottom, "Enter          - View group clips/copy clip");
+        drawHelpTopic(hdc, topicLeft, y, contentTop, contentBottom, "Enter          - View group clips/copy clip");
         y += lineHeight;
-        drawHelpTopic(topicLeft, y, contentTop, contentBottom, "h              - Back to groups list");
+        drawHelpTopic(hdc, topicLeft, y, contentTop, contentBottom, "h              - Back to groups list");
         y += lineHeight;
-        drawHelpTopic(topicLeft, y, contentTop, contentBottom, "Escape         - Exit dialog");
+        drawHelpTopic(hdc, topicLeft, y, contentTop, contentBottom, "Escape         - Exit dialog");
         y += lineHeight + gap + 5;
 
         // Commands
-        drawHelpTopic(titleLeft, y, contentTop, contentBottom, "Commands");
+        drawHelpTopic(hdc, titleLeft, y, contentTop, contentBottom, "Commands");
         y += lineHeight;
-        drawHelpTopic(topicLeft, y, contentTop, contentBottom, ":              - Activate commands");
+        drawHelpTopic(hdc, topicLeft, y, contentTop, contentBottom, ":              - Activate commands");
         y += lineHeight;
-        drawHelpTopic(topicLeft, y, contentTop, contentBottom, "theme          - Select theme to apply");
+        drawHelpTopic(hdc, topicLeft, y, contentTop, contentBottom, "theme          - Select theme to apply");
         y += lineHeight;
-        drawHelpTopic(topicLeft, y, contentTop, contentBottom, "Enter          - Apply command");
+        drawHelpTopic(hdc, topicLeft, y, contentTop, contentBottom, "Enter          - Apply command");
         y += lineHeight;
-        drawHelpTopic(topicLeft, y, contentTop, contentBottom, "Escape         - Cancel command");
+        drawHelpTopic(hdc, topicLeft, y, contentTop, contentBottom, "Escape         - Cancel command");
         y += lineHeight + gap + 5;
 
 
         // Global hotkey
-        drawHelpTopic(titleLeft, y, contentTop, contentBottom, "Global Hotkey:");
+        drawHelpTopic(hdc, titleLeft, y, contentTop, contentBottom, "Global Hotkey:");
         y += lineHeight;
-        drawHelpTopic(topicLeft, y, contentTop, contentBottom, "Ctrl+Alt+C     - Show/hide window");
+        drawHelpTopic(hdc, topicLeft, y, contentTop, contentBottom, "Ctrl+Alt+C     - Show/hide window");
     }
 ///
 ///
@@ -4048,7 +4068,7 @@ public:
 
             y = y + helpDialogScrollOffset;
 
-            drawAllHelpTopics(titleLeft, topicLeft, lineHeight, gap, y, contentTop, contentBottom);
+            drawAllHelpTopics(nullptr, titleLeft, topicLeft, lineHeight, gap, y, contentTop, contentBottom);
         }
 #endif
     // End Linux UI Methods
@@ -4134,7 +4154,7 @@ public:
                 // Cleanup and return
                 SelectObject(hdc, hOldFont);
                 DeleteObject(hFont);
-            ReleaseDC(hwnd, hdc);
+                ReleaseDC(hwnd, hdc);
                 return;
             }
             
@@ -4280,6 +4300,13 @@ public:
         void drawBookmarkDialog(HDC hdc) {
             if (!bookmarkDialogVisible) return;
             
+            // Create and select font
+            HFONT hFont = CreateFont(14, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
+                                   DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
+                                   CLEARTYPE_QUALITY, DEFAULT_PITCH | FF_DONTCARE, "Consolas");
+            HFONT hOldFont = (HFONT)SelectObject(hdc, hFont);
+            SetBkMode(hdc, TRANSPARENT);
+            
             // Get dynamic dialog dimensions
             DialogDimensions dims = getBookmarkDialogDimensions();
             
@@ -4289,21 +4316,22 @@ public:
             FillRect(hdc, &bgRect, hBgBrush);
             DeleteObject(hBgBrush);
             
-            // Draw border
+            // Draw border - use NULL brush
+            HBRUSH hNullBrush = (HBRUSH)GetStockObject(NULL_BRUSH);
+            HBRUSH hOldBrush = (HBRUSH)SelectObject(hdc, hNullBrush);
             HPEN hBorderPen = CreatePen(PS_SOLID, 1, borderColor);
             HPEN hOldPen = (HPEN)SelectObject(hdc, hBorderPen);
             Rectangle(hdc, dims.x, dims.y, dims.x + dims.width, dims.y + dims.height);
             SelectObject(hdc, hOldPen);
+            SelectObject(hdc, hOldBrush);
             DeleteObject(hBorderPen);
             
             // Draw title
             std::string title = "Bookmark Groups";
-            int titleWidth = 100; // Approximate width
             SetTextColor(hdc, textColor);
-            TextOut(hdc, dims.x + (dims.width - titleWidth) / 2, dims.y + 25, title.c_str(), title.length());
+            TextOut(hdc, dims.x + 20, dims.y + 25, title.c_str(), title.length());
             
-            // Draw input field
-            SetTextColor(hdc, textColor);
+            // Draw input field label
             TextOut(hdc, dims.x + 20, dims.y + 60, "New group name:", 16);
             
             // Draw input box
@@ -4312,18 +4340,20 @@ public:
             FillRect(hdc, &inputRect, hInputBrush);
             DeleteObject(hInputBrush);
             
+            // Draw input box border
             HPEN hInputPen = CreatePen(PS_SOLID, 1, textColor);
-            HPEN hOldInputPen = (HPEN)SelectObject(hdc, hInputPen);
+            hOldBrush = (HBRUSH)SelectObject(hdc, hNullBrush);
+            hOldPen = (HPEN)SelectObject(hdc, hInputPen);
             Rectangle(hdc, dims.x + 20, dims.y + 70, dims.x + dims.width - 20, dims.y + 95);
-            SelectObject(hdc, hOldInputPen);
+            SelectObject(hdc, hOldPen);
+            SelectObject(hdc, hOldBrush);
             DeleteObject(hInputPen);
             
             // Draw input text
             std::string displayInput = bookmarkDialogInput + "_";
-            TextOut(hdc, dims.x + 25, dims.y + 87, displayInput.c_str(), displayInput.length());
+            TextOut(hdc, dims.x + 25, dims.y + 75, displayInput.c_str(), displayInput.length());
             
-            // Draw existing groups
-            SetTextColor(hdc, textColor);
+            // Draw existing groups label
             TextOut(hdc, dims.x + 20, dims.y + 120, "Existing groups:", 15);
             
             // Filter and display groups
@@ -4351,11 +4381,14 @@ public:
                     DeleteObject(hHighlightBrush);
                 }
                 
-                // Ensure text color is set before drawing
                 SetTextColor(hdc, textColor);
                 TextOut(hdc, dims.x + 20, y, displayText.c_str(), displayText.length());
                 y += 18;
             }
+            
+            // Cleanup
+            SelectObject(hdc, hOldFont);
+            DeleteObject(hFont);
         }
 
         void drawAddToBookmarkDialog(HDC hdc) {
@@ -4645,37 +4678,78 @@ public:
         }
 
         void drawHelpDialog(HDC hdc) {
-            if (!helpDialogVisible) return;
-            
-            // Get dynamic dialog dimensions
+            if (!helpDialogVisible)
+                return;
+
             DialogDimensions dims = getHelpDialogDimensions();
-            
-            // Draw dialog background
+
+            // Background rectangle
+            RECT bgRect = {
+                dims.x,
+                dims.y,
+                dims.x + dims.width,
+                dims.y + dims.height
+            };
+
+            // --- Draw background safely ---
             HBRUSH hBgBrush = CreateSolidBrush(backgroundColor);
-            RECT bgRect = {dims.x, dims.y, dims.x + dims.width, dims.y + dims.height};
             FillRect(hdc, &bgRect, hBgBrush);
             DeleteObject(hBgBrush);
-            
-            // Draw border
+
+            // --- Draw border safely (manually, to avoid Win32 Rectangle() quirks) ---
             HPEN hBorderPen = CreatePen(PS_SOLID, 1, borderColor);
             HPEN hOldPen = (HPEN)SelectObject(hdc, hBorderPen);
-            Rectangle(hdc, dims.x, dims.y, dims.x + dims.width, dims.y + dims.height);
+            HBRUSH hOldBrush = (HBRUSH)SelectObject(hdc, GetStockObject(NULL_BRUSH));
+
+            MoveToEx(hdc, dims.x,               dims.y,                NULL);
+            LineTo(hdc,   dims.x + dims.width,  dims.y);
+            LineTo(hdc,   dims.x + dims.width,  dims.y + dims.height);
+            LineTo(hdc,   dims.x,               dims.y + dims.height);
+            LineTo(hdc,   dims.x,               dims.y);
+
+            SelectObject(hdc, hOldBrush);
             SelectObject(hdc, hOldPen);
             DeleteObject(hBorderPen);
-            
-            // Draw help content
+
+            // --- Setup clipping so text never draws outside dialog ---
+            HRGN clipRegion = CreateRectRgn(
+                dims.x + 5,              // a little inset from border
+                dims.y + 5,
+                dims.x + dims.width - 5,
+                dims.y + dims.height - 5
+            );
+
+            int oldClip = SelectClipRgn(hdc, clipRegion);
+            DeleteObject(clipRegion);
+
+            // --- Text settings ---
             SetTextColor(hdc, textColor);
-            int y = dims.y + 20;
-            const int contentTop = y;
+            SetBkMode(hdc, TRANSPARENT);
+
+            const int contentTop = dims.y + 20;
             const int contentBottom = dims.y + dims.height;
             const int titleLeft = dims.x + 20;
             const int topicLeft = dims.x + 30;
             const int lineHeight = 15;
             const int gap = 10;
 
-            y = y + helpDialogScrollOffset;
+            // Scroll offset clamping (optional, but recommended)
+            int y = contentTop + helpDialogScrollOffset;
 
-            drawAllHelpTopics(titleLeft, topicLeft, lineHeight, gap, y, contentTop, contentBottom);
+            // --- Draw help topics ---
+            drawAllHelpTopics(
+                hdc,
+                titleLeft,
+                topicLeft,
+                lineHeight,
+                gap,
+                y,
+                contentTop,
+                contentBottom
+            );
+
+            // Restore clipping region (VERY important)
+            SelectClipRgn(hdc, oldClip == NULLREGION ? NULL : HRGN(oldClip));
         }
 #endif
     // End Windows UI Methods
