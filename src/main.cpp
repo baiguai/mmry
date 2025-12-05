@@ -37,7 +37,11 @@ public:
 
 
 
-    //// Key Press /////////////////////////////////////////////////////////////
+
+//// KEY HANDLING //////////////////////////////////////////////////////////////
+///
+///
+
 #ifdef __linux__
     void handleKeyPress(XEvent* event) {
         handleKeyPressCommon(event);
@@ -136,7 +140,7 @@ public:
         //---- Help Dialog -----------------------------------------------------
         if (helpDialogVisible) {
             if (key_value == "?") {
-                if (key_help_show()) return;
+                if (key_help_hide()) return;
             }
 
             if (key_value == "j" || key_value == "DOWN") {
@@ -522,491 +526,898 @@ public:
             if (key_main_pins_start()) return;
         }
     }
-    //// End Key Press /////////////////////////////////////////////////////////
 
 
     //// Key Press Methods /////////////////////////////////////////////////////
-    bool key_global_escape() {
-        if (pinnedDialogVisible) {
-            pinnedDialogVisible = false;
-            drawConsole();
-        } else if (bookmarkDialogVisible) {
-            // Escape hides dialog but not window
-            bookmarkDialogVisible = false;
-            drawConsole();
-        } else if (addToBookmarkDialogVisible) {
-            // Escape hides dialog but not window
-            addToBookmarkDialogVisible = false;
-            drawConsole();
-        } else if (helpDialogVisible) {
-            // Escape hides help dialog but not window
+        bool key_global_escape() {
+            if (pinnedDialogVisible) {
+                pinnedDialogVisible = false;
+                drawConsole();
+            } else if (bookmarkDialogVisible) {
+                // Escape hides dialog but not window
+                bookmarkDialogVisible = false;
+                drawConsole();
+            } else if (addToBookmarkDialogVisible) {
+                // Escape hides dialog but not window
+                addToBookmarkDialogVisible = false;
+                drawConsole();
+            } else if (helpDialogVisible) {
+                // Escape hides help dialog but not window
+                helpDialogVisible = false;
+                drawConsole();
+            } else if (viewBookmarksDialogVisible) {
+                // Escape hides view bookmarks dialog but not window
+                viewBookmarksDialogVisible = false;
+                drawConsole();
+            } else if (filterMode) {
+                // Escape exits filter mode but doesn't hide window
+                filterMode = false;
+                filterText = "";
+                filteredItems.clear();
+                selectedItem = 0;
+                drawConsole();
+            } else if (commandMode) {
+                // Escape exits command mode but doesn't hide window
+                commandMode = false;
+                commandText = "";
+                selectedItem = 0;
+                drawConsole();
+            } else if (cmd_themeSelectMode) {
+                // Restore original theme and exit theme selection mode but doesn't hide window
+                if (!originalTheme.empty()) {
+                    switchTheme(originalTheme);
+                }
+                cmd_themeSelectMode = false;
+                availableThemes.clear();
+                originalTheme.clear();
+                selectedItem = 0;
+                drawConsole();
+            } else {
+                // Normal escape behavior - hide window
+                hideWindow();
+            }
+
+            return true;
+        }
+
+        // Help
+        bool key_help_hide() {
             helpDialogVisible = false;
             drawConsole();
-        } else if (viewBookmarksDialogVisible) {
-            // Escape hides view bookmarks dialog but not window
-            viewBookmarksDialogVisible = false;
+            return true;
+        }
+
+        bool key_help_scroll_down() {
+            updateHelpDialogScrollOffset(-1);
             drawConsole();
-        } else if (filterMode) {
-            // Escape exits filter mode but doesn't hide window
-            filterMode = false;
-            filterText = "";
-            filteredItems.clear();
-            selectedItem = 0;
+            return true;
+        }
+
+        bool key_help_scroll_up() {
+            if (helpDialogScrollOffset > 0) {
+                updateHelpDialogScrollOffset(1);
+                drawConsole();
+            }
+            return true;
+        }
+
+        bool key_help_scroll_top() {
+            helpDialogScrollOffset = 0;
             drawConsole();
-        } else if (commandMode) {
-            // Escape exits command mode but doesn't hide window
+            return true;
+        }
+
+        // Add Groups
+        bool key_addgroup_add() {
+            // Enter creates/selects bookmark group using input text only
+            if (!bookmarkDialogInput.empty()) {
+                // Check if this is a new group
+                bool groupExists = false;
+                for (const auto& group : bookmarkGroups) {
+                    if (group == bookmarkDialogInput) {
+                        groupExists = true;
+                        break;
+                    }
+                }
+                
+                if (!groupExists) {
+                    // Create new group and add current clip
+                    bookmarkGroups.push_back(bookmarkDialogInput);
+                    saveBookmarkGroups();
+                    
+                    // Add current clip to bookmark
+                    if (!items.empty() && selectedItem < getDisplayItemCount()) {
+                        size_t actualIndex = getActualItemIndex(selectedItem);
+                        addClipToBookmarkGroup(bookmarkDialogInput, items[actualIndex].content);
+                        std::cout << "Added clip to bookmark group: " << bookmarkDialogInput << std::endl;
+                    }
+                } else {
+                    // Add current clip to existing group
+                    if (!items.empty() && selectedItem < getDisplayItemCount()) {
+                        size_t actualIndex = getActualItemIndex(selectedItem);
+                        addClipToBookmarkGroup(bookmarkDialogInput, items[actualIndex].content);
+                        std::cout << "Added clip to bookmark group: " << bookmarkDialogInput << std::endl;
+                    }
+                }
+                
+                bookmarkDialogVisible = false;
+                drawConsole();
+            }
+            return true;
+        }
+
+        bool key_addgroup_back() {
+            if (!bookmarkDialogInput.empty()) {
+                bookmarkDialogInput.pop_back();
+                drawConsole();
+            }
+            return true;
+        }
+
+        // Bookmarks
+        bool key_marks_show() {
+            if (!viewBookmarksShowingGroups) {
+                // If viewing clips, go back to groups
+                viewBookmarksShowingGroups = true;
+                selectedViewBookmarkItem = 0;
+                viewBookmarksScrollOffset = 0; // Reset scroll when going back
+            } else {
+                // If viewing groups, close dialog
+                viewBookmarksDialogVisible = false;
+            }
+            drawConsole();
+
+            return true;
+        }
+
+        bool key_marks_groups_down() {
+            if (selectedViewBookmarkGroup < bookmarkGroups.size() - 1) {
+                selectedViewBookmarkGroup++;
+                updateScrollOffset();
+                drawConsole();
+            }
+            return true;
+        }
+
+        bool key_marks_groups_up() {
+            if (selectedViewBookmarkGroup > 0) {
+                selectedViewBookmarkGroup--;
+                updateScrollOffset();
+                drawConsole();
+            }
+            return true;
+        }
+
+        bool key_marks_groups_top() {
+            selectedViewBookmarkGroup = 0;
+            viewBookmarksScrollOffset = 0;
+            drawConsole();
+            return true;
+        }
+
+        bool key_marks_groups_bottom() {
+            selectedViewBookmarkGroup = bookmarkGroups.size() - 1;
+            updateScrollOffset();
+            drawConsole();
+            return true;
+        }
+
+        bool key_marks_groups_delete() {
+            if (selectedViewBookmarkGroup < bookmarkGroups.size()) {
+                std::string groupToDelete = bookmarkGroups[selectedViewBookmarkGroup];
+                
+                // Remove group from list
+                bookmarkGroups.erase(bookmarkGroups.begin() + selectedViewBookmarkGroup);
+                saveBookmarkGroups();
+                
+                // Delete bookmark file
+                std::string bookmarkFile = bookmarksDir + "/bookmarks_" + groupToDelete + ".txt";
+                unlink(bookmarkFile.c_str());
+                
+                std::cout << "Deleted bookmark group and all clips: " << groupToDelete << std::endl;
+                
+                // Adjust selection
+                if (selectedViewBookmarkGroup > 0 && selectedViewBookmarkGroup >= bookmarkGroups.size()) {
+                    selectedViewBookmarkGroup = bookmarkGroups.size() - 1;
+                }
+                
+                // Close dialog if no groups left
+                if (bookmarkGroups.empty()) {
+                    viewBookmarksDialogVisible = false;
+                }
+                
+                drawConsole();
+            }
+            return true;
+        }
+
+        bool key_marks_groups_clips() {
+            if (selectedViewBookmarkGroup < bookmarkGroups.size()) {
+                viewBookmarksShowingGroups = false;
+                selectedViewBookmarkItem = 0;
+                viewBookmarksScrollOffset = 0; // Reset scroll when switching modes
+                drawConsole();
+            }
+            return true;
+        }
+
+
+        bool key_marks_clips_down() {
+            selectedViewBookmarkItem++;
+            updateScrollOffset();
+            drawConsole();
+            return true;
+        }
+
+        bool key_marks_clips_up() {
+            if (selectedViewBookmarkItem > 0) {
+                selectedViewBookmarkItem--;
+                updateScrollOffset();
+                drawConsole();
+            }
+            return true;
+        }
+
+        bool key_marks_clips_top() {
+            selectedViewBookmarkItem = 0;
+            viewBookmarksScrollOffset = 0;
+            drawConsole();
+            return true;
+        }
+
+        bool key_marks_clips_bottom() {
+            if (selectedViewBookmarkGroup < bookmarkGroups.size()) {
+                std::string selectedGroup = bookmarkGroups[selectedViewBookmarkGroup];
+                std::string bookmarkFile = bookmarksDir + "/bookmarks_" + selectedGroup + ".txt";
+                std::ifstream file(bookmarkFile);
+                
+                if (file.is_open()) {
+                    std::string line;
+                    size_t itemCount = 0;
+                    while (std::getline(file, line)) {
+                        size_t pos = line.find('|');
+                        if (pos != std::string::npos && pos > 0) {
+                            itemCount++;
+                        }
+                    }
+                    file.close();
+                    
+                    if (itemCount > 0) {
+                        selectedViewBookmarkItem = itemCount - 1;
+                        updateScrollOffset();
+                        drawConsole();
+                    }
+                }
+            }
+            return true;
+        }
+
+        bool key_marks_clips_delete() {
+            if (selectedViewBookmarkGroup < bookmarkGroups.size()) {
+                std::string selectedGroup = bookmarkGroups[selectedViewBookmarkGroup];
+                std::string bookmarkFile = bookmarksDir + "/bookmarks_" + selectedGroup + ".txt";
+                std::ifstream file(bookmarkFile);
+                
+                if (file.is_open()) {
+                    std::string line;
+                    std::vector<std::string> lines;
+                    
+                    // Read all lines
+                    while (std::getline(file, line)) {
+                        lines.push_back(line);
+                    }
+                    file.close();
+                    
+                    // Remove the selected item if valid
+                    if (selectedViewBookmarkItem < lines.size()) {
+                        lines.erase(lines.begin() + selectedViewBookmarkItem);
+                        
+                        // Write back remaining lines
+                        std::ofstream outFile(bookmarkFile);
+                        if (outFile.is_open()) {
+                            for (const auto& line : lines) {
+                                outFile << line << "\n";
+                            }
+                            outFile.close();
+                            
+                            std::cout << "Deleted bookmark item from group: " << selectedGroup << std::endl;
+                            
+                            // Adjust selection
+                            if (selectedViewBookmarkItem > 0 && selectedViewBookmarkItem >= lines.size()) {
+                                selectedViewBookmarkItem = lines.size() - 1;
+                            }
+                            
+                            drawConsole();
+                        }
+                    }
+                }
+            }
+            return true;
+        }
+
+        bool key_marks_clips_copy() {
+            if (selectedViewBookmarkGroup < bookmarkGroups.size()) {
+                std::string selectedGroup = bookmarkGroups[selectedViewBookmarkGroup];
+                std::string bookmarkFile = bookmarksDir + "/bookmarks_" + selectedGroup + ".txt";
+                std::ifstream file(bookmarkFile);
+                
+                if (file.is_open()) {
+                    std::string line;
+                    std::vector<std::string> bookmarkItems;
+                    
+                    while (std::getline(file, line)) {
+                        size_t pos = line.find('|');
+                        if (pos != std::string::npos && pos > 0) {
+                            std::string content = line.substr(pos + 1);
+                            try {
+                                std::string decryptedContent = decrypt(content);
+                                bookmarkItems.push_back(decryptedContent);
+                            } catch (...) {
+                                bookmarkItems.push_back(content);
+                            }
+                        }
+                    }
+                    file.close();
+                    
+                    if (selectedViewBookmarkItem < bookmarkItems.size()) {
+                        copyToClipboard(bookmarkItems[selectedViewBookmarkItem]);
+                        int lines = countLines(bookmarkItems[selectedViewBookmarkItem]);
+                        if (lines > 1) {
+                            std::cout << "Copied " << lines << " lines from bookmark" << std::endl;
+                        } else {
+                            std::cout << "Copied from bookmark: " << bookmarkItems[selectedViewBookmarkItem].substr(0, 50) << "..." << std::endl;
+                        }
+                        viewBookmarksDialogVisible = false;
+                        hideWindow();
+                    }
+                }
+            }
+            return true;
+        }
+
+        bool key_marks_clips_groups() {
+            viewBookmarksShowingGroups = true;
+            drawConsole();
+            return true;
+        }
+
+        // Pinned Clips
+        bool key_pin_down() {
+            auto sortedItems = getSortedPinnedItems();
+            if (selectedViewPinnedItem < sortedItems.size() - 1) {
+                selectedViewPinnedItem++;
+                updatePinnedScrollOffset();
+                drawConsole();
+            }
+            return true;
+        }
+
+        bool key_pin_up() {
+            if (selectedViewPinnedItem > 0) {
+                selectedViewPinnedItem--;
+                updatePinnedScrollOffset();
+                drawConsole();
+            }
+            return true;
+        }
+
+        bool key_pin_top() {
+            selectedViewPinnedItem = 0;
+            viewPinnedScrollOffset = 0;
+            drawConsole();
+            return true;
+        }
+
+        bool key_pin_bottom() {
+            auto sortedItems = getSortedPinnedItems();
+            if (!sortedItems.empty()) {
+                selectedViewPinnedItem = sortedItems.size() - 1;
+                updatePinnedScrollOffset();
+                drawConsole();
+            }
+            return true;
+        }
+
+        bool key_pin_delete() {
+            auto sortedItems = getSortedPinnedItems();
+            
+            // Remove the selected item if valid
+            if (selectedViewPinnedItem < sortedItems.size()) {
+                sortedItems.erase(sortedItems.begin() + selectedViewPinnedItem);
+
+                // Write back remaining lines
+                std::ofstream outFile(pinnedFile);
+                if (outFile.is_open()) {
+                    for (const auto& item : sortedItems) {
+                        outFile << item << "\n";
+                    }
+                    outFile.close();
+                    
+                    std::cout << "Deleted pinned clip" << std::endl;
+                    
+                    // Adjust selection
+                    if (selectedViewPinnedItem > 0 && selectedViewPinnedItem >= sortedItems.size()) {
+                        selectedViewPinnedItem = sortedItems.size() - 1;
+                    }
+                    
+                    // Close dialog if no pinned clips left
+                    if (sortedItems.empty()) {
+                        pinnedDialogVisible = false;
+                    }
+                    
+                    drawConsole();
+                }
+            }
+            return true;
+        }
+
+        bool key_pin_copy() {
+            auto sortedItems = getSortedPinnedItems();
+
+            if (selectedViewPinnedItem < sortedItems.size()) {
+                std::string selectedLine = sortedItems[selectedViewPinnedItem];
+                size_t pos = selectedLine.find('|');
+                if (pos != std::string::npos) {
+                    std::string contentToCopy;
+                    std::string contentToSave = selectedLine.substr(pos + 1);
+                    try {
+                        contentToCopy = decrypt(contentToSave);
+                    } catch (...) {
+                        contentToCopy = contentToSave;
+                    }
+
+                    copyToClipboard(contentToCopy);
+
+                    int lineCount = countLines(contentToCopy);
+                    if (lineCount > 1) {
+                        std::cout << "Copied " << lineCount << " lines from pinned clips" << std::endl;
+                    } else {
+                        std::cout << "Copied from pinned clips: " << contentToCopy.substr(0, 50) << "..." << std::endl;
+                    }
+
+                    // Remove the old line from sorted items
+                    sortedItems.erase(sortedItems.begin() + selectedViewPinnedItem);
+
+                    // Add the new line at the beginning
+                    auto newTimestamp = std::chrono::system_clock::now().time_since_epoch().count();
+                    std::string newLine = std::to_string(newTimestamp) + "|" + contentToSave;
+                    sortedItems.insert(sortedItems.begin(), newLine);
+                    
+                    // Write the updated lines back to the file
+                    std::ofstream outFile(pinnedFile);
+                    for (const auto& l : sortedItems) {
+                        outFile << l << std::endl;
+                    }
+                    outFile.close();
+                }
+
+                pinnedDialogVisible = false;
+                hideWindow();
+            }
+            return true;
+        }
+
+        // Add Bookmarks
+        bool key_addmarks_add() {
+            if (!bookmarkGroups.empty() && selectedAddBookmarkGroup < bookmarkGroups.size()) {
+                std::string selectedGroup = bookmarkGroups[selectedAddBookmarkGroup];
+                
+                // Check if current clip is already in this group
+                if (!items.empty() && selectedItem < getDisplayItemCount()) {
+                    size_t actualIndex = getActualItemIndex(selectedItem);
+                    std::string clipContent = items[actualIndex].content;
+                    
+                    // Read existing bookmarks in this group
+                    std::string bookmarkFile = bookmarksDir + "/bookmarks_" + selectedGroup + ".txt";
+                    std::ifstream file(bookmarkFile);
+                    std::string line;
+                    bool alreadyExists = false;
+                    
+                    while (std::getline(file, line)) {
+                        std::string decrypted = decrypt(line);
+                        if (decrypted == clipContent) {
+                            alreadyExists = true;
+                            break;
+                        }
+                    }
+                    file.close();
+                    
+                    if (!alreadyExists) {
+                        addClipToBookmarkGroup(selectedGroup, clipContent);
+                        std::cout << "Added clip to bookmark group: " << selectedGroup << std::endl;
+                    } else {
+                        std::cout << "Clip already exists in bookmark group: " << selectedGroup << std::endl;
+                    }
+                }
+                
+                addToBookmarkDialogVisible = false;
+                drawConsole();
+            }
+            return true;
+        }
+
+        bool key_addmarks_down() {
+            if (!bookmarkGroups.empty() && selectedAddBookmarkGroup < bookmarkGroups.size() - 1) {
+                selectedAddBookmarkGroup++;
+                updateAddBookmarkScrollOffset();
+                drawConsole();
+            }
+            return true;
+        }
+
+        bool key_addmarks_up() {
+            if (selectedAddBookmarkGroup > 0) {
+                selectedAddBookmarkGroup--;
+                updateAddBookmarkScrollOffset();
+                drawConsole();
+            }
+            return true;
+        }
+
+        bool key_addmarks_top() {
+            selectedAddBookmarkGroup = 0;
+            addBookmarkScrollOffset = 0;
+            drawConsole();
+            return true;
+        }
+
+        bool key_addmarks_bottom() {
+            if (!bookmarkGroups.empty()) {
+                selectedAddBookmarkGroup = bookmarkGroups.size() - 1;
+                updateAddBookmarkScrollOffset();
+                drawConsole();
+            }
+            return true;
+        }
+
+        // Filter Mode
+        bool key_filter_delete() {
+            if (!items.empty() && selectedItem < getDisplayItemCount()) {
+                size_t actualIndex = getActualItemIndex(selectedItem);
+                items.erase(items.begin() + actualIndex);
+                
+                // Update filtered items after deletion
+                updateFilteredItems();
+                
+                // Adjust selection if needed
+                if (selectedItem >= getDisplayItemCount() && selectedItem > 0) {
+                    selectedItem--;
+                }
+                
+                // Save changes and redraw
+                saveToFile();
+                drawConsole();
+            }
+            return true;
+        }
+
+        bool key_filter_copy() {
+            if (!items.empty() && selectedItem < getDisplayItemCount()) {
+                size_t actualIndex = getActualItemIndex(selectedItem);
+                copyToClipboard(items[actualIndex].content);
+                int lines = countLines(items[actualIndex].content);
+                if (lines > 1) {
+                    std::cout << "Copied " << lines << " lines to clipboard" << std::endl;
+                } else {
+                    std::cout << "Copied to clipboard: " << items[actualIndex].content.substr(0, 50) << "..." << std::endl;
+                }
+                filterMode = false;
+                filterText = "";
+                filteredItems.clear();
+                hideWindow();
+            }
+            return true;
+        }
+
+        bool key_filter_down() {
+            size_t displayCount = getDisplayItemCount();
+            if (selectedItem < displayCount - 1) {
+                selectedItem++;
+                updateConsoleScrollOffset();
+                drawConsole();
+            }
+            return true;
+        }
+
+        bool key_filter_up() {
+            if (selectedItem > 0) {
+                selectedItem--;
+                updateConsoleScrollOffset();
+                drawConsole();
+            }
+            return true;
+        }
+
+        // Command
+        bool key_command_execute() {
+            if (!commandText.empty()) {
+                executeCommand(commandText);
+            }
             commandMode = false;
             commandText = "";
-            selectedItem = 0;
             drawConsole();
-        } else if (cmd_themeSelectMode) {
-            // Restore original theme and exit theme selection mode but doesn't hide window
+            return true;
+        }
+
+        bool key_command_down() {
+            size_t displayCount = getDisplayItemCount();
+            if (selectedItem < displayCount - 1) {
+                selectedItem++;
+                updateConsoleScrollOffset();
+                drawConsole();
+            }
+            return true;
+        }
+
+        bool key_command_up() {
+            if (selectedItem > 0) {
+                selectedItem--;
+                updateConsoleScrollOffset();
+                drawConsole();
+            }
+            return true;
+        }
+
+        bool key_command_detect() {
+            if (commandText == "theme") {
+                // Enter theme selection mode
+                commandMode = false;
+                cmd_themeSelectMode = true;
+                discoverThemes();
+                // Store original theme and apply first theme for preview
+                if (!availableThemes.empty()) {
+                    originalTheme = theme;
+                    selectedTheme = 0;
+                    switchTheme(availableThemes[0]);
+                }
+                drawConsole();
+                return true;
+            }
+
+            // Add space to command text for other commands
+            commandText += " ";
+            drawConsole();
+
+            return true;
+        }
+
+        // Theme Command
+        bool key_theme_cancel() {
             if (!originalTheme.empty()) {
                 switchTheme(originalTheme);
             }
             cmd_themeSelectMode = false;
             availableThemes.clear();
             originalTheme.clear();
-            selectedItem = 0;
             drawConsole();
-        } else {
-            // Normal escape behavior - hide window
-            hideWindow();
+
+            return true;
         }
 
-        return true;
-    }
-
-    // Help
-    bool key_help_show() {
-        helpDialogVisible = false;
-        drawConsole();
-        return true;
-    }
-
-    bool key_help_scroll_down() {
-        updateHelpDialogScrollOffset(-1);
-        drawConsole();
-        return true;
-    }
-
-    bool key_help_scroll_up() {
-        if (helpDialogScrollOffset > 0) {
-            updateHelpDialogScrollOffset(1);
-            drawConsole();
-        }
-        return true;
-    }
-
-    bool key_help_scroll_top() {
-        helpDialogScrollOffset = 0;
-        drawConsole();
-        return true;
-    }
-
-    // Add Groups
-    bool key_addgroup_add() {
-        // Enter creates/selects bookmark group using input text only
-        if (!bookmarkDialogInput.empty()) {
-            // Check if this is a new group
-            bool groupExists = false;
-            for (const auto& group : bookmarkGroups) {
-                if (group == bookmarkDialogInput) {
-                    groupExists = true;
-                    break;
-                }
+        bool key_theme_apply() {
+            if (selectedTheme < availableThemes.size()) {
+                switchTheme(availableThemes[selectedTheme]);
+                // Save to config
+                saveConfig();
             }
-            
-            if (!groupExists) {
-                // Create new group and add current clip
-                bookmarkGroups.push_back(bookmarkDialogInput);
-                saveBookmarkGroups();
-                
-                // Add current clip to bookmark
-                if (!items.empty() && selectedItem < getDisplayItemCount()) {
-                    size_t actualIndex = getActualItemIndex(selectedItem);
-                    addClipToBookmarkGroup(bookmarkDialogInput, items[actualIndex].content);
-                    std::cout << "Added clip to bookmark group: " << bookmarkDialogInput << std::endl;
-                }
-            } else {
-                // Add current clip to existing group
-                if (!items.empty() && selectedItem < getDisplayItemCount()) {
-                    size_t actualIndex = getActualItemIndex(selectedItem);
-                    addClipToBookmarkGroup(bookmarkDialogInput, items[actualIndex].content);
-                    std::cout << "Added clip to bookmark group: " << bookmarkDialogInput << std::endl;
-                }
-            }
-            
-            bookmarkDialogVisible = false;
+            cmd_themeSelectMode = false;
+            availableThemes.clear();
+            originalTheme.clear();
             drawConsole();
+
+            return true;
         }
-        return true;
-    }
 
-    bool key_addgroup_back() {
-        if (!bookmarkDialogInput.empty()) {
-            bookmarkDialogInput.pop_back();
-            drawConsole();
-        }
-        return true;
-    }
-
-    // Bookmarks
-    bool key_marks_show() {
-        if (!viewBookmarksShowingGroups) {
-            // If viewing clips, go back to groups
-            viewBookmarksShowingGroups = true;
-            selectedViewBookmarkItem = 0;
-            viewBookmarksScrollOffset = 0; // Reset scroll when going back
-        } else {
-            // If viewing groups, close dialog
-            viewBookmarksDialogVisible = false;
-        }
-        drawConsole();
-
-        return true;
-    }
-
-    bool key_marks_groups_down() {
-        if (selectedViewBookmarkGroup < bookmarkGroups.size() - 1) {
-            selectedViewBookmarkGroup++;
-            updateScrollOffset();
-            drawConsole();
-        }
-        return true;
-    }
-
-    bool key_marks_groups_up() {
-        if (selectedViewBookmarkGroup > 0) {
-            selectedViewBookmarkGroup--;
-            updateScrollOffset();
-            drawConsole();
-        }
-        return true;
-    }
-
-    bool key_marks_groups_top() {
-        selectedViewBookmarkGroup = 0;
-        viewBookmarksScrollOffset = 0;
-        drawConsole();
-        return true;
-    }
-
-    bool key_marks_groups_bottom() {
-        selectedViewBookmarkGroup = bookmarkGroups.size() - 1;
-        updateScrollOffset();
-        drawConsole();
-        return true;
-    }
-
-    bool key_marks_groups_delete() {
-        if (selectedViewBookmarkGroup < bookmarkGroups.size()) {
-            std::string groupToDelete = bookmarkGroups[selectedViewBookmarkGroup];
-            
-            // Remove group from list
-            bookmarkGroups.erase(bookmarkGroups.begin() + selectedViewBookmarkGroup);
-            saveBookmarkGroups();
-            
-            // Delete bookmark file
-            std::string bookmarkFile = bookmarksDir + "/bookmarks_" + groupToDelete + ".txt";
-            unlink(bookmarkFile.c_str());
-            
-            std::cout << "Deleted bookmark group and all clips: " << groupToDelete << std::endl;
-            
-            // Adjust selection
-            if (selectedViewBookmarkGroup > 0 && selectedViewBookmarkGroup >= bookmarkGroups.size()) {
-                selectedViewBookmarkGroup = bookmarkGroups.size() - 1;
-            }
-            
-            // Close dialog if no groups left
-            if (bookmarkGroups.empty()) {
-                viewBookmarksDialogVisible = false;
-            }
-            
-            drawConsole();
-        }
-        return true;
-    }
-
-    bool key_marks_groups_clips() {
-        if (selectedViewBookmarkGroup < bookmarkGroups.size()) {
-            viewBookmarksShowingGroups = false;
-            selectedViewBookmarkItem = 0;
-            viewBookmarksScrollOffset = 0; // Reset scroll when switching modes
-            drawConsole();
-        }
-        return true;
-    }
-
-
-    bool key_marks_clips_down() {
-        selectedViewBookmarkItem++;
-        updateScrollOffset();
-        drawConsole();
-        return true;
-    }
-
-    bool key_marks_clips_up() {
-        if (selectedViewBookmarkItem > 0) {
-            selectedViewBookmarkItem--;
-            updateScrollOffset();
-            drawConsole();
-        }
-        return true;
-    }
-
-    bool key_marks_clips_top() {
-        selectedViewBookmarkItem = 0;
-        viewBookmarksScrollOffset = 0;
-        drawConsole();
-        return true;
-    }
-
-    bool key_marks_clips_bottom() {
-        if (selectedViewBookmarkGroup < bookmarkGroups.size()) {
-            std::string selectedGroup = bookmarkGroups[selectedViewBookmarkGroup];
-            std::string bookmarkFile = bookmarksDir + "/bookmarks_" + selectedGroup + ".txt";
-            std::ifstream file(bookmarkFile);
-            
-            if (file.is_open()) {
-                std::string line;
-                size_t itemCount = 0;
-                while (std::getline(file, line)) {
-                    size_t pos = line.find('|');
-                    if (pos != std::string::npos && pos > 0) {
-                        itemCount++;
-                    }
+        bool key_theme_down() {
+            if (selectedTheme < availableThemes.size() - 1) {
+                selectedTheme++;
+                updateThemeSelectScrollOffset();
+                // Apply live preview
+                if (selectedTheme < availableThemes.size()) {
+                    switchTheme(availableThemes[selectedTheme]);
                 }
-                file.close();
-                
-                if (itemCount > 0) {
-                    selectedViewBookmarkItem = itemCount - 1;
-                    updateScrollOffset();
-                    drawConsole();
-                }
-            }
-        }
-        return true;
-    }
-
-    bool key_marks_clips_delete() {
-        if (selectedViewBookmarkGroup < bookmarkGroups.size()) {
-            std::string selectedGroup = bookmarkGroups[selectedViewBookmarkGroup];
-            std::string bookmarkFile = bookmarksDir + "/bookmarks_" + selectedGroup + ".txt";
-            std::ifstream file(bookmarkFile);
-            
-            if (file.is_open()) {
-                std::string line;
-                std::vector<std::string> lines;
-                
-                // Read all lines
-                while (std::getline(file, line)) {
-                    lines.push_back(line);
-                }
-                file.close();
-                
-                // Remove the selected item if valid
-                if (selectedViewBookmarkItem < lines.size()) {
-                    lines.erase(lines.begin() + selectedViewBookmarkItem);
-                    
-                    // Write back remaining lines
-                    std::ofstream outFile(bookmarkFile);
-                    if (outFile.is_open()) {
-                        for (const auto& line : lines) {
-                            outFile << line << "\n";
-                        }
-                        outFile.close();
-                        
-                        std::cout << "Deleted bookmark item from group: " << selectedGroup << std::endl;
-                        
-                        // Adjust selection
-                        if (selectedViewBookmarkItem > 0 && selectedViewBookmarkItem >= lines.size()) {
-                            selectedViewBookmarkItem = lines.size() - 1;
-                        }
-                        
-                        drawConsole();
-                    }
-                }
-            }
-        }
-        return true;
-    }
-
-    bool key_marks_clips_copy() {
-        if (selectedViewBookmarkGroup < bookmarkGroups.size()) {
-            std::string selectedGroup = bookmarkGroups[selectedViewBookmarkGroup];
-            std::string bookmarkFile = bookmarksDir + "/bookmarks_" + selectedGroup + ".txt";
-            std::ifstream file(bookmarkFile);
-            
-            if (file.is_open()) {
-                std::string line;
-                std::vector<std::string> bookmarkItems;
-                
-                while (std::getline(file, line)) {
-                    size_t pos = line.find('|');
-                    if (pos != std::string::npos && pos > 0) {
-                        std::string content = line.substr(pos + 1);
-                        try {
-                            std::string decryptedContent = decrypt(content);
-                            bookmarkItems.push_back(decryptedContent);
-                        } catch (...) {
-                            bookmarkItems.push_back(content);
-                        }
-                    }
-                }
-                file.close();
-                
-                if (selectedViewBookmarkItem < bookmarkItems.size()) {
-                    copyToClipboard(bookmarkItems[selectedViewBookmarkItem]);
-                    int lines = countLines(bookmarkItems[selectedViewBookmarkItem]);
-                    if (lines > 1) {
-                        std::cout << "Copied " << lines << " lines from bookmark" << std::endl;
-                    } else {
-                        std::cout << "Copied from bookmark: " << bookmarkItems[selectedViewBookmarkItem].substr(0, 50) << "..." << std::endl;
-                    }
-                    viewBookmarksDialogVisible = false;
-                    hideWindow();
-                }
-            }
-        }
-        return true;
-    }
-
-    bool key_marks_clips_groups() {
-        viewBookmarksShowingGroups = true;
-        drawConsole();
-        return true;
-    }
-
-    // Pinned Clips
-    bool key_pin_down() {
-        auto sortedItems = getSortedPinnedItems();
-        if (selectedViewPinnedItem < sortedItems.size() - 1) {
-            selectedViewPinnedItem++;
-            updatePinnedScrollOffset();
-            drawConsole();
-        }
-        return true;
-    }
-
-    bool key_pin_up() {
-        if (selectedViewPinnedItem > 0) {
-            selectedViewPinnedItem--;
-            updatePinnedScrollOffset();
-            drawConsole();
-        }
-        return true;
-    }
-
-    bool key_pin_top() {
-        selectedViewPinnedItem = 0;
-        viewPinnedScrollOffset = 0;
-        drawConsole();
-        return true;
-    }
-
-    bool key_pin_bottom() {
-        auto sortedItems = getSortedPinnedItems();
-        if (!sortedItems.empty()) {
-            selectedViewPinnedItem = sortedItems.size() - 1;
-            updatePinnedScrollOffset();
-            drawConsole();
-        }
-        return true;
-    }
-
-    bool key_pin_delete() {
-        auto sortedItems = getSortedPinnedItems();
-        
-        // Remove the selected item if valid
-        if (selectedViewPinnedItem < sortedItems.size()) {
-            sortedItems.erase(sortedItems.begin() + selectedViewPinnedItem);
-
-            // Write back remaining lines
-            std::ofstream outFile(pinnedFile);
-            if (outFile.is_open()) {
-                for (const auto& item : sortedItems) {
-                    outFile << item << "\n";
-                }
-                outFile.close();
-                
-                std::cout << "Deleted pinned clip" << std::endl;
-                
-                // Adjust selection
-                if (selectedViewPinnedItem > 0 && selectedViewPinnedItem >= sortedItems.size()) {
-                    selectedViewPinnedItem = sortedItems.size() - 1;
-                }
-                
-                // Close dialog if no pinned clips left
-                if (sortedItems.empty()) {
-                    pinnedDialogVisible = false;
-                }
-                
                 drawConsole();
             }
+            return true;
         }
-        return true;
-    }
 
-    bool key_pin_copy() {
-        auto sortedItems = getSortedPinnedItems();
-
-        if (selectedViewPinnedItem < sortedItems.size()) {
-            std::string selectedLine = sortedItems[selectedViewPinnedItem];
-            size_t pos = selectedLine.find('|');
-            if (pos != std::string::npos) {
-                std::string contentToCopy;
-                std::string contentToSave = selectedLine.substr(pos + 1);
-                try {
-                    contentToCopy = decrypt(contentToSave);
-                } catch (...) {
-                    contentToCopy = contentToSave;
+        bool key_theme_up() {
+            if (selectedTheme > 0) {
+                selectedTheme--;
+                updateThemeSelectScrollOffset();
+                // Apply live preview
+                if (selectedTheme < availableThemes.size()) {
+                    switchTheme(availableThemes[selectedTheme]);
                 }
-
-                copyToClipboard(contentToCopy);
-
-                int lineCount = countLines(contentToCopy);
-                if (lineCount > 1) {
-                    std::cout << "Copied " << lineCount << " lines from pinned clips" << std::endl;
-                } else {
-                    std::cout << "Copied from pinned clips: " << contentToCopy.substr(0, 50) << "..." << std::endl;
-                }
-
-                // Remove the old line from sorted items
-                sortedItems.erase(sortedItems.begin() + selectedViewPinnedItem);
-
-                // Add the new line at the beginning
-                auto newTimestamp = std::chrono::system_clock::now().time_since_epoch().count();
-                std::string newLine = std::to_string(newTimestamp) + "|" + contentToSave;
-                sortedItems.insert(sortedItems.begin(), newLine);
-                
-                // Write the updated lines back to the file
-                std::ofstream outFile(pinnedFile);
-                for (const auto& l : sortedItems) {
-                    outFile << l << std::endl;
-                }
-                outFile.close();
+                drawConsole();
             }
-
-            pinnedDialogVisible = false;
-            hideWindow();
+            return true;
         }
-        return true;
-    }
 
-    // Add Bookmarks
-    bool key_addmarks_add() {
-        if (!bookmarkGroups.empty() && selectedAddBookmarkGroup < bookmarkGroups.size()) {
-            std::string selectedGroup = bookmarkGroups[selectedAddBookmarkGroup];
-            
-            // Check if current clip is already in this group
+        bool key_theme_top() {
+            selectedTheme = 0;
+            themeSelectScrollOffset = 0;
+            drawConsole();
+
+            return true;
+        }
+
+        bool key_theme_bottom() {
+            if (!availableThemes.empty()) {
+                selectedTheme = availableThemes.size() - 1;
+                updateThemeSelectScrollOffset();
+                drawConsole();
+            }
+            return true;
+        }
+
+        // Main Clips List
+        bool key_main_down() {
+            size_t displayCount = getDisplayItemCount();
+            if (selectedItem < displayCount - 1) {
+                selectedItem++;
+                updateConsoleScrollOffset();
+                drawConsole();
+            }
+            return true;
+        }
+
+        bool key_main_up() {
+            if (selectedItem > 0) {
+                selectedItem--;
+                updateConsoleScrollOffset();
+                drawConsole();
+            }
+            return true;
+        }
+
+        bool key_main_top() {
+            selectedItem = 0;
+            updateConsoleScrollOffset();
+            drawConsole();
+
+            return true;
+        }
+
+        bool key_main_bottom() {
+            size_t displayCount = getDisplayItemCount();
+            if (displayCount > 0) {
+                selectedItem = displayCount - 1;
+                updateConsoleScrollOffset();
+                drawConsole();
+            }
+            return true;
+        }
+
+        bool key_main_delete() {
+            if (!items.empty() && selectedItem < getDisplayItemCount()) {
+                size_t actualIndex = getActualItemIndex(selectedItem);
+                items.erase(items.begin() + actualIndex);
+                
+                // Adjust selection
+                size_t displayCount = getDisplayItemCount();
+                if (selectedItem >= displayCount && selectedItem > 0) {
+                    selectedItem--;
+                }
+                
+                // Update filtered items if in filter mode
+                if (filterMode) {
+                    updateFilteredItems();
+                }
+                
+                saveToFile();
+                drawConsole();
+            }
+            return true;
+        }
+
+        bool key_main_filter_start() {
+            filterMode = true;
+            filterText = "";
+            updateFilteredItems();
+            selectedItem = 0;
+            drawConsole();
+
+            return true;
+        }
+
+        bool key_main_command_start() {
+            commandMode = true;
+            commandText = "";
+            selectedItem = 0;
+            drawConsole();
+
+            return true;
+        }
+
+        bool key_main_copy() {
+            if (!items.empty() && selectedItem < getDisplayItemCount()) {
+                size_t actualIndex = getActualItemIndex(selectedItem);
+                std::string clipContent = items[actualIndex].content;
+
+                copyToClipboard(clipContent);
+
+                // Update timestamp and move to top if not already at top
+                if (actualIndex != 0) {
+                    // Remove from current position
+                    items.erase(items.begin() + actualIndex);
+
+                    // Create new item with current timestamp and insert at top
+                    items.emplace(items.begin(), ClipboardItem(clipContent));
+
+                    // Reset selection to top
+                    selectedItem = 0;
+
+                    // Update filtered items if in filter mode
+                    if (filterMode) {
+                        updateFilteredItems();
+                    }
+
+                    // Save to file with updated timestamp
+                    saveToFile();
+
+                    std::cout << "Clip moved to top after copying" << std::endl;
+                }
+
+                int lines = countLines(clipContent);
+
+                if (lines > 1) {
+                    std::cout << "Copied " << lines << " lines to clipboard" << std::endl;
+                } else {
+                    std::cout << "Copied to clipboard: " << clipContent.substr(0, 50) << "..." << std::endl;
+                }
+                hideWindow();
+            }
+            return true;
+        }
+
+        bool key_main_addgroup_start() {
+            bookmarkDialogVisible = true;
+            bookmarkDialogInput = "";
+            selectedBookmarkGroup = 0;
+            bookmarkMgmtScrollOffset = 0; // Reset scroll when opening
+            drawConsole();
+
+            return true;
+        }
+
+        bool key_main_addclip_start() {
+            if (!bookmarkGroups.empty()) {
+                addToBookmarkDialogVisible = true;
+                selectedAddBookmarkGroup = 0;
+                addBookmarkScrollOffset = 0; // Reset scroll when opening
+                drawConsole();
+            }
+            return true;
+        }
+
+        bool key_main_help_start() {
+            helpDialogVisible = true;
+            helpDialogScrollOffset = 0; // Reset scroll offset when opening help dialog
+            drawConsole();
+
+            return true;
+        }
+
+        bool key_main_accessmarks_start() {
+            if (!bookmarkGroups.empty()) {
+                viewBookmarksDialogVisible = true;
+                viewBookmarksShowingGroups = true; // Start with group selection
+                selectedViewBookmarkGroup = 0;
+                selectedViewBookmarkItem = 0;
+                viewBookmarksScrollOffset = 0; // Reset scroll when opening
+                drawConsole();
+            }
+            return true;
+        }
+
+        bool key_main_pin_clip() {
             if (!items.empty() && selectedItem < getDisplayItemCount()) {
                 size_t actualIndex = getActualItemIndex(selectedItem);
                 std::string clipContent = items[actualIndex].content;
                 
                 // Read existing bookmarks in this group
-                std::string bookmarkFile = bookmarksDir + "/bookmarks_" + selectedGroup + ".txt";
-                std::ifstream file(bookmarkFile);
+                std::ifstream file(pinnedFile);
                 std::string line;
                 bool alreadyExists = false;
                 
@@ -1020,432 +1431,31 @@ public:
                 file.close();
                 
                 if (!alreadyExists) {
-                    addClipToBookmarkGroup(selectedGroup, clipContent);
-                    std::cout << "Added clip to bookmark group: " << selectedGroup << std::endl;
+                    addClipToPinned(clipContent);
+                    std::cout << "Added clip to pinned" << std::endl;
                 } else {
-                    std::cout << "Clip already exists in bookmark group: " << selectedGroup << std::endl;
+                    std::cout << "Clip is already pinned" << std::endl;
                 }
             }
-            
-            addToBookmarkDialogVisible = false;
-            drawConsole();
-        }
-        return true;
-    }
-
-    bool key_addmarks_down() {
-        if (!bookmarkGroups.empty() && selectedAddBookmarkGroup < bookmarkGroups.size() - 1) {
-            selectedAddBookmarkGroup++;
-            updateAddBookmarkScrollOffset();
-            drawConsole();
-        }
-        return true;
-    }
-
-    bool key_addmarks_up() {
-        if (selectedAddBookmarkGroup > 0) {
-            selectedAddBookmarkGroup--;
-            updateAddBookmarkScrollOffset();
-            drawConsole();
-        }
-        return true;
-    }
-
-    bool key_addmarks_top() {
-        selectedAddBookmarkGroup = 0;
-        addBookmarkScrollOffset = 0;
-        drawConsole();
-        return true;
-    }
-
-    bool key_addmarks_bottom() {
-        if (!bookmarkGroups.empty()) {
-            selectedAddBookmarkGroup = bookmarkGroups.size() - 1;
-            updateAddBookmarkScrollOffset();
-            drawConsole();
-        }
-        return true;
-    }
-
-    // Filter Mode
-    bool key_filter_delete() {
-        if (!items.empty() && selectedItem < getDisplayItemCount()) {
-            size_t actualIndex = getActualItemIndex(selectedItem);
-            items.erase(items.begin() + actualIndex);
-            
-            // Update filtered items after deletion
-            updateFilteredItems();
-            
-            // Adjust selection if needed
-            if (selectedItem >= getDisplayItemCount() && selectedItem > 0) {
-                selectedItem--;
-            }
-            
-            // Save changes and redraw
-            saveToFile();
-            drawConsole();
-        }
-        return true;
-    }
-
-    bool key_filter_copy() {
-        if (!items.empty() && selectedItem < getDisplayItemCount()) {
-            size_t actualIndex = getActualItemIndex(selectedItem);
-            copyToClipboard(items[actualIndex].content);
-            int lines = countLines(items[actualIndex].content);
-            if (lines > 1) {
-                std::cout << "Copied " << lines << " lines to clipboard" << std::endl;
-            } else {
-                std::cout << "Copied to clipboard: " << items[actualIndex].content.substr(0, 50) << "..." << std::endl;
-            }
-            filterMode = false;
-            filterText = "";
-            filteredItems.clear();
-            hideWindow();
-        }
-        return true;
-    }
-
-    bool key_filter_down() {
-        size_t displayCount = getDisplayItemCount();
-        if (selectedItem < displayCount - 1) {
-            selectedItem++;
-            updateConsoleScrollOffset();
-            drawConsole();
-        }
-        return true;
-    }
-
-    bool key_filter_up() {
-        if (selectedItem > 0) {
-            selectedItem--;
-            updateConsoleScrollOffset();
-            drawConsole();
-        }
-        return true;
-    }
-
-    // Command
-    bool key_command_execute() {
-        if (!commandText.empty()) {
-            executeCommand(commandText);
-        }
-        commandMode = false;
-        commandText = "";
-        drawConsole();
-        return true;
-    }
-
-    bool key_command_down() {
-        size_t displayCount = getDisplayItemCount();
-        if (selectedItem < displayCount - 1) {
-            selectedItem++;
-            updateConsoleScrollOffset();
-            drawConsole();
-        }
-        return true;
-    }
-
-    bool key_command_up() {
-        if (selectedItem > 0) {
-            selectedItem--;
-            updateConsoleScrollOffset();
-            drawConsole();
-        }
-        return true;
-    }
-
-    bool key_command_detect() {
-        if (commandText == "theme") {
-            // Enter theme selection mode
-            commandMode = false;
-            cmd_themeSelectMode = true;
-            discoverThemes();
-            // Store original theme and apply first theme for preview
-            if (!availableThemes.empty()) {
-                originalTheme = theme;
-                selectedTheme = 0;
-                switchTheme(availableThemes[0]);
-            }
-            drawConsole();
             return true;
         }
 
-        // Add space to command text for other commands
-        commandText += " ";
-        drawConsole();
-
-        return true;
-    }
-
-    // Theme Command
-    bool key_theme_cancel() {
-        if (!originalTheme.empty()) {
-            switchTheme(originalTheme);
-        }
-        cmd_themeSelectMode = false;
-        availableThemes.clear();
-        originalTheme.clear();
-        drawConsole();
-
-        return true;
-    }
-
-    bool key_theme_apply() {
-        if (selectedTheme < availableThemes.size()) {
-            switchTheme(availableThemes[selectedTheme]);
-            // Save to config
-            saveConfig();
-        }
-        cmd_themeSelectMode = false;
-        availableThemes.clear();
-        originalTheme.clear();
-        drawConsole();
-
-        return true;
-    }
-
-    bool key_theme_down() {
-        if (selectedTheme < availableThemes.size() - 1) {
-            selectedTheme++;
-            updateThemeSelectScrollOffset();
-            // Apply live preview
-            if (selectedTheme < availableThemes.size()) {
-                switchTheme(availableThemes[selectedTheme]);
-            }
+        bool key_main_pins_start() {
+            pinnedDialogVisible = true;
+            selectedViewPinnedItem = 0;
+            viewPinnedScrollOffset = 0; // Reset scroll when opening
             drawConsole();
+
+            return true;
         }
-        return true;
-    }
-
-    bool key_theme_up() {
-        if (selectedTheme > 0) {
-            selectedTheme--;
-            updateThemeSelectScrollOffset();
-            // Apply live preview
-            if (selectedTheme < availableThemes.size()) {
-                switchTheme(availableThemes[selectedTheme]);
-            }
-            drawConsole();
-        }
-        return true;
-    }
-
-    bool key_theme_top() {
-        selectedTheme = 0;
-        themeSelectScrollOffset = 0;
-        drawConsole();
-
-        return true;
-    }
-
-    bool key_theme_bottom() {
-        if (!availableThemes.empty()) {
-            selectedTheme = availableThemes.size() - 1;
-            updateThemeSelectScrollOffset();
-            drawConsole();
-        }
-        return true;
-    }
-
-    // Main Clips List
-    bool key_main_down() {
-        size_t displayCount = getDisplayItemCount();
-        if (selectedItem < displayCount - 1) {
-            selectedItem++;
-            updateConsoleScrollOffset();
-            drawConsole();
-        }
-        return true;
-    }
-
-    bool key_main_up() {
-        if (selectedItem > 0) {
-            selectedItem--;
-            updateConsoleScrollOffset();
-            drawConsole();
-        }
-        return true;
-    }
-
-    bool key_main_top() {
-        selectedItem = 0;
-        updateConsoleScrollOffset();
-        drawConsole();
-
-        return true;
-    }
-
-    bool key_main_bottom() {
-        size_t displayCount = getDisplayItemCount();
-        if (displayCount > 0) {
-            selectedItem = displayCount - 1;
-            updateConsoleScrollOffset();
-            drawConsole();
-        }
-        return true;
-    }
-
-    bool key_main_delete() {
-        if (!items.empty() && selectedItem < getDisplayItemCount()) {
-            size_t actualIndex = getActualItemIndex(selectedItem);
-            items.erase(items.begin() + actualIndex);
-            
-            // Adjust selection
-            size_t displayCount = getDisplayItemCount();
-            if (selectedItem >= displayCount && selectedItem > 0) {
-                selectedItem--;
-            }
-            
-            // Update filtered items if in filter mode
-            if (filterMode) {
-                updateFilteredItems();
-            }
-            
-            saveToFile();
-            drawConsole();
-        }
-        return true;
-    }
-
-    bool key_main_filter_start() {
-        filterMode = true;
-        filterText = "";
-        updateFilteredItems();
-        selectedItem = 0;
-        drawConsole();
-
-        return true;
-    }
-
-    bool key_main_command_start() {
-        commandMode = true;
-        commandText = "";
-        selectedItem = 0;
-        drawConsole();
-
-        return true;
-    }
-
-    bool key_main_copy() {
-        if (!items.empty() && selectedItem < getDisplayItemCount()) {
-            size_t actualIndex = getActualItemIndex(selectedItem);
-            std::string clipContent = items[actualIndex].content;
-
-            copyToClipboard(clipContent);
-
-            // Update timestamp and move to top if not already at top
-            if (actualIndex != 0) {
-                // Remove from current position
-                items.erase(items.begin() + actualIndex);
-
-                // Create new item with current timestamp and insert at top
-                items.emplace(items.begin(), ClipboardItem(clipContent));
-
-                // Reset selection to top
-                selectedItem = 0;
-
-                // Update filtered items if in filter mode
-                if (filterMode) {
-                    updateFilteredItems();
-                }
-
-                // Save to file with updated timestamp
-                saveToFile();
-
-                std::cout << "Clip moved to top after copying" << std::endl;
-            }
-
-            int lines = countLines(clipContent);
-
-            if (lines > 1) {
-                std::cout << "Copied " << lines << " lines to clipboard" << std::endl;
-            } else {
-                std::cout << "Copied to clipboard: " << clipContent.substr(0, 50) << "..." << std::endl;
-            }
-            hideWindow();
-        }
-        return true;
-    }
-
-    bool key_main_addgroup_start() {
-        bookmarkDialogVisible = true;
-        bookmarkDialogInput = "";
-        selectedBookmarkGroup = 0;
-        bookmarkMgmtScrollOffset = 0; // Reset scroll when opening
-        drawConsole();
-
-        return true;
-    }
-
-    bool key_main_addclip_start() {
-        if (!bookmarkGroups.empty()) {
-            addToBookmarkDialogVisible = true;
-            selectedAddBookmarkGroup = 0;
-            addBookmarkScrollOffset = 0; // Reset scroll when opening
-            drawConsole();
-        }
-        return true;
-    }
-
-    bool key_main_help_start() {
-        helpDialogVisible = true;
-        helpDialogScrollOffset = 0; // Reset scroll offset when opening help dialog
-        drawConsole();
-
-        return true;
-    }
-
-    bool key_main_accessmarks_start() {
-        if (!bookmarkGroups.empty()) {
-            viewBookmarksDialogVisible = true;
-            viewBookmarksShowingGroups = true; // Start with group selection
-            selectedViewBookmarkGroup = 0;
-            selectedViewBookmarkItem = 0;
-            viewBookmarksScrollOffset = 0; // Reset scroll when opening
-            drawConsole();
-        }
-        return true;
-    }
-
-    bool key_main_pin_clip() {
-        if (!items.empty() && selectedItem < getDisplayItemCount()) {
-            size_t actualIndex = getActualItemIndex(selectedItem);
-            std::string clipContent = items[actualIndex].content;
-            
-            // Read existing bookmarks in this group
-            std::ifstream file(pinnedFile);
-            std::string line;
-            bool alreadyExists = false;
-            
-            while (std::getline(file, line)) {
-                std::string decrypted = decrypt(line);
-                if (decrypted == clipContent) {
-                    alreadyExists = true;
-                    break;
-                }
-            }
-            file.close();
-            
-            if (!alreadyExists) {
-                addClipToPinned(clipContent);
-                std::cout << "Added clip to pinned" << std::endl;
-            } else {
-                std::cout << "Clip is already pinned" << std::endl;
-            }
-        }
-        return true;
-    }
-
-    bool key_main_pins_start() {
-        pinnedDialogVisible = true;
-        selectedViewPinnedItem = 0;
-        viewPinnedScrollOffset = 0; // Reset scroll when opening
-        drawConsole();
-
-        return true;
-    }
     //// End Key Press Methods /////////////////////////////////////////////////
+
+
+///
+///
+//// END KEY HANDLING //////////////////////////////////////////////////////////
+
+
 
 
 
@@ -3384,12 +3394,139 @@ private:
     
     
 
+
+
+//// HELP TOPICS ///////////////////////////////////////////////////////////////
+///
+///
     void drawHelpTopic(int x, int y, int contentTop, int contentBottom, std::string topic) {
 #ifdef __linux__
         if (y >= contentTop && y < contentBottom) { XDrawString(display, window, gc, x, y, topic.c_str(), topic.length()); }
 #endif
+#ifdef _WIN32
+#endif
+#ifdef __APPLE__
+#endif
     }
 
+    void drawAllHelpTopics(int titleLeft, int topicLeft, int lineHeight, int gap, int y, int contentTop, int contentBottom) {
+        // Main Window shortcuts
+        drawHelpTopic(titleLeft, y, contentTop, contentBottom, "Main Window:");
+        y += lineHeight;
+        drawHelpTopic(topicLeft, y, contentTop, contentBottom, "j/k            - Navigate items");
+        y += lineHeight;
+        drawHelpTopic(topicLeft, y, contentTop, contentBottom, "g/G            - Top/bottom");
+        y += lineHeight;
+        drawHelpTopic(topicLeft, y, contentTop, contentBottom, "Enter          - Copy item");
+        y += lineHeight;
+        drawHelpTopic(topicLeft, y, contentTop, contentBottom, "/              - Filter mode");
+        y += lineHeight;
+        drawHelpTopic(topicLeft, y, contentTop, contentBottom, "Shift+M        - Manage bookmark groups");
+        y += lineHeight;
+        drawHelpTopic(topicLeft, y, contentTop, contentBottom, "m              - Add clip to group");
+        y += lineHeight;
+        drawHelpTopic(topicLeft, y, contentTop, contentBottom, "`              - View bookmarks");
+        y += lineHeight;
+        drawHelpTopic(topicLeft, y, contentTop, contentBottom, "?              - This help");
+        y += lineHeight;
+        drawHelpTopic(topicLeft, y, contentTop, contentBottom, "Shift+D        - Delete item");
+        y += lineHeight;
+        drawHelpTopic(topicLeft, y, contentTop, contentBottom, "Shift+Q        - Quit");
+        y += lineHeight;
+        drawHelpTopic(topicLeft, y, contentTop, contentBottom, "Escape         - Hide window");
+        y += lineHeight + gap;
+        
+        // Help
+        drawHelpTopic(titleLeft, y, contentTop, contentBottom, "Help Window:");
+        y += lineHeight;
+        drawHelpTopic(topicLeft, y, contentTop, contentBottom, "j/k            - Navigate topics");
+        y += lineHeight;
+        drawHelpTopic(topicLeft, y, contentTop, contentBottom, "g              - Top");
+        y += lineHeight + gap;
+
+
+        // Filter Mode shortcuts
+        drawHelpTopic(titleLeft, y, contentTop, contentBottom, "Filter Mode:");
+        y += lineHeight;
+        drawHelpTopic(topicLeft, y, contentTop, contentBottom, "Type text      - Filter items");
+        y += lineHeight;
+        drawHelpTopic(topicLeft, y, contentTop, contentBottom, "Backspace      - Delete char");
+        y += lineHeight;
+        drawHelpTopic(topicLeft, y, contentTop, contentBottom, "Up/down arrow  - Navigate items");
+        y += lineHeight;
+        drawHelpTopic(topicLeft, y, contentTop, contentBottom, "Delete         - Delete item");
+        y += lineHeight;
+        drawHelpTopic(topicLeft, y, contentTop, contentBottom, "Enter          - Copy item");
+        y += lineHeight;
+        drawHelpTopic(topicLeft, y, contentTop, contentBottom, "Escape         - Exit filter");
+        y += lineHeight + gap;
+        
+        // Add bookmark group shortcuts
+        drawHelpTopic(titleLeft, y, contentTop, contentBottom, "Add Bookmark Group Dialog:");
+        y += lineHeight;
+        drawHelpTopic(topicLeft, y, contentTop, contentBottom, "Type text      - Define Group Name / Filter Existing");
+        y += lineHeight;
+        drawHelpTopic(topicLeft, y, contentTop, contentBottom, "Backspace      - Delete char");
+        y += lineHeight;
+        drawHelpTopic(topicLeft, y, contentTop, contentBottom, "Enter          - Create group");
+        y += lineHeight;
+        drawHelpTopic(topicLeft, y, contentTop, contentBottom, "Escape         - Exit dialog");
+        y += lineHeight + gap;
+
+        // Add clip to group shortcuts
+        drawHelpTopic(titleLeft, y, contentTop, contentBottom, "Add Clip to Group Dialog:");
+        y += lineHeight;
+        drawHelpTopic(topicLeft, y, contentTop, contentBottom, "j/k            - Navigate group");
+        y += lineHeight;
+        drawHelpTopic(topicLeft, y, contentTop, contentBottom, "g/G            - Top/bottom");
+        y += lineHeight;
+        drawHelpTopic(topicLeft, y, contentTop, contentBottom, "Enter          - Add clip to group");
+        y += lineHeight;
+        drawHelpTopic(topicLeft, y, contentTop, contentBottom, "Escape         - Exit dialog");
+        y += lineHeight + gap;
+
+        // View/Edit/Use bookmarks
+        drawHelpTopic(titleLeft, y, contentTop, contentBottom, "View/Delete/Use Bookmarks Dialog");
+        y += lineHeight;
+        drawHelpTopic(topicLeft, y, contentTop, contentBottom, "j/k            - Navigate groups/clips");
+        y += lineHeight;
+        drawHelpTopic(topicLeft, y, contentTop, contentBottom, "g/G            - Top/bottom");
+        y += lineHeight;
+        drawHelpTopic(topicLeft, y, contentTop, contentBottom, "Enter          - View group clips/copy clip");
+        y += lineHeight;
+        drawHelpTopic(topicLeft, y, contentTop, contentBottom, "h              - Back to groups list");
+        y += lineHeight;
+        drawHelpTopic(topicLeft, y, contentTop, contentBottom, "Escape         - Exit dialog");
+        y += lineHeight + gap + 5;
+
+        // Commands
+        drawHelpTopic(titleLeft, y, contentTop, contentBottom, "Commands");
+        y += lineHeight;
+        drawHelpTopic(topicLeft, y, contentTop, contentBottom, ":              - Activate commands");
+        y += lineHeight;
+        drawHelpTopic(topicLeft, y, contentTop, contentBottom, "theme          - Select theme to apply");
+        y += lineHeight;
+        drawHelpTopic(topicLeft, y, contentTop, contentBottom, "Enter          - Apply command");
+        y += lineHeight;
+        drawHelpTopic(topicLeft, y, contentTop, contentBottom, "Escape         - Cancel command");
+        y += lineHeight + gap + 5;
+
+
+        // Global hotkey
+        drawHelpTopic(titleLeft, y, contentTop, contentBottom, "Global Hotkey:");
+        y += lineHeight;
+        drawHelpTopic(topicLeft, y, contentTop, contentBottom, "Ctrl+Alt+C     - Show/hide window");
+    }
+///
+///
+//// END HELP TOPICS ///////////////////////////////////////////////////////////
+
+
+
+
+//// UI METHODS ////////////////////////////////////////////////////////////////
+///
+///
 
 public:
     // Linux UI Methods
@@ -3911,113 +4048,7 @@ public:
 
             y = y + helpDialogScrollOffset;
 
-            // !@!
-            // Main Window shortcuts
-            drawHelpTopic(titleLeft, y, contentTop, contentBottom, "Main Window:");
-            y += lineHeight;
-            drawHelpTopic(topicLeft, y, contentTop, contentBottom, "j/k            - Navigate items");
-            y += lineHeight;
-            drawHelpTopic(topicLeft, y, contentTop, contentBottom, "g/G            - Top/bottom");
-            y += lineHeight;
-            drawHelpTopic(topicLeft, y, contentTop, contentBottom, "Enter          - Copy item");
-            y += lineHeight;
-            drawHelpTopic(topicLeft, y, contentTop, contentBottom, "/              - Filter mode");
-            y += lineHeight;
-            drawHelpTopic(topicLeft, y, contentTop, contentBottom, "Shift+M        - Manage bookmark groups");
-            y += lineHeight;
-            drawHelpTopic(topicLeft, y, contentTop, contentBottom, "m              - Add clip to group");
-            y += lineHeight;
-            drawHelpTopic(topicLeft, y, contentTop, contentBottom, "`              - View bookmarks");
-            y += lineHeight;
-            drawHelpTopic(topicLeft, y, contentTop, contentBottom, "?              - This help");
-            y += lineHeight;
-            drawHelpTopic(topicLeft, y, contentTop, contentBottom, "Shift+D        - Delete item");
-            y += lineHeight;
-            drawHelpTopic(topicLeft, y, contentTop, contentBottom, "Shift+Q        - Quit");
-            y += lineHeight;
-            drawHelpTopic(topicLeft, y, contentTop, contentBottom, "Escape         - Hide window");
-            y += lineHeight + gap;
-            
-            // Help
-            drawHelpTopic(titleLeft, y, contentTop, contentBottom, "Help Window:");
-            y += lineHeight;
-            drawHelpTopic(topicLeft, y, contentTop, contentBottom, "j/k            - Navigate topics");
-            y += lineHeight;
-            drawHelpTopic(topicLeft, y, contentTop, contentBottom, "g              - Top");
-            y += lineHeight + gap;
-
-
-            // Filter Mode shortcuts
-            drawHelpTopic(titleLeft, y, contentTop, contentBottom, "Filter Mode:");
-            y += lineHeight;
-            drawHelpTopic(topicLeft, y, contentTop, contentBottom, "Type text      - Filter items");
-            y += lineHeight;
-            drawHelpTopic(topicLeft, y, contentTop, contentBottom, "Backspace      - Delete char");
-            y += lineHeight;
-            drawHelpTopic(topicLeft, y, contentTop, contentBottom, "Up/down arrow  - Navigate items");
-            y += lineHeight;
-            drawHelpTopic(topicLeft, y, contentTop, contentBottom, "Delete         - Delete item");
-            y += lineHeight;
-            drawHelpTopic(topicLeft, y, contentTop, contentBottom, "Enter          - Copy item");
-            y += lineHeight;
-            drawHelpTopic(topicLeft, y, contentTop, contentBottom, "Escape         - Exit filter");
-            y += lineHeight + gap;
-            
-            // Add bookmark group shortcuts
-            drawHelpTopic(titleLeft, y, contentTop, contentBottom, "Add Bookmark Group Dialog:");
-            y += lineHeight;
-            drawHelpTopic(topicLeft, y, contentTop, contentBottom, "Type text      - Define Group Name / Filter Existing");
-            y += lineHeight;
-            drawHelpTopic(topicLeft, y, contentTop, contentBottom, "Backspace      - Delete char");
-            y += lineHeight;
-            drawHelpTopic(topicLeft, y, contentTop, contentBottom, "Enter          - Create group");
-            y += lineHeight;
-            drawHelpTopic(topicLeft, y, contentTop, contentBottom, "Escape         - Exit dialog");
-            y += lineHeight + gap;
-
-            // Add clip to group shortcuts
-            drawHelpTopic(titleLeft, y, contentTop, contentBottom, "Add Clip to Group Dialog:");
-            y += lineHeight;
-            drawHelpTopic(topicLeft, y, contentTop, contentBottom, "j/k            - Navigate group");
-            y += lineHeight;
-            drawHelpTopic(topicLeft, y, contentTop, contentBottom, "g/G            - Top/bottom");
-            y += lineHeight;
-            drawHelpTopic(topicLeft, y, contentTop, contentBottom, "Enter          - Add clip to group");
-            y += lineHeight;
-            drawHelpTopic(topicLeft, y, contentTop, contentBottom, "Escape         - Exit dialog");
-            y += lineHeight + gap;
-
-            // View/Edit/Use bookmarks
-            drawHelpTopic(titleLeft, y, contentTop, contentBottom, "View/Delete/Use Bookmarks Dialog");
-            y += lineHeight;
-            drawHelpTopic(topicLeft, y, contentTop, contentBottom, "j/k            - Navigate groups/clips");
-            y += lineHeight;
-            drawHelpTopic(topicLeft, y, contentTop, contentBottom, "g/G            - Top/bottom");
-            y += lineHeight;
-            drawHelpTopic(topicLeft, y, contentTop, contentBottom, "Enter          - View group clips/copy clip");
-            y += lineHeight;
-            drawHelpTopic(topicLeft, y, contentTop, contentBottom, "h              - Back to groups list");
-            y += lineHeight;
-            drawHelpTopic(topicLeft, y, contentTop, contentBottom, "Escape         - Exit dialog");
-            y += lineHeight + gap + 5;
-
-            // Commands
-            drawHelpTopic(titleLeft, y, contentTop, contentBottom, "Commands");
-            y += lineHeight;
-            drawHelpTopic(topicLeft, y, contentTop, contentBottom, ":              - Activate commands");
-            y += lineHeight;
-            drawHelpTopic(topicLeft, y, contentTop, contentBottom, "theme          - Select theme to apply");
-            y += lineHeight;
-            drawHelpTopic(topicLeft, y, contentTop, contentBottom, "Enter          - Apply command");
-            y += lineHeight;
-            drawHelpTopic(topicLeft, y, contentTop, contentBottom, "Escape         - Cancel command");
-            y += lineHeight + gap + 5;
-
-
-            // Global hotkey
-            drawHelpTopic(titleLeft, y, contentTop, contentBottom, "Global Hotkey:");
-            y += lineHeight;
-            drawHelpTopic(topicLeft, y, contentTop, contentBottom, "Ctrl+Alt+C     - Show/hide window");
+            drawAllHelpTopics(titleLeft, topicLeft, lineHeight, gap, y, contentTop, contentBottom);
         }
 #endif
     // End Linux UI Methods
@@ -4644,110 +4675,7 @@ public:
 
             y = y + helpDialogScrollOffset;
 
-            // Main Window shortcuts
-            drawHelpTopic(titleLeft, y, contentTop, contentBottom, "Main Window:");
-            y += lineHeight;
-            drawHelpTopic(topicLeft, y, contentTop, contentBottom, "j/k            - Navigate items");
-            y += lineHeight;
-            drawHelpTopic(topicLeft, y, contentTop, contentBottom, "g/G            - Top/bottom");
-            y += lineHeight;
-            drawHelpTopic(topicLeft, y, contentTop, contentBottom, "Enter          - Copy item");
-            y += lineHeight;
-            drawHelpTopic(topicLeft, y, contentTop, contentBottom, "/              - Filter mode");
-            y += lineHeight;
-            drawHelpTopic(topicLeft, y, contentTop, contentBottom, "Shift+M        - Manage bookmark groups");
-            y += lineHeight;
-            drawHelpTopic(topicLeft, y, contentTop, contentBottom, "m              - Add clip to group");
-            y += lineHeight;
-            drawHelpTopic(topicLeft, y, contentTop, contentBottom, "`              - View bookmarks");
-            y += lineHeight;
-            drawHelpTopic(topicLeft, y, contentTop, contentBottom, "?              - This help");
-            y += lineHeight;
-            drawHelpTopic(topicLeft, y, contentTop, contentBottom, "Shift+D        - Delete item");
-            y += lineHeight;
-            drawHelpTopic(topicLeft, y, contentTop, contentBottom, "Shift+Q        - Quit");
-            y += lineHeight;
-            drawHelpTopic(topicLeft, y, contentTop, contentBottom, "Escape         - Hide window");
-            y += lineHeight + gap;
-            
-            // Help
-            drawHelpTopic(titleLeft, y, contentTop, contentBottom, "Help Window:");
-            y += lineHeight;
-            drawHelpTopic(topicLeft, y, contentTop, contentBottom, "j/k            - Navigate topics");
-            y += lineHeight;
-            drawHelpTopic(topicLeft, y, contentTop, contentBottom, "g              - Top");
-            y += lineHeight + gap;
-
-            // Filter Mode shortcuts
-            drawHelpTopic(titleLeft, y, contentTop, contentBottom, "Filter Mode:");
-            y += lineHeight;
-            drawHelpTopic(topicLeft, y, contentTop, contentBottom, "Type text      - Filter items");
-            y += lineHeight;
-            drawHelpTopic(topicLeft, y, contentTop, contentBottom, "Backspace      - Delete char");
-            y += lineHeight;
-            drawHelpTopic(topicLeft, y, contentTop, contentBottom, "Up/down arrow  - Navigate items");
-            y += lineHeight;
-            drawHelpTopic(topicLeft, y, contentTop, contentBottom, "Delete         - Delete item");
-            y += lineHeight;
-            drawHelpTopic(topicLeft, y, contentTop, contentBottom, "Enter          - Copy item");
-            y += lineHeight;
-            drawHelpTopic(topicLeft, y, contentTop, contentBottom, "Escape         - Exit filter");
-            y += lineHeight + gap;
-            
-            // Add bookmark group shortcuts
-            drawHelpTopic(titleLeft, y, contentTop, contentBottom, "Add Bookmark Group Dialog:");
-            y += lineHeight;
-            drawHelpTopic(topicLeft, y, contentTop, contentBottom, "Type text      - Define Group Name / Filter Existing");
-            y += lineHeight;
-            drawHelpTopic(topicLeft, y, contentTop, contentBottom, "Backspace      - Delete char");
-            y += lineHeight;
-            drawHelpTopic(topicLeft, y, contentTop, contentBottom, "Enter          - Create group");
-            y += lineHeight;
-            drawHelpTopic(topicLeft, y, contentTop, contentBottom, "Escape         - Exit dialog");
-            y += lineHeight + gap;
-
-            // Add clip to group shortcuts
-            drawHelpTopic(titleLeft, y, contentTop, contentBottom, "Add Clip to Group Dialog:");
-            y += lineHeight;
-            drawHelpTopic(topicLeft, y, contentTop, contentBottom, "j/k            - Navigate group");
-            y += lineHeight;
-            drawHelpTopic(topicLeft, y, contentTop, contentBottom, "g/G            - Top/bottom");
-            y += lineHeight;
-            drawHelpTopic(topicLeft, y, contentTop, contentBottom, "Enter          - Add clip to group");
-            y += lineHeight;
-            drawHelpTopic(topicLeft, y, contentTop, contentBottom, "Escape         - Exit dialog");
-            y += lineHeight + gap;
-
-            // View/Edit/Use bookmarks
-            drawHelpTopic(titleLeft, y, contentTop, contentBottom, "View/Delete/Use Bookmarks Dialog");
-            y += lineHeight;
-            drawHelpTopic(topicLeft, y, contentTop, contentBottom, "j/k            - Navigate groups/clips");
-            y += lineHeight;
-            drawHelpTopic(topicLeft, y, contentTop, contentBottom, "g/G            - Top/bottom");
-            y += lineHeight;
-            drawHelpTopic(topicLeft, y, contentTop, contentBottom, "Enter          - View group clips/copy clip");
-            y += lineHeight;
-            drawHelpTopic(topicLeft, y, contentTop, contentBottom, "h              - Back to groups list");
-            y += lineHeight;
-            drawHelpTopic(topicLeft, y, contentTop, contentBottom, "Escape         - Exit dialog");
-            y += lineHeight + gap + 5;
-
-            // Commands
-            drawHelpTopic(titleLeft, y, contentTop, contentBottom, "Commands");
-            y += lineHeight;
-            drawHelpTopic(topicLeft, y, contentTop, contentBottom, ":              - Activate commands");
-            y += lineHeight;
-            drawHelpTopic(topicLeft, y, contentTop, contentBottom, "theme          - Select theme to apply");
-            y += lineHeight;
-            drawHelpTopic(topicLeft, y, contentTop, contentBottom, "Enter          - Apply command");
-            y += lineHeight;
-            drawHelpTopic(topicLeft, y, contentTop, contentBottom, "Escape         - Cancel command");
-            y += lineHeight + gap + 5;
-
-            // Global hotkey
-            drawHelpTopic(titleLeft, y, contentTop, contentBottom, "Global Hotkey:");
-            y += lineHeight;
-            drawHelpTopic(topicLeft, y, contentTop, contentBottom, "Ctrl+Alt+C     - Show/hide window");
+            drawAllHelpTopics(titleLeft, topicLeft, lineHeight, gap, y, contentTop, contentBottom);
         }
 #endif
     // End Windows UI Methods
@@ -4758,7 +4686,11 @@ public:
 #endif
     // End MacOs UI Methods
 
-    
+///
+///
+//// END UI METHODS ////////////////////////////////////////////////////////////
+
+
 
     
 #ifdef __linux__
