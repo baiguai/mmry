@@ -97,13 +97,17 @@ public:
 #ifdef _WIN32
             // Windows Keys - Handle WM_KEYDOWN only (WM_CHAR is skipped to prevent double processing)
             if (msg->wParam == 'D' && (GetKeyState(VK_SHIFT) & 0x8000)) key_value = "D";
-            if (msg->wParam == 'G' && (GetKeyState(VK_SHIFT) & 0x8000)) key_value = "G";
-            if (msg->wParam == 'G') key_value = "g";
+            if (msg->wParam == 'G') {
+                if (GetKeyState(VK_SHIFT) & 0x8000) key_value = "G";
+                else key_value = "g";
+            }
             if (msg->wParam == 'H') key_value = "h";
             if (msg->wParam == 'J') key_value = "j";
             if (msg->wParam == 'K') key_value = "k";
-            if (msg->wParam == 'M' && (GetKeyState(VK_SHIFT) & 0x8000)) key_value = "M";
-            if (msg->wParam == 'M') key_value = "m";
+            if (msg->wParam == 'M') {
+                if (GetKeyState(VK_SHIFT) & 0x8000) key_value = "M";
+                else key_value = "m";
+            }
             if (msg->wParam == 'P') key_value = "p";
             if (msg->wParam == 'Q' && (GetKeyState(VK_SHIFT) & 0x8000)) key_value = "Q";
             if (msg->wParam == VK_UP) key_value = "UP";
