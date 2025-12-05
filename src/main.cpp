@@ -4261,7 +4261,7 @@ public:
                 
                 // Highlight selected item with theme selection color
                 if (i == selectedItem) {
-                    RECT highlightRect = {5, y - 12, getClipListWidth(), y + 3};
+                    RECT highlightRect = {5, y - 10, getClipListWidth(), y + 5};
                     HBRUSH hHighlightBrush = CreateSolidBrush(selectionColor);
                     FillRect(hdc, &highlightRect, hHighlightBrush);
                     DeleteObject(hHighlightBrush);
@@ -4386,7 +4386,7 @@ public:
                 if (i == selectedBookmarkGroup) {
                     // Highlight selected
                     HBRUSH hHighlightBrush = CreateSolidBrush(selectionColor);
-                    RECT highlightRect = {dims.x + 15, y - 12, dims.x + dims.width - 15, y + 3};
+                    RECT highlightRect = {dims.x + 15, y - 10, dims.x + dims.width - 15, y + 5};
                     FillRect(hdc, &highlightRect, hHighlightBrush);
                     DeleteObject(hHighlightBrush);
                 }
@@ -4449,7 +4449,7 @@ public:
                     displayText = "> " + bookmarkGroups[i];
                     // Highlight selected
                     HBRUSH hHighlightBrush = CreateSolidBrush(selectionColor);
-                    RECT highlightRect = {dims.x + 15, y - 12, dims.x + dims.width - 15, y + 3};
+                    RECT highlightRect = {dims.x + 15, y - 10, dims.x + dims.width - 15, y + 5};
                     FillRect(hdc, &highlightRect, hHighlightBrush);
                     DeleteObject(hHighlightBrush);
                 }
@@ -4511,7 +4511,7 @@ public:
                         displayText = "> " + displayText;
                         // Highlight selected
                         HBRUSH hHighlightBrush = CreateSolidBrush(selectionColor);
-                        RECT highlightRect = {dims.x + 15, y - 12, dims.x + dims.width - 15, y + 3};
+                        RECT highlightRect = {dims.x + 15, y - 10, dims.x + dims.width - 15, y + 5};
                         FillRect(hdc, &highlightRect, hHighlightBrush);
                         DeleteObject(hHighlightBrush);
                     } else {
@@ -4575,7 +4575,7 @@ public:
                                 displayText = "> " + displayText;
                                 // Highlight selected
                                 HBRUSH hHighlightBrush = CreateSolidBrush(selectionColor);
-                                RECT highlightRect = {dims.x + 15, itemY - 12, dims.x + dims.width - 15, itemY + 3};
+                                RECT highlightRect = {dims.x + 15, itemY - 10, dims.x + dims.width - 15, itemY + 5};
                                 FillRect(hdc, &highlightRect, hHighlightBrush);
                                 DeleteObject(hHighlightBrush);
                             } else {
@@ -4691,7 +4691,7 @@ public:
                     displayText = "> " + displayText;
                     // Highlight selected
                     HBRUSH hHighlightBrush = CreateSolidBrush(selectionColor);
-                    RECT highlightRect = {dims.x + 15, itemY - (LINE_HEIGHT / 2), dims.x + dims.width - 15, itemY + (LINE_HEIGHT / 2)};
+                    RECT highlightRect = {dims.x + 15, itemY - 10, dims.x + dims.width - 15, itemY + 5};
                     FillRect(hdc, &highlightRect, hHighlightBrush);
                     DeleteObject(hHighlightBrush);
                 } else {
