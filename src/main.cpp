@@ -1846,8 +1846,8 @@ private:
         const int WINDOW_X = 100;
         const int WINDOW_Y = 100;
         const int LINE_HEIGHT = 25;
-const int WIN_SEL_RECT_HEIGHT = 26;
-const int WIN_SEL_RECT_OFFSET_Y = 4;
+        const int WIN_SEL_RECT_HEIGHT = 26;
+        const int WIN_SEL_RECT_OFFSET_Y = 4;
         
         // Minimum window size constraints
         const int MIN_WINDOW_WIDTH = 425;
@@ -4503,8 +4503,9 @@ public:
                 // Show bookmark groups list with scrolling
                 SetTextColor(hdc, textColor);
                 int y = dims.y + 60;
-                const int ITEM_LINE_HEIGHT = 18; // Specific to this dialog
-                int dynamicVisibleItems = std::max(1, (dims.contentHeight - (y - dims.y)) / ITEM_LINE_HEIGHT);
+                // Calculate dynamic VISIBLE_ITEMS for groups view
+                // Uses global LINE_HEIGHT for consistent spacing across dialogs
+                int dynamicVisibleItems = std::max(1, (dims.contentHeight - (y - dims.y)) / LINE_HEIGHT);
                 
                 size_t startIdx = viewBookmarksScrollOffset;
                 size_t endIdx = std::min(startIdx + dynamicVisibleItems, bookmarkGroups.size());
@@ -4517,7 +4518,7 @@ public:
                         displayText = "> " + displayText;
                         // Highlight selected
                         HBRUSH hHighlightBrush = CreateSolidBrush(selectionColor);
-                        RECT highlightRect = {dims.x + 15, y - 14, dims.x + dims.width - 15, y + 4}; // 18px tall, 14px offset
+                        RECT highlightRect = {dims.x + 15, y - WIN_SEL_RECT_OFFSET_Y, dims.x + dims.width - 15, y - WIN_SEL_RECT_OFFSET_Y + WIN_SEL_RECT_HEIGHT};
                         FillRect(hdc, &highlightRect, hHighlightBrush);
                         DeleteObject(hHighlightBrush);
                     } else {
@@ -4527,7 +4528,7 @@ public:
                     // Ensure text color is set before drawing
                     SetTextColor(hdc, textColor);
                     TextOut(hdc, dims.x + 20, y, displayText.c_str(), displayText.length());
-                    y += ITEM_LINE_HEIGHT;
+                    y += LINE_HEIGHT;
                 }
                 
             } else {
@@ -4557,8 +4558,9 @@ public:
                         
                         // Draw items with scrolling
                         int itemY = dims.y + 60;
-                        const int ITEM_LINE_HEIGHT = 18; // Specific to this dialog
-                        int dynamicVisibleItems = std::max(1, (dims.contentHeight - (itemY - dims.y)) / ITEM_LINE_HEIGHT);
+                        // Calculate dynamic VISIBLE_ITEMS for clips view
+                        // Uses global LINE_HEIGHT for consistent spacing across dialogs
+                        int dynamicVisibleItems = std::max(1, (dims.contentHeight - (itemY - dims.y)) / LINE_HEIGHT);
                         
                         size_t startIdx = viewBookmarksScrollOffset;
                         size_t endIdx = std::min(startIdx + dynamicVisibleItems, bookmarkItems.size());
@@ -4582,7 +4584,7 @@ public:
                                 displayText = "> " + displayText;
                                 // Highlight selected
                                 HBRUSH hHighlightBrush = CreateSolidBrush(selectionColor);
-                                RECT highlightRect = {dims.x + 15, itemY - 14, dims.x + dims.width - 15, itemY + 4}; // 18px tall, 14px offset
+                                RECT highlightRect = {dims.x + 15, itemY - WIN_SEL_RECT_OFFSET_Y, dims.x + dims.width - 15, itemY - WIN_SEL_RECT_OFFSET_Y + WIN_SEL_RECT_HEIGHT};
                                 FillRect(hdc, &highlightRect, hHighlightBrush);
                                 DeleteObject(hHighlightBrush);
                             } else {
@@ -4592,7 +4594,7 @@ public:
                             // Ensure text color is set before drawing
                             SetTextColor(hdc, textColor);
                             TextOut(hdc, dims.x + 20, itemY, displayText.c_str(), displayText.length());
-                            itemY += ITEM_LINE_HEIGHT;
+                            itemY += LINE_HEIGHT;
                         }
                         
                         if (bookmarkItems.empty()) {
