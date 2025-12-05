@@ -4068,7 +4068,7 @@ public:
                     displayText = "> " + displayText;
                     // Highlight selected
                     XSetForeground(display, gc, selectionColor);
-                    XFillRectangle(display, window, gc, dims.x + 15, itemY - (LINE_HEIGHT / 2), dims.width - 30, LINE_HEIGHT);
+                    XFillRectangle(display, window, gc, dims.x + 15, itemY - 12, dims.width - 30, 15);
                     XSetForeground(display, gc, textColor);
                 } else {
                     XSetForeground(display, gc, selectionColor);
