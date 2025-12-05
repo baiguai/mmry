@@ -2482,21 +2482,24 @@ const int WIN_SEL_RECT_OFFSET_Y = 4;
     }
     
     void updateScrollOffset() {
-        const int VISIBLE_ITEMS = 20; // Number of items visible in dialog
+        DialogDimensions dims = getViewBookmarksDialogDimensions();
+        const int ITEM_LINE_HEIGHT = 18; // Line height for items in this dialog
         
+        int dynamicVisibleItems = std::max(1, dims.contentHeight / ITEM_LINE_HEIGHT);
+
         if (viewBookmarksShowingGroups) {
             // Scrolling for groups
             if (selectedViewBookmarkGroup < viewBookmarksScrollOffset) {
                 viewBookmarksScrollOffset = selectedViewBookmarkGroup;
-            } else if (selectedViewBookmarkGroup >= viewBookmarksScrollOffset + VISIBLE_ITEMS) {
-                viewBookmarksScrollOffset = selectedViewBookmarkGroup - VISIBLE_ITEMS + 1;
+            } else if (selectedViewBookmarkGroup >= viewBookmarksScrollOffset + dynamicVisibleItems) {
+                viewBookmarksScrollOffset = selectedViewBookmarkGroup - dynamicVisibleItems + 1;
             }
         } else {
             // Scrolling for clips
             if (selectedViewBookmarkItem < viewBookmarksScrollOffset) {
                 viewBookmarksScrollOffset = selectedViewBookmarkItem;
-            } else if (selectedViewBookmarkItem >= viewBookmarksScrollOffset + VISIBLE_ITEMS) {
-                viewBookmarksScrollOffset = selectedViewBookmarkItem - VISIBLE_ITEMS + 1;
+            } else if (selectedViewBookmarkItem >= viewBookmarksScrollOffset + dynamicVisibleItems) {
+                viewBookmarksScrollOffset = selectedViewBookmarkItem - dynamicVisibleItems + 1;
             }
         }
     }
@@ -4500,10 +4503,11 @@ public:
                 // Show bookmark groups list with scrolling
                 SetTextColor(hdc, textColor);
                 int y = dims.y + 60;
-                const int VISIBLE_ITEMS = 20;
+                const int ITEM_LINE_HEIGHT = 18; // Specific to this dialog
+                int dynamicVisibleItems = std::max(1, (dims.contentHeight - (y - dims.y)) / ITEM_LINE_HEIGHT);
                 
                 size_t startIdx = viewBookmarksScrollOffset;
-                size_t endIdx = std::min(startIdx + VISIBLE_ITEMS, bookmarkGroups.size());
+                size_t endIdx = std::min(startIdx + dynamicVisibleItems, bookmarkGroups.size());
                 
                 for (size_t i = startIdx; i < endIdx; ++i) {
                     std::string displayText = bookmarkGroups[i];
@@ -4513,7 +4517,7 @@ public:
                         displayText = "> " + displayText;
                         // Highlight selected
                         HBRUSH hHighlightBrush = CreateSolidBrush(selectionColor);
-                        RECT highlightRect = {dims.x + 15, y - WIN_SEL_RECT_OFFSET_Y, dims.x + dims.width - 15, y - WIN_SEL_RECT_OFFSET_Y + WIN_SEL_RECT_HEIGHT};
+                        RECT highlightRect = {dims.x + 15, y - 14, dims.x + dims.width - 15, y + 4}; // 18px tall, 14px offset
                         FillRect(hdc, &highlightRect, hHighlightBrush);
                         DeleteObject(hHighlightBrush);
                     } else {
@@ -4523,7 +4527,7 @@ public:
                     // Ensure text color is set before drawing
                     SetTextColor(hdc, textColor);
                     TextOut(hdc, dims.x + 20, y, displayText.c_str(), displayText.length());
-                    y += 18;
+                    y += ITEM_LINE_HEIGHT;
                 }
                 
             } else {
@@ -4553,10 +4557,11 @@ public:
                         
                         // Draw items with scrolling
                         int itemY = dims.y + 60;
-                        const int VISIBLE_ITEMS = 20;
+                        const int ITEM_LINE_HEIGHT = 18; // Specific to this dialog
+                        int dynamicVisibleItems = std::max(1, (dims.contentHeight - (itemY - dims.y)) / ITEM_LINE_HEIGHT);
                         
                         size_t startIdx = viewBookmarksScrollOffset;
-                        size_t endIdx = std::min(startIdx + VISIBLE_ITEMS, bookmarkItems.size());
+                        size_t endIdx = std::min(startIdx + dynamicVisibleItems, bookmarkItems.size());
                         
                         for (size_t i = startIdx; i < endIdx; ++i) {
                             std::string displayText = bookmarkItems[i];
@@ -4577,7 +4582,7 @@ public:
                                 displayText = "> " + displayText;
                                 // Highlight selected
                                 HBRUSH hHighlightBrush = CreateSolidBrush(selectionColor);
-                                RECT highlightRect = {dims.x + 15, itemY - WIN_SEL_RECT_OFFSET_Y, dims.x + dims.width - 15, itemY - WIN_SEL_RECT_OFFSET_Y + WIN_SEL_RECT_HEIGHT};
+                                RECT highlightRect = {dims.x + 15, itemY - 14, dims.x + dims.width - 15, itemY + 4}; // 18px tall, 14px offset
                                 FillRect(hdc, &highlightRect, hHighlightBrush);
                                 DeleteObject(hHighlightBrush);
                             } else {
@@ -4587,7 +4592,7 @@ public:
                             // Ensure text color is set before drawing
                             SetTextColor(hdc, textColor);
                             TextOut(hdc, dims.x + 20, itemY, displayText.c_str(), displayText.length());
-                            itemY += 18;
+                            itemY += ITEM_LINE_HEIGHT;
                         }
                         
                         if (bookmarkItems.empty()) {
