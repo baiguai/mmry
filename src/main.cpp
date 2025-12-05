@@ -1846,6 +1846,8 @@ private:
         const int WINDOW_X = 100;
         const int WINDOW_Y = 100;
         const int LINE_HEIGHT = 25;
+const int WIN_SEL_RECT_HEIGHT = 26;
+const int WIN_SEL_RECT_OFFSET_Y = 4;
         
         // Minimum window size constraints
         const int MIN_WINDOW_WIDTH = 425;
@@ -4137,7 +4139,7 @@ public:
                     std::string themeDisplay = (i == selectedTheme ? "> " : "  ") + availableThemes[i];
                     // Highlight selected theme
                     if (i == selectedTheme) {
-                        RECT highlightRect = {5, startY - 5, getClipListWidth(), startY + 20};
+                        RECT highlightRect = {5, startY - WIN_SEL_RECT_OFFSET_Y, getClipListWidth(), startY - WIN_SEL_RECT_OFFSET_Y + WIN_SEL_RECT_HEIGHT};
                         HBRUSH hHighlightBrush = CreateSolidBrush(selectionColor);
                         FillRect(hdc, &highlightRect, hHighlightBrush);
                         DeleteObject(hHighlightBrush);
@@ -4261,7 +4263,7 @@ public:
                 
                 // Highlight selected item with theme selection color
                 if (i == selectedItem) {
-                    RECT highlightRect = {5, y - 5, getClipListWidth(), y + 25};
+                    RECT highlightRect = {5, y - WIN_SEL_RECT_OFFSET_Y, getClipListWidth(), y - WIN_SEL_RECT_OFFSET_Y + WIN_SEL_RECT_HEIGHT};
                     HBRUSH hHighlightBrush = CreateSolidBrush(selectionColor);
                     FillRect(hdc, &highlightRect, hHighlightBrush);
                     DeleteObject(hHighlightBrush);
@@ -4386,7 +4388,7 @@ public:
                 if (i == selectedBookmarkGroup) {
                     // Highlight selected
                     HBRUSH hHighlightBrush = CreateSolidBrush(selectionColor);
-                    RECT highlightRect = {dims.x + 15, y - 5, dims.x + dims.width - 15, y + 25};
+                    RECT highlightRect = {dims.x + 15, y - WIN_SEL_RECT_OFFSET_Y, dims.x + dims.width - 15, y - WIN_SEL_RECT_OFFSET_Y + WIN_SEL_RECT_HEIGHT};
                     FillRect(hdc, &highlightRect, hHighlightBrush);
                     DeleteObject(hHighlightBrush);
                 }
@@ -4449,7 +4451,7 @@ public:
                     displayText = "> " + bookmarkGroups[i];
                     // Highlight selected
                     HBRUSH hHighlightBrush = CreateSolidBrush(selectionColor);
-                    RECT highlightRect = {dims.x + 15, y - 5, dims.x + dims.width - 15, y + 25};
+                    RECT highlightRect = {dims.x + 15, y - WIN_SEL_RECT_OFFSET_Y, dims.x + dims.width - 15, y - WIN_SEL_RECT_OFFSET_Y + WIN_SEL_RECT_HEIGHT};
                     FillRect(hdc, &highlightRect, hHighlightBrush);
                     DeleteObject(hHighlightBrush);
                 }
@@ -4511,7 +4513,7 @@ public:
                         displayText = "> " + displayText;
                         // Highlight selected
                         HBRUSH hHighlightBrush = CreateSolidBrush(selectionColor);
-                        RECT highlightRect = {dims.x + 15, y - 5, dims.x + dims.width - 15, y + 25};
+                        RECT highlightRect = {dims.x + 15, y - WIN_SEL_RECT_OFFSET_Y, dims.x + dims.width - 15, y - WIN_SEL_RECT_OFFSET_Y + WIN_SEL_RECT_HEIGHT};
                         FillRect(hdc, &highlightRect, hHighlightBrush);
                         DeleteObject(hHighlightBrush);
                     } else {
@@ -4575,7 +4577,7 @@ public:
                                 displayText = "> " + displayText;
                                 // Highlight selected
                                 HBRUSH hHighlightBrush = CreateSolidBrush(selectionColor);
-                                RECT highlightRect = {dims.x + 15, itemY - 5, dims.x + dims.width - 15, itemY + 25};
+                                RECT highlightRect = {dims.x + 15, itemY - WIN_SEL_RECT_OFFSET_Y, dims.x + dims.width - 15, itemY - WIN_SEL_RECT_OFFSET_Y + WIN_SEL_RECT_HEIGHT};
                                 FillRect(hdc, &highlightRect, hHighlightBrush);
                                 DeleteObject(hHighlightBrush);
                             } else {
@@ -4691,7 +4693,7 @@ public:
                     displayText = "> " + displayText;
                     // Highlight selected
                     HBRUSH hHighlightBrush = CreateSolidBrush(selectionColor);
-                    RECT highlightRect = {dims.x + 15, itemY - 5, dims.x + dims.width - 15, itemY + 25};
+                    RECT highlightRect = {dims.x + 15, itemY - WIN_SEL_RECT_OFFSET_Y, dims.x + dims.width - 15, itemY - WIN_SEL_RECT_OFFSET_Y + WIN_SEL_RECT_HEIGHT};
                     FillRect(hdc, &highlightRect, hHighlightBrush);
                     DeleteObject(hHighlightBrush);
                 } else {
