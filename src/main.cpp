@@ -180,8 +180,9 @@ public:
             // Plain Text
 #ifdef _WIN32
                 // Handle character input from WM_KEYDOWN
-                if (msg->wParam >= 32 && msg->wParam <= 126) { // Printable characters with no key_value set
-                    bookmarkDialogInput += (char)msg->wParam;
+                char typedChar = getCharFromMsg(msg); 
+                if (typedChar != 0) {
+                    bookmarkDialogInput += typedChar;  
                     drawConsole();
                 }
 #else
@@ -364,12 +365,14 @@ public:
             // Free Text
 #ifdef _WIN32
                 // Handle character input from WM_KEYDOWN
-                if (msg->wParam >= 32 && msg->wParam <= 126) { // Printable characters with no key_value set
+                char typedChar = getCharFromMsg(msg); 
+                if (typedChar != 0) {
+                    bookmarkDialogInput += typedChar;  
                     // Don't add the triggering '/' as the first character
                     if (filterText.empty() && msg->wParam == '/') {
                         // do nothing
                     } else {
-                        filterText += (char)msg->wParam;
+                        filterText += typedChar;
                         updateFilteredItems();
                         selectedItem = 0;
                         drawConsole();
@@ -419,12 +422,14 @@ public:
             // Free Text
 #ifdef _WIN32
                 // Handle character input from WM_KEYDOWN
-                if (msg->wParam >= 32 && msg->wParam <= 126) { // Printable characters with no key_value set
+                char typedChar = getCharFromMsg(msg); 
+                if (typedChar != 0) {
+                    bookmarkDialogInput += typedChar;  
                     // Don't add the triggering ':' as the first character
                     if (commandText.empty() && msg->wParam == ':') {
                         // do nothing
                     } else {
-                        commandText += (char)msg->wParam;
+                        commandText += typedChar;
                         drawConsole();
                     }
                 }
@@ -1836,6 +1841,24 @@ private:
     #ifdef _WIN32
         HWND hwnd = nullptr;
         HFONT font = nullptr;
+
+        char getCharFromMsg(MSG* msg) {
+            // Get the scan code from lParam
+            UINT scanCode = (msg->lParam >> 16) & 0xFF;
+
+            // Get current keyboard state
+            BYTE keyboardState[256];
+            GetKeyboardState(keyboardState);
+
+            // Convert virtual key to character
+            char charBuffer[2]; // Needs space for null terminator
+            int result = ToAscii(msg->wParam, scanCode, keyboardState, (LPWORD)charBuffer, 0);
+
+            if (result == 1) {
+                return charBuffer[0];
+            }
+            return 0; // Return null character if conversion fails
+        }
     #endif
     
             std::atomic<bool> running;
@@ -1846,8 +1869,8 @@ private:
         const int WINDOW_X = 100;
         const int WINDOW_Y = 100;
         const int LINE_HEIGHT = 25;
-const int WIN_SEL_RECT_HEIGHT = 26;
-const int WIN_SEL_RECT_OFFSET_Y = 4;
+        const int WIN_SEL_RECT_HEIGHT = 26;
+        const int WIN_SEL_RECT_OFFSET_Y = 4;
         
         // Minimum window size constraints
         const int MIN_WINDOW_WIDTH = 425;
@@ -2482,21 +2505,32 @@ const int WIN_SEL_RECT_OFFSET_Y = 4;
     }
     
     void updateScrollOffset() {
-        const int VISIBLE_ITEMS = 20; // Number of items visible in dialog
+        DialogDimensions dims = getViewBookmarksDialogDimensions();
+        const int ITEM_LINE_HEIGHT = 25; // Now uses LINE_HEIGHT
         
+        // This 'y' is the starting point of the list within the dialog
+        // This needs to match the y = dims.y + 60 in drawViewBookmarksDialog
+        const int LIST_START_OFFSET_Y = 60; 
+
+        // Calculate how many items can actually fit in the scrollable area
+        // dims.contentHeight is the total content area. Subtract the space taken by the header.
+        int availableHeightForScrollableItems = dims.contentHeight - LIST_START_OFFSET_Y;
+        
+        int dynamicVisibleItems = std::max(1, availableHeightForScrollableItems / ITEM_LINE_HEIGHT);
+
         if (viewBookmarksShowingGroups) {
             // Scrolling for groups
             if (selectedViewBookmarkGroup < viewBookmarksScrollOffset) {
                 viewBookmarksScrollOffset = selectedViewBookmarkGroup;
-            } else if (selectedViewBookmarkGroup >= viewBookmarksScrollOffset + VISIBLE_ITEMS) {
-                viewBookmarksScrollOffset = selectedViewBookmarkGroup - VISIBLE_ITEMS + 1;
+            } else if (selectedViewBookmarkGroup >= viewBookmarksScrollOffset + dynamicVisibleItems) {
+                viewBookmarksScrollOffset = selectedViewBookmarkGroup - dynamicVisibleItems + 1;
             }
         } else {
             // Scrolling for clips
             if (selectedViewBookmarkItem < viewBookmarksScrollOffset) {
                 viewBookmarksScrollOffset = selectedViewBookmarkItem;
-            } else if (selectedViewBookmarkItem >= viewBookmarksScrollOffset + VISIBLE_ITEMS) {
-                viewBookmarksScrollOffset = selectedViewBookmarkItem - VISIBLE_ITEMS + 1;
+            } else if (selectedViewBookmarkItem >= viewBookmarksScrollOffset + dynamicVisibleItems) {
+                viewBookmarksScrollOffset = selectedViewBookmarkItem - dynamicVisibleItems + 1;
             }
         }
     }
@@ -4500,10 +4534,12 @@ public:
                 // Show bookmark groups list with scrolling
                 SetTextColor(hdc, textColor);
                 int y = dims.y + 60;
-                const int VISIBLE_ITEMS = 20;
+                // Calculate dynamic VISIBLE_ITEMS for groups view
+                // Uses global LINE_HEIGHT for consistent spacing across dialogs
+                int dynamicVisibleItems = std::max(1, (dims.contentHeight - (y - dims.y)) / LINE_HEIGHT);
                 
                 size_t startIdx = viewBookmarksScrollOffset;
-                size_t endIdx = std::min(startIdx + VISIBLE_ITEMS, bookmarkGroups.size());
+                size_t endIdx = std::min(startIdx + dynamicVisibleItems, bookmarkGroups.size());
                 
                 for (size_t i = startIdx; i < endIdx; ++i) {
                     std::string displayText = bookmarkGroups[i];
@@ -4523,7 +4559,7 @@ public:
                     // Ensure text color is set before drawing
                     SetTextColor(hdc, textColor);
                     TextOut(hdc, dims.x + 20, y, displayText.c_str(), displayText.length());
-                    y += 18;
+                    y += LINE_HEIGHT;
                 }
                 
             } else {
@@ -4553,10 +4589,12 @@ public:
                         
                         // Draw items with scrolling
                         int itemY = dims.y + 60;
-                        const int VISIBLE_ITEMS = 20;
+                        // Calculate dynamic VISIBLE_ITEMS for clips view
+                        // Uses global LINE_HEIGHT for consistent spacing across dialogs
+                        int dynamicVisibleItems = std::max(1, (dims.contentHeight - (itemY - dims.y)) / LINE_HEIGHT);
                         
                         size_t startIdx = viewBookmarksScrollOffset;
-                        size_t endIdx = std::min(startIdx + VISIBLE_ITEMS, bookmarkItems.size());
+                        size_t endIdx = std::min(startIdx + dynamicVisibleItems, bookmarkItems.size());
                         
                         for (size_t i = startIdx; i < endIdx; ++i) {
                             std::string displayText = bookmarkItems[i];
@@ -4587,7 +4625,7 @@ public:
                             // Ensure text color is set before drawing
                             SetTextColor(hdc, textColor);
                             TextOut(hdc, dims.x + 20, itemY, displayText.c_str(), displayText.length());
-                            itemY += 18;
+                            itemY += LINE_HEIGHT;
                         }
                         
                         if (bookmarkItems.empty()) {
