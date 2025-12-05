@@ -180,8 +180,9 @@ public:
             // Plain Text
 #ifdef _WIN32
                 // Handle character input from WM_KEYDOWN
-                if (msg->wParam >= 32 && msg->wParam <= 126) { // Printable characters with no key_value set
-                    bookmarkDialogInput += (char)msg->wParam;
+                char typedChar = getCharFromMsg(msg); 
+                if (typedChar != 0) {
+                    bookmarkDialogInput += typedChar;  
                     drawConsole();
                 }
 #else
@@ -364,12 +365,14 @@ public:
             // Free Text
 #ifdef _WIN32
                 // Handle character input from WM_KEYDOWN
-                if (msg->wParam >= 32 && msg->wParam <= 126) { // Printable characters with no key_value set
+                char typedChar = getCharFromMsg(msg); 
+                if (typedChar != 0) {
+                    bookmarkDialogInput += typedChar;  
                     // Don't add the triggering '/' as the first character
                     if (filterText.empty() && msg->wParam == '/') {
                         // do nothing
                     } else {
-                        filterText += (char)msg->wParam;
+                        filterText += typedChar;
                         updateFilteredItems();
                         selectedItem = 0;
                         drawConsole();
@@ -419,12 +422,14 @@ public:
             // Free Text
 #ifdef _WIN32
                 // Handle character input from WM_KEYDOWN
-                if (msg->wParam >= 32 && msg->wParam <= 126) { // Printable characters with no key_value set
+                char typedChar = getCharFromMsg(msg); 
+                if (typedChar != 0) {
+                    bookmarkDialogInput += typedChar;  
                     // Don't add the triggering ':' as the first character
                     if (commandText.empty() && msg->wParam == ':') {
                         // do nothing
                     } else {
-                        commandText += (char)msg->wParam;
+                        commandText += typedChar;
                         drawConsole();
                     }
                 }
@@ -1836,6 +1841,24 @@ private:
     #ifdef _WIN32
         HWND hwnd = nullptr;
         HFONT font = nullptr;
+
+        char getCharFromMsg(MSG* msg) {
+            // Get the scan code from lParam
+            UINT scanCode = (msg->lParam >> 16) & 0xFF;
+
+            // Get current keyboard state
+            BYTE keyboardState[256];
+            GetKeyboardState(keyboardState);
+
+            // Convert virtual key to character
+            char charBuffer[2]; // Needs space for null terminator
+            int result = ToAscii(msg->wParam, scanCode, keyboardState, (LPWORD)charBuffer, 0);
+
+            if (result == 1) {
+                return charBuffer[0];
+            }
+            return 0; // Return null character if conversion fails
+        }
     #endif
     
             std::atomic<bool> running;
@@ -2483,9 +2506,17 @@ private:
     
     void updateScrollOffset() {
         DialogDimensions dims = getViewBookmarksDialogDimensions();
-        const int ITEM_LINE_HEIGHT = 18; // Line height for items in this dialog
+        const int ITEM_LINE_HEIGHT = 25; // Now uses LINE_HEIGHT
         
-        int dynamicVisibleItems = std::max(1, dims.contentHeight / ITEM_LINE_HEIGHT);
+        // This 'y' is the starting point of the list within the dialog
+        // This needs to match the y = dims.y + 60 in drawViewBookmarksDialog
+        const int LIST_START_OFFSET_Y = 60; 
+
+        // Calculate how many items can actually fit in the scrollable area
+        // dims.contentHeight is the total content area. Subtract the space taken by the header.
+        int availableHeightForScrollableItems = dims.contentHeight - LIST_START_OFFSET_Y;
+        
+        int dynamicVisibleItems = std::max(1, availableHeightForScrollableItems / ITEM_LINE_HEIGHT);
 
         if (viewBookmarksShowingGroups) {
             // Scrolling for groups
