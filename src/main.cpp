@@ -1,5 +1,15 @@
 #include "main.h"
 
+// JSON and BookmarkTree includes/declarations - moved to global scope
+#include "../include/bookmark_tree.h"
+#include "../include/json.hpp" // For JSON serialization/deserialization
+
+// Using nlohmann/json for JSON operations
+using json = nlohmann::json;
+
+// Our new bookmark tree structure - declared globally
+BookmarkTree bookmarkTree;
+
 class ClipboardManager {
 public:
     ClipboardManager() {
@@ -70,18 +80,28 @@ public:
         //---- Set the KeyValue ------------------------------------------------
         // Linux Keys
 #ifdef __linux__
+            // Check for Ctrl modifier
+            bool ctrlPressed = (keyEvent->state & ControlMask);
+
             if (keysym == XK_D && (keyEvent->state & ShiftMask)) key_value = "D";
             if (keysym == XK_G && (keyEvent->state & ShiftMask)) key_value = "G";
             if (keysym == XK_g) key_value = "g";
-            if (keysym == XK_h) key_value = "h";
+            if (keysym == XK_h && (keyEvent->state & ShiftMask)) key_value = "H"; // Changed to H
+            if (keysym == XK_l && (keyEvent->state & ShiftMask)) key_value = "L"; // Changed to L
+            if (keysym == XK_h) key_value = "LEFT";
+            if (keysym == XK_l) key_value = "RIGHT";
             if (keysym == XK_j) key_value = "j";
             if (keysym == XK_k) key_value = "k";
+            if (keysym == XK_j && (keyEvent->state & ShiftMask)) key_value = "J"; // Changed to J
+            if (keysym == XK_k && (keyEvent->state & ShiftMask)) key_value = "K"; // Changed to K
             if (keysym == XK_M && (keyEvent->state & ShiftMask)) key_value = "M";
             if (keysym == XK_m) key_value = "m";
             if (keysym == XK_p) key_value = "p";
             if (keysym == XK_Q && (keyEvent->state & ShiftMask)) key_value = "Q";
-            if (keysym == XK_Up) key_value = "UP";
-            if (keysym == XK_Down) key_value = "DOWN";
+            if (keysym == XK_Up) key_value = "UP"; // Removed ctrlPressed logic
+            if (keysym == XK_Down) key_value = "DOWN"; // Removed ctrlPressed logic
+            if (keysym == XK_Left) key_value = "LEFT"; // Removed ctrlPressed logic
+            if (keysym == XK_Right) key_value = "RIGHT"; // Removed ctrlPressed logic
             if (keysym == XK_Escape) key_value = "ESCAPE";
             if (keysym == XK_Return) key_value = "RETURN";
             if (keysym == XK_BackSpace) key_value = "BACKSPACE";
@@ -95,22 +115,32 @@ public:
 #endif
 #ifdef _WIN32
             // Windows Keys - Handle WM_KEYDOWN only (WM_CHAR is skipped to prevent double processing)
+            // Check for Ctrl modifier
+            bool ctrlPressed = (GetKeyState(VK_CONTROL) & 0x8000);
             if (msg->wParam == 'D' && (GetKeyState(VK_SHIFT) & 0x8000)) key_value = "D";
             if (msg->wParam == 'G') {
                 if (GetKeyState(VK_SHIFT) & 0x8000) key_value = "G";
                 else key_value = "g";
             }
-            if (msg->wParam == 'H') key_value = "h";
+            if (msg->wParam == 'H' && (GetKeyState(VK_SHIFT) & 0x8000)) key_value = "H"; // Changed to H
+            if (msg->wParam == 'L' && (GetKeyState(VK_SHIFT) & 0x8000)) key_value = "L"; // Changed to L
+            if (msg->wParam == 'H') key_value = "LEFT"; // New mapping for h
+            if (msg->wParam == 'L') key_value = "RIGHT"; // New mapping for l
             if (msg->wParam == 'J') key_value = "j";
             if (msg->wParam == 'K') key_value = "k";
+            if (msg->wParam == 'J' && (GetKeyState(VK_SHIFT) & 0x8000)) key_value = "J"; // Changed to J
+            if (msg->wParam == 'K' && (GetKeyState(VK_SHIFT) & 0x8000)) key_value = "K"; // Changed to K
             if (msg->wParam == 'M') {
                 if (GetKeyState(VK_SHIFT) & 0x8000) key_value = "M";
                 else key_value = "m";
             }
             if (msg->wParam == 'P') key_value = "p";
             if (msg->wParam == 'Q' && (GetKeyState(VK_SHIFT) & 0x8000)) key_value = "Q";
-            if (msg->wParam == VK_UP) key_value = "UP";
-            if (msg->wParam == VK_DOWN) key_value = "DOWN";
+            if (msg->wParam == VK_UP) key_value = "UP"; // Removed ctrlPressed logic
+            if (msg->wParam == VK_DOWN) key_value = "DOWN"; // Removed ctrlPressed logic
+            if (msg->wParam == VK_LEFT) key_value = "LEFT"; // Removed ctrlPressed logic
+            if (msg->wParam == VK_RIGHT) key_value = "RIGHT"; // Removed ctrlPressed logic
+
             if (msg->wParam == VK_ESCAPE) key_value = "ESCAPE";
             if (msg->wParam == VK_RETURN) key_value = "RETURN";
             if (msg->wParam == VK_BACK) key_value = "BACKSPACE";
@@ -209,12 +239,38 @@ public:
             // Groups view
             //
             if (viewBookmarksShowingGroups) {
+                // Navigation
                 if (key_value == "j" || key_value == "DOWN") {
                     if (key_marks_groups_down()) return;
                 }
 
                 if (key_value == "k" || key_value == "UP") {
                     if (key_marks_groups_up()) return;
+                }
+
+                if (key_value == "h" || key_value == "LEFT") {
+                    if (key_marks_groups_left_nav()) return;
+                }
+
+                if (key_value == "l" || key_value == "RIGHT") {
+                    if (key_marks_groups_right_nav()) return;
+                }
+
+                // Manipulation
+                if (key_value == "J") { // Shift+j
+                    if (key_marks_groups_down_manip()) return;
+                }
+
+                if (key_value == "K") { // Shift+k
+                    if (key_marks_groups_up_manip()) return;
+                }
+
+                if (key_value == "H") { // Shift+h
+                    if (key_marks_groups_left_manip()) return;
+                }
+
+                if (key_value == "L") { // Shift+l
+                    if (key_marks_groups_right_manip()) return;
                 }
 
                 if (key_value == "g") {
@@ -513,7 +569,7 @@ public:
             if (key_main_addgroup_start()) return;
         }
 
-        if (key_value == "m") {
+        if (key_value == "m" || key_value == "M") {
             if (key_main_addclip_start()) return;
         }
 
@@ -631,7 +687,7 @@ public:
                 if (!groupExists) {
                     // Create new group and add current clip
                     bookmarkGroups.push_back(bookmarkDialogInput);
-                    saveBookmarkGroups();
+                    saveBookmarkTree();
                     
                     // Add current clip to bookmark
                     if (!items.empty() && selectedItem < getDisplayItemCount()) {
@@ -716,7 +772,7 @@ public:
                 
                 // Remove group from list
                 bookmarkGroups.erase(bookmarkGroups.begin() + selectedViewBookmarkGroup);
-                saveBookmarkGroups();
+                saveBookmarkTree();
                 
                 // Delete bookmark file
                 std::string bookmarkFile = bookmarksDir + "/bookmarks_" + groupToDelete + ".txt";
@@ -837,6 +893,104 @@ public:
                             
                             drawConsole();
                         }
+                    }
+                }
+            }
+            return true;
+        }
+
+        // New tree navigation/manipulation functions
+        bool key_marks_groups_left_nav() {
+            if (bookmarkTree.selectedNode) {
+                if (bookmarkTree.selectedNode->expanded && !bookmarkTree.selectedNode->children.empty()) {
+                    bookmarkTree.selectedNode->expanded = false; // Collapse current node
+                    bookmarkTree.updateFlattenedTree();
+                    drawConsole();
+                } else if (bookmarkTree.selectedNode->parent) {
+                    bookmarkTree.selectedNode->isSelected = false; // Deselect current
+                    bookmarkTree.selectedNode = std::shared_ptr<BookmarkGroupNode>(bookmarkTree.selectedNode->parent); // Move to parent
+                    bookmarkTree.selectedNode->isSelected = true; // Select parent
+                    bookmarkTree.selectedAbsoluteIndex = bookmarkTree.selectedNode->absoluteIndex;
+                    updateScrollOffset();
+                    drawConsole();
+                }
+            }
+            return true;
+        }
+
+        bool key_marks_groups_right_nav() {
+            if (bookmarkTree.selectedNode) {
+                if (!bookmarkTree.selectedNode->expanded && !bookmarkTree.selectedNode->children.empty()) {
+                    bookmarkTree.selectedNode->expanded = true; // Expand current node
+                    bookmarkTree.updateFlattenedTree();
+                    drawConsole();
+                } else if (bookmarkTree.selectedNode->expanded && !bookmarkTree.selectedNode->children.empty()) {
+                    bookmarkTree.selectedNode->isSelected = false; // Deselect current
+                    bookmarkTree.selectedNode = bookmarkTree.selectedNode->children[0]; // Move to first child
+                    bookmarkTree.selectedNode->isSelected = true; // Select first child
+                    bookmarkTree.selectedAbsoluteIndex = bookmarkTree.selectedNode->absoluteIndex;
+                    updateScrollOffset();
+                    drawConsole();
+                }
+            }
+            return true;
+        }
+
+        bool key_marks_groups_up_manip() {
+            if (bookmarkTree.selectedNode) {
+                bookmarkTree.moveNodeSibling(bookmarkTree.selectedNode, -1); // Move up
+                saveBookmarkTree();
+                updateScrollOffset();
+                drawConsole();
+            }
+            return true;
+        }
+
+        bool key_marks_groups_down_manip() {
+            if (bookmarkTree.selectedNode) {
+                bookmarkTree.moveNodeSibling(bookmarkTree.selectedNode, 1); // Move down
+                saveBookmarkTree();
+                updateScrollOffset();
+                drawConsole();
+            }
+            return true;
+        }
+
+        bool key_marks_groups_left_manip() {
+            if (bookmarkTree.selectedNode && bookmarkTree.selectedNode->parent && bookmarkTree.selectedNode->parent->parent) {
+                // Move out of current parent to grandparent's level
+                auto oldParent = bookmarkTree.selectedNode->parent;
+                // Find the index of the oldParent in its parent's children
+                size_t oldParentIndex = 0;
+                if (oldParent->parent) {
+                    for (size_t i = 0; i < oldParent->parent->children.size(); ++i) {
+                        if (oldParent->parent->children[i].get() == oldParent) {
+                            oldParentIndex = i;
+                            break;
+                        }
+                    }
+                }
+                
+                bookmarkTree.moveNode(bookmarkTree.selectedNode, std::shared_ptr<BookmarkGroupNode>(oldParent->parent), oldParentIndex + 1); // Insert after old parent
+                saveBookmarkTree();
+                updateScrollOffset();
+                drawConsole();
+            }
+            return true;
+        }
+
+        bool key_marks_groups_right_manip() {
+            if (bookmarkTree.selectedNode && bookmarkTree.selectedNode->parent) {
+                // Find potential new parent (node directly above in flattened list)
+                size_t currentIndex = bookmarkTree.selectedAbsoluteIndex;
+                if (currentIndex > 0) {
+                    auto potentialNewParent = bookmarkTree.flattenedTree[currentIndex - 1];
+                    // Only if the new parent is not the same as current node and can accept children
+                    if (potentialNewParent != bookmarkTree.selectedNode && potentialNewParent->level >= bookmarkTree.selectedNode->level -1) {
+                         bookmarkTree.moveNode(bookmarkTree.selectedNode, potentialNewParent, potentialNewParent->children.size()); // Add as last child
+                         saveBookmarkTree();
+                         updateScrollOffset();
+                         drawConsole();
                     }
                 }
             }
@@ -1390,7 +1544,7 @@ public:
         }
 
         bool key_main_addclip_start() {
-            if (!bookmarkGroups.empty()) {
+            if (!bookmarkTree.flattenedTree.empty()) {
                 addToBookmarkDialogVisible = true;
                 selectedAddBookmarkGroup = 0;
                 addBookmarkScrollOffset = 0; // Reset scroll when opening
@@ -1408,7 +1562,7 @@ public:
         }
 
         bool key_main_accessmarks_start() {
-            if (!bookmarkGroups.empty()) {
+            if (!bookmarkTree.flattenedTree.empty()) {
                 viewBookmarksDialogVisible = true;
                 viewBookmarksShowingGroups = true; // Start with group selection
                 selectedViewBookmarkGroup = 0;
@@ -1539,7 +1693,7 @@ public:
         loadConfig();
         loadTheme();
         loadFromFile();
-        loadBookmarkGroups();
+        loadBookmarkTree();
 
 
         #ifdef _WIN32
@@ -2571,17 +2725,29 @@ private:
         }
     }
     
+    
     void updateBookmarkMgmtScrollOffset() {
-        const int VISIBLE_ITEMS = 10; // Number of groups visible in bookmark management dialog
+        const int VISIBLE_ITEMS = 8; // Number of groups visible in bookmark management dialog
         
         // Filter groups for scroll calculation
-        std::vector<std::string> filteredGroups;
-        for (const auto& group : bookmarkGroups) {
-            if (bookmarkDialogInput.empty() || group.find(bookmarkDialogInput) != std::string::npos) {
-                filteredGroups.push_back(group);
+        std::vector<std::shared_ptr<BookmarkGroupNode>> filteredGroups;
+        for (const auto& node : bookmarkTree.flattenedTree) {
+            if (bookmarkDialogInput.empty() || node->name.find(bookmarkDialogInput) != std::string::npos) {
+                filteredGroups.push_back(node);
             }
         }
+
+        if (filteredGroups.empty()) {
+            bookmarkMgmtScrollOffset = 0;
+            return;
+        }
         
+        // Ensure selectedAddBookmarkGroup is within bounds after filtering
+        if (selectedBookmarkGroup >= filteredGroups.size()) {
+            selectedBookmarkGroup = filteredGroups.size() - 1;
+        }
+
+        // Adjust scroll offset to keep selected item visible
         if (selectedBookmarkGroup < bookmarkMgmtScrollOffset) {
             bookmarkMgmtScrollOffset = selectedBookmarkGroup;
         } else if (selectedBookmarkGroup >= bookmarkMgmtScrollOffset + VISIBLE_ITEMS) {
@@ -3075,52 +3241,12 @@ private:
         std::cout << "Switched to theme: " << themeName << std::endl;
     }
     
-    void loadBookmarkGroups() {
-        // Cross-platform path separator
-#ifdef _WIN32
-        const char pathSep = '\\';
-#else
-        const char pathSep = '/';
-#endif
-        
-        std::string bookmarkFile = bookmarksDir + pathSep + "bookmarks.txt";
-        std::ifstream file(bookmarkFile);
-        bookmarkGroups.clear();
-        
-        if (file.is_open()) {
-            std::string line;
-            while (std::getline(file, line)) {
-                if (!line.empty() && line.find('|') != std::string::npos) {
-                    size_t pos = line.find('|');
-                    std::string groupName = line.substr(0, pos);
-                    if (!groupName.empty()) {
-                        bookmarkGroups.push_back(groupName);
-                    }
-                }
-            }
-            file.close();
-        }
-        
-        // Always ensure we have at least one group
-        if (bookmarkGroups.empty()) {
-            bookmarkGroups.push_back("default");
-        }
-    }
-    
-    void saveBookmarkGroups() {
-        std::string bookmarkFile = bookmarksDir + "/bookmarks.txt";
-        std::ofstream file(bookmarkFile);
-        
-        if (file.is_open()) {
-            for (const auto& group : bookmarkGroups) {
-                file << group << "|0\n"; // Group name | clip count
-            }
-            file.close();
-        }
-    }
-    
-    void addClipToBookmarkGroup(const std::string& groupName, const std::string& content) {
-        std::string bookmarkFile = bookmarksDir + "/bookmarks_" + groupName + ".txt";
+
+
+    void addClipToBookmarkGroup(const std::string& groupFullPath, const std::string& content) {
+        std::string filenamePart = groupFullPath;
+        std::replace(filenamePart.begin(), filenamePart.end(), '/', '_');
+        std::string bookmarkFile = bookmarksDir + "/bookmarks_" + filenamePart + ".txt";
         std::ofstream file(bookmarkFile, std::ios::app);
         
         if (file.is_open()) {
@@ -3217,6 +3343,8 @@ private:
         
         // Ensure all required files exist
         ensureRequiredFiles();
+
+        loadBookmarkTree();
     }
     
     void ensureRequiredFiles() {
@@ -3259,6 +3387,129 @@ private:
                 outFile.close();
                 std::cout << "Created pinned clips file: " << pinnedFile << std::endl;
             }
+        }
+    }
+    
+    // Helper function to recursively build tree from existing groups if no hierarchy file exists
+    void buildFlatTreeFromGroupNames(std::vector<std::string>& groupNames, BookmarkTree& tree) {
+        for (const auto& name : groupNames) {
+            tree.addNode(name);
+        }
+    }
+
+    void saveBookmarkTree() {
+        // Cross-platform path separator
+#ifdef _WIN32
+        const char pathSep = '\\';
+#else
+        const char pathSep = '/';
+#endif
+        std::string hierarchyFile = bookmarksDir + pathSep + "bookmark_hierarchy.json";
+        
+        json j;
+        j["rootNodes"] = json::array();
+        for (const auto& node : bookmarkTree.rootNodes) {
+            j["rootNodes"].push_back(*node);
+        }
+        
+        std::ofstream outFile(hierarchyFile);
+        if (outFile.is_open()) {
+            outFile << j.dump(4); // Pretty print with 4 spaces
+            outFile.close();
+        } else {
+            std::cerr << "Error: Could not open " << hierarchyFile << " for writing." << std::endl;
+        }
+    }
+
+    void loadBookmarkTree() {
+        // Cross-platform path separator
+#ifdef _WIN32
+        const char pathSep = '\\';
+#else
+        const char pathSep = '/';
+#endif
+        std::string hierarchyFile = bookmarksDir + pathSep + "bookmark_hierarchy.json";
+        std::string legacyBookmarkFile = bookmarksDir + pathSep + "bookmarks.txt";
+        
+        // Try to load from hierarchy file
+        std::ifstream inFile(hierarchyFile);
+        if (inFile.is_open()) {
+            try {
+                json j;
+                inFile >> j;
+                bookmarkTree.rootNodes.clear();
+                for (const auto& node_json : j["rootNodes"]) {
+                    auto node = std::make_shared<BookmarkGroupNode>(
+                        node_json.at("name").get<std::string>()); // Create with name, parent will be null
+                    node_json.get_to(*node); // Deserialize rest of the fields
+                    
+                    // Re-establish parent pointers and levels recursively
+                    std::function<void(std::shared_ptr<BookmarkGroupNode>)> setParentAndLevel =
+                        [&](std::shared_ptr<BookmarkGroupNode> current) {
+                        if (current->parent) {
+                            current->level = current->parent->level + 1;
+                            current->fullPath = current->parent->fullPath + "/" + current->name;
+                        } else {
+                            current->level = 0;
+                            current->fullPath = current->name;
+                        }
+                        for (const auto& child : current->children) {
+                            child->parent = current.get();
+                            setParentAndLevel(child);
+                        }
+                    };
+                    setParentAndLevel(node);
+                    
+                    bookmarkTree.rootNodes.push_back(node);
+                }
+                inFile.close();
+                std::cout << "Loaded bookmark hierarchy from " << hierarchyFile << std::endl;
+            } catch (json::exception& e) {
+                std::cerr << "Error parsing bookmark hierarchy JSON: " << e.what() << std::endl;
+                // Fallback to legacy loading if JSON is malformed
+                bookmarkTree.rootNodes.clear();
+                goto legacy_load; 
+            }
+        } else {
+            // No hierarchy file, try to load from legacy bookmarks.txt
+            legacy_load:;
+            std::cout << "No bookmark hierarchy file found, attempting to load from legacy bookmarks.txt" << std::endl;
+            std::ifstream legacyFile(legacyBookmarkFile);
+            std::vector<std::string> legacyGroupNames;
+            if (legacyFile.is_open()) {
+                std::string line;
+                while (std::getline(legacyFile, line)) {
+                    if (!line.empty() && line.find('|') != std::string::npos) {
+                        size_t pos = line.find('|');
+                        std::string groupName = line.substr(0, pos);
+                        if (!groupName.empty()) {
+                            legacyGroupNames.push_back(groupName);
+                        }
+                    }
+                }
+                legacyFile.close();
+            }
+
+            if (legacyGroupNames.empty()) {
+                legacyGroupNames.push_back("default"); // Ensure at least a default group
+            }
+            std::cout << "loadBookmarkTree: Found " << legacyGroupNames.size() << " legacy groups." << std::endl << std::flush; // ADDED LOG
+
+            buildFlatTreeFromGroupNames(legacyGroupNames, bookmarkTree);
+            saveBookmarkTree(); // Save the newly created flat tree to hierarchy file
+            std::cout << "Created flat bookmark tree from legacy data and saved to " << hierarchyFile << std::endl << std::flush;
+            std::cout << "loadBookmarkTree: bookmarkTree.rootNodes.size() = " << bookmarkTree.rootNodes.size() << std::endl << std::flush;
+        }
+        
+        bookmarkTree.updateFlattenedTree();
+        std::cout << "loadBookmarkTree: bookmarkTree.flattenedTree.size() = " << bookmarkTree.flattenedTree.size() << std::endl << std::flush;
+        if (!bookmarkTree.flattenedTree.empty()) {
+            bookmarkTree.selectedNode = bookmarkTree.flattenedTree[0];
+            bookmarkTree.selectedNode->isSelected = true;
+            bookmarkTree.selectedAbsoluteIndex = 0;
+        } else {
+            bookmarkTree.selectedNode = nullptr;
+            bookmarkTree.selectedAbsoluteIndex = 0;
         }
     }
     
@@ -3919,6 +4170,7 @@ public:
                 }
                 
             } else {
+                int itemY = dims.y + 60; // Declare itemY here, covering all usages in this block
                 // Show bookmark items for selected group
                         if (selectedViewBookmarkGroup < bookmarkGroups.size()) {
                             std::string selectedGroup = bookmarkGroups[selectedViewBookmarkGroup];
@@ -3944,7 +4196,7 @@ public:
                         file.close();
                         
                         // Draw items with scrolling
-                        int itemY = dims.y + 60;
+
                         const int VISIBLE_ITEMS = 20;
                         
                         size_t startIdx = viewBookmarksScrollOffset;
@@ -4586,7 +4838,7 @@ public:
                         file.close();
                         
                         // Draw items with scrolling
-                        int itemY = dims.y + 60;
+
                         // Calculate dynamic VISIBLE_ITEMS for clips view
                         // Uses global LINE_HEIGHT for consistent spacing across dialogs
                         int dynamicVisibleItems = std::max(1, (dims.contentHeight - (itemY - dims.y)) / LINE_HEIGHT);
