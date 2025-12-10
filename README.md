@@ -30,6 +30,9 @@ make help
 # Build using the script
 ./build.sh
 
+# Build Windows executable
+./build-windows.sh
+
 # Build and run
 ./run.sh
 ```
