@@ -209,6 +209,47 @@ public:
             // Groups view
             //
             if (viewBookmarksShowingGroups) {
+                if (filterBookmarksMode) {
+                    if (key_value == "RETURN") {
+                        if (key_marks_groups_clips()) return;
+                    }
+                    if (key_value == "ESCAPE") {
+                        filterBookmarksMode = false;
+                        filterBookmarksText.clear();
+                        drawConsole();
+                        return;
+                    }
+                    if (key_value == "BACKSPACE") {
+                        if (!filterBookmarksText.empty()) {
+                            filterBookmarksText.pop_back();
+                            drawConsole();
+                        }
+                        return;
+                    }
+                    // Text input for filter
+#ifdef _WIN32
+                    char typedChar = getCharFromMsg(msg);
+                    if (typedChar != 0) {
+                        filterBookmarksText += typedChar;
+                        drawConsole();
+                    }
+#else
+                    char buffer[10];
+                    int count = XLookupString(keyEvent, buffer, sizeof(buffer), nullptr, nullptr);
+                    if (count > 0) {
+                        filterBookmarksText += std::string(buffer, count);
+                        drawConsole();
+                    }
+#endif
+                    return;
+                }
+
+                if (key_value == "/") {
+                    filterBookmarksMode = true;
+                    filterBookmarksText.clear();
+                    drawConsole();
+                    return;
+                }
                 if (key_value == "j" || key_value == "DOWN") {
                     if (key_marks_groups_down()) return;
                 }
@@ -304,7 +345,47 @@ public:
         //
         if (addToBookmarkDialogVisible) {
             // Add to bookmark dialog is visible - handle dialog-specific keys
+            if (filterAddBookmarksMode) {
+                if (key_value == "RETURN") {
+                    if (key_addmarks_add()) return;
+                }
+                if (key_value == "ESCAPE") {
+                    filterAddBookmarksMode = false;
+                    filterAddBookmarksText.clear();
+                    drawConsole();
+                    return;
+                }
+                if (key_value == "BACKSPACE") {
+                    if (!filterAddBookmarksText.empty()) {
+                        filterAddBookmarksText.pop_back();
+                        drawConsole();
+                    }
+                    return;
+                }
+                // Text input for filter
+#ifdef _WIN32
+                char typedChar = getCharFromMsg(msg);
+                if (typedChar != 0) {
+                    filterAddBookmarksText += typedChar;
+                    drawConsole();
+                }
+#else
+                char buffer[10];
+                int count = XLookupString(keyEvent, buffer, sizeof(buffer), nullptr, nullptr);
+                if (count > 0) {
+                    filterAddBookmarksText += std::string(buffer, count);
+                    drawConsole();
+                }
+#endif
+                return;
+            }
 
+            if (key_value == "/") {
+                filterAddBookmarksMode = true;
+                filterAddBookmarksText.clear();
+                drawConsole();
+                return;
+            }
 
             if (key_value == "RETURN") {
                 if (key_addmarks_add()) return;
@@ -538,6 +619,18 @@ public:
 
     //// Key Press Methods /////////////////////////////////////////////////////
         bool key_global_escape() {
+            if (filterBookmarksMode) {
+                filterBookmarksMode = false;
+                filterBookmarksText.clear();
+                drawConsole();
+                return true;
+            }
+            if (filterAddBookmarksMode) {
+                filterAddBookmarksMode = false;
+                filterAddBookmarksText.clear();
+                drawConsole();
+                return true;
+            }
             if (pinnedDialogVisible) {
                 pinnedDialogVisible = false;
                 drawConsole();
@@ -740,11 +833,34 @@ public:
         }
 
         bool key_marks_groups_clips() {
-            if (selectedViewBookmarkGroup < bookmarkGroups.size()) {
-                viewBookmarksShowingGroups = false;
-                selectedViewBookmarkItem = 0;
-                viewBookmarksScrollOffset = 0; // Reset scroll when switching modes
-                drawConsole();
+            std::vector<std::string> displayedGroups;
+            if (filterBookmarksMode) {
+                for (const auto& group : bookmarkGroups) {
+                    if (group.find(filterBookmarksText) != std::string::npos) {
+                        displayedGroups.push_back(group);
+                    }
+                }
+            } else {
+                displayedGroups = bookmarkGroups;
+            }
+
+            if (selectedViewBookmarkGroup < displayedGroups.size()) {
+                // Find the actual index in the original bookmarkGroups vector
+                std::string selectedGroupName = displayedGroups[selectedViewBookmarkGroup];
+                auto it = std::find(bookmarkGroups.begin(), bookmarkGroups.end(), selectedGroupName);
+                if (it != bookmarkGroups.end()) {
+                    selectedViewBookmarkGroup = std::distance(bookmarkGroups.begin(), it);
+                    
+                    viewBookmarksShowingGroups = false;
+                    selectedViewBookmarkItem = 0;
+                    viewBookmarksScrollOffset = 0; // Reset scroll when switching modes
+                    
+                    // Exit filter mode
+                    filterBookmarksMode = false;
+                    filterBookmarksText.clear();
+
+                    drawConsole();
+                }
             }
             return true;
         }
@@ -1007,8 +1123,19 @@ public:
 
         // Add Bookmarks
         bool key_addmarks_add() {
-            if (!bookmarkGroups.empty() && selectedAddBookmarkGroup < bookmarkGroups.size()) {
-                std::string selectedGroup = bookmarkGroups[selectedAddBookmarkGroup];
+            std::vector<std::string> displayedGroups;
+            if (filterAddBookmarksMode) {
+                for (const auto& group : bookmarkGroups) {
+                    if (group.find(filterAddBookmarksText) != std::string::npos) {
+                        displayedGroups.push_back(group);
+                    }
+                }
+            } else {
+                displayedGroups = bookmarkGroups;
+            }
+
+            if (!displayedGroups.empty() && selectedAddBookmarkGroup < displayedGroups.size()) {
+                std::string selectedGroup = displayedGroups[selectedAddBookmarkGroup];
                 
                 // Check if current clip is already in this group
                 if (!items.empty() && selectedItem < getDisplayItemCount()) {
@@ -1039,6 +1166,8 @@ public:
                 }
                 
                 addToBookmarkDialogVisible = false;
+                filterAddBookmarksMode = false;
+                filterAddBookmarksText.clear();
                 drawConsole();
             }
             return true;
@@ -1944,6 +2073,13 @@ private:
     size_t selectedViewBookmarkGroup = 0;
     size_t selectedViewBookmarkItem = 0;
     size_t viewBookmarksScrollOffset = 0; // For scrolling long lists
+
+    // Bookmark dialog filtering
+    bool filterBookmarksMode = false;
+    std::string filterBookmarksText;
+
+    bool filterAddBookmarksMode = false;
+    std::string filterAddBookmarksText;
     
     // Helper methods
 
@@ -3476,8 +3612,6 @@ private:
         y += lineHeight;
         drawHelpTopic(hdc, topicLeft, y, contentTop, contentBottom, "g/G            - Top/bottom");
         y += lineHeight;
-        drawHelpTopic(hdc, topicLeft, y, contentTop, contentBottom, "Enter          - Copy item");
-        y += lineHeight;
         drawHelpTopic(hdc, topicLeft, y, contentTop, contentBottom, "/              - Filter mode");
         y += lineHeight;
         drawHelpTopic(hdc, topicLeft, y, contentTop, contentBottom, "Shift+M        - Manage bookmark groups");
@@ -3491,6 +3625,8 @@ private:
         drawHelpTopic(hdc, topicLeft, y, contentTop, contentBottom, "Shift+D        - Delete item");
         y += lineHeight;
         drawHelpTopic(hdc, topicLeft, y, contentTop, contentBottom, "Shift+Q        - Quit");
+        y += lineHeight;
+        drawHelpTopic(hdc, topicLeft, y, contentTop, contentBottom, "Enter          - Copy item");
         y += lineHeight;
         drawHelpTopic(hdc, topicLeft, y, contentTop, contentBottom, "Escape         - Hide window");
         y += lineHeight + gap;
@@ -3539,9 +3675,11 @@ private:
         y += lineHeight;
         drawHelpTopic(hdc, topicLeft, y, contentTop, contentBottom, "g/G            - Top/bottom");
         y += lineHeight;
+        drawHelpTopic(hdc, topicLeft, y, contentTop, contentBottom, "/              - Begin filtering groups");
+        y += lineHeight;
         drawHelpTopic(hdc, topicLeft, y, contentTop, contentBottom, "Enter          - Add clip to group");
         y += lineHeight;
-        drawHelpTopic(hdc, topicLeft, y, contentTop, contentBottom, "Escape         - Exit dialog");
+        drawHelpTopic(hdc, topicLeft, y, contentTop, contentBottom, "Escape         - Exit filtering / Exit dialog");
         y += lineHeight + gap;
 
         // View/Edit/Use bookmarks
@@ -3551,11 +3689,13 @@ private:
         y += lineHeight;
         drawHelpTopic(hdc, topicLeft, y, contentTop, contentBottom, "g/G            - Top/bottom");
         y += lineHeight;
-        drawHelpTopic(hdc, topicLeft, y, contentTop, contentBottom, "Enter          - View group clips/copy clip");
-        y += lineHeight;
         drawHelpTopic(hdc, topicLeft, y, contentTop, contentBottom, "h              - Back to groups list");
         y += lineHeight;
-        drawHelpTopic(hdc, topicLeft, y, contentTop, contentBottom, "Escape         - Exit dialog");
+        drawHelpTopic(hdc, topicLeft, y, contentTop, contentBottom, "/              - Begin filtering groups");
+        y += lineHeight;
+        drawHelpTopic(hdc, topicLeft, y, contentTop, contentBottom, "Enter          - View group clips/copy clip");
+        y += lineHeight;
+        drawHelpTopic(hdc, topicLeft, y, contentTop, contentBottom, "Escape         - Exit filtering / Exit dialog");
         y += lineHeight + gap + 5;
 
         // Commands
@@ -3856,14 +3996,31 @@ public:
             
             int y = dims.y + 50;
             const int VISIBLE_ITEMS = 10;
+
+            // Filter groups if in filter mode
+            std::vector<std::string> displayedGroups;
+            if (filterAddBookmarksMode) {
+                for (const auto& group : bookmarkGroups) {
+                    if (group.find(filterAddBookmarksText) != std::string::npos) {
+                        displayedGroups.push_back(group);
+                    }
+                }
+            } else {
+                displayedGroups = bookmarkGroups;
+            }
+
+            // Adjust selection if out of bounds
+            if (selectedAddBookmarkGroup >= displayedGroups.size() && !displayedGroups.empty()) {
+                selectedAddBookmarkGroup = displayedGroups.size() - 1;
+            }
             
             size_t startIdx = addBookmarkScrollOffset;
-            size_t endIdx = std::min(startIdx + VISIBLE_ITEMS, bookmarkGroups.size());
+            size_t endIdx = std::min(startIdx + VISIBLE_ITEMS, displayedGroups.size());
             
             for (size_t i = startIdx; i < endIdx; ++i) {
-                std::string displayText = "  " + bookmarkGroups[i];
+                std::string displayText = "  " + displayedGroups[i];
                 if (i == selectedAddBookmarkGroup) {
-                    displayText = "> " + bookmarkGroups[i];
+                    displayText = "> " + displayedGroups[i];
                     // Highlight selected
                     XSetForeground(display, gc, selectionColor);
                     XFillRectangle(display, window, gc, dims.x + 15, y - 12, dims.width - 30, 15);
@@ -3871,6 +4028,11 @@ public:
                 }
                 XDrawString(display, window, gc, dims.x + 20, y, displayText.c_str(), displayText.length());
                 y += 18;
+            }
+
+            if (filterAddBookmarksMode) {
+                std::string filterDisplay = "Filter: /" + filterAddBookmarksText + "_";
+                XDrawString(display, window, gc, dims.x + 20, dims.y + dims.height - 20, filterDisplay.c_str(), filterDisplay.length());
             }
         }
 
@@ -3891,105 +4053,114 @@ public:
             int titleWidth = XTextWidth(font, title.c_str(), title.length());
             XDrawString(display, window, gc, dims.x + (dims.width - titleWidth) / 2, dims.y + 25, title.c_str(), title.length());
             
-            if (viewBookmarksShowingGroups) {
-                // Show bookmark groups list with scrolling
-                XSetForeground(display, gc, textColor);
-                int y = dims.y + 60;
-                const int VISIBLE_ITEMS = 20;
-                
-                size_t startIdx = viewBookmarksScrollOffset;
-                size_t endIdx = std::min(startIdx + VISIBLE_ITEMS, bookmarkGroups.size());
-                
-                for (size_t i = startIdx; i < endIdx; ++i) {
-                    std::string displayText = bookmarkGroups[i];
-                    
-                    // Add selection indicator
-                    if (i == selectedViewBookmarkGroup) {
-                        displayText = "> " + displayText;
-                        // Highlight selected
-                        XSetForeground(display, gc, selectionColor);
-                        XFillRectangle(display, window, gc, dims.x + 15, y - 12, dims.width - 30, 15);
-                        XSetForeground(display, gc, textColor);
-                    } else {
-                        displayText = "  " + displayText;
-                    }
-                    
-                    XDrawString(display, window, gc, dims.x + 20, y, displayText.c_str(), displayText.length());
-                    y += 18;
-                }
-                
-            } else {
-                // Show bookmark items for selected group
-                        if (selectedViewBookmarkGroup < bookmarkGroups.size()) {
+                        if (viewBookmarksShowingGroups) {
+                            // Show bookmark groups list with scrolling
+                            XSetForeground(display, gc, textColor);
+                            int y = dims.y + 60;
+                            
+                            // Filter groups if in filter mode
+                            std::vector<std::string> displayedGroups;
+                            if (filterBookmarksMode) {
+                                for (const auto& group : bookmarkGroups) {
+                                    if (group.find(filterBookmarksText) != std::string::npos) {
+                                        displayedGroups.push_back(group);
+                                    }
+                                }
+                            } else {
+                                displayedGroups = bookmarkGroups;
+                            }
+            
+                            // Adjust selection if out of bounds
+                            if (selectedViewBookmarkGroup >= displayedGroups.size() && !displayedGroups.empty()) {
+                                selectedViewBookmarkGroup = displayedGroups.size() - 1;
+                            }
+            
+                            const int VISIBLE_ITEMS = 15;
+                            size_t startIdx = viewBookmarksScrollOffset;
+                            size_t endIdx = std::min(startIdx + VISIBLE_ITEMS, displayedGroups.size());
+                            
+                            for (size_t i = startIdx; i < endIdx; ++i) {
+                                std::string displayText = displayedGroups[i];
+                                
+                                if (i == selectedViewBookmarkGroup) {
+                                    displayText = "> " + displayText;
+                                    XSetForeground(display, gc, selectionColor);
+                                    XFillRectangle(display, window, gc, dims.x + 15, y - 12, dims.width - 30, 15);
+                                    XSetForeground(display, gc, textColor);
+                                } else {
+                                    displayText = "  " + displayText;
+                                }
+                                
+                                XDrawString(display, window, gc, dims.x + 20, y, displayText.c_str(), displayText.length());
+                                y += 18;
+                            }
+            
+                            if (filterBookmarksMode) {
+                                std::string filterDisplay = "Filter: /" + filterBookmarksText + "_";
+                                XDrawString(display, window, gc, dims.x + 20, dims.y + dims.height - 20, filterDisplay.c_str(), filterDisplay.length());
+                            }
+            
+                        } else {
+                            // Show clips for the selected group
                             std::string selectedGroup = bookmarkGroups[selectedViewBookmarkGroup];
                             std::string bookmarkFile = bookmarksDir + "/bookmarks_" + selectedGroup + ".txt";
                             std::ifstream file(bookmarkFile);
-                    
-                    if (file.is_open()) {
-                        std::string line;
-                        std::vector<std::string> bookmarkItems;
-                        
-                        while (std::getline(file, line)) {
-                            size_t pos = line.find('|');
-                            if (pos != std::string::npos && pos > 0) {
-                                std::string content = line.substr(pos + 1);
-                                try {
-                                    std::string decryptedContent = decrypt(content);
-                                    bookmarkItems.push_back(decryptedContent);
-                                } catch (...) {
-                                    bookmarkItems.push_back(content);
+                            
+                            if (file.is_open()) {
+                                std::vector<std::string> bookmarkItems;
+                                std::string line;
+                                while (std::getline(file, line)) {
+                                    size_t pos = line.find('|');
+                                    if (pos != std::string::npos && pos > 0) {
+                                        bookmarkItems.push_back(line.substr(pos + 1));
+                                    }
+                                }
+                                file.close();
+                                
+                                XSetForeground(display, gc, textColor);
+                                int y = dims.y + 60;
+                                const int VISIBLE_ITEMS = 20;
+                                int maxDialogContentLength = calculateDialogContentLength(dims);
+            
+                                size_t startIdx = viewBookmarksScrollOffset;
+                                size_t endIdx = std::min(startIdx + VISIBLE_ITEMS, bookmarkItems.size());
+            
+                                if (selectedViewBookmarkItem >= bookmarkItems.size() && !bookmarkItems.empty()) {
+                                     selectedViewBookmarkItem = bookmarkItems.size() - 1;
+                                }
+                                
+                                for (size_t i = startIdx; i < endIdx; ++i) {
+                                    std::string content = bookmarkItems[i];
+                                    try {
+                                        content = decrypt(content);
+                                    } catch (...) {
+                                        // Leave as is
+                                    }
+                                    
+                                    std::string displayText = content;
+                                    for (char& c : displayText) {
+                                        if (c == '\n' || c == '\r') c = ' ';
+                                    }
+            
+                                    if (static_cast<int>(displayText.length()) > maxDialogContentLength) {
+                                        displayText = smartTrim(displayText, maxDialogContentLength);
+                                    }
+                                    
+                                    if (i == selectedViewBookmarkItem) {
+                                        displayText = "> " + displayText;
+                                        XSetForeground(display, gc, selectionColor);
+                                        XFillRectangle(display, window, gc, dims.x + 15, y - 12, dims.width - 30, 15);
+                                        XSetForeground(display, gc, textColor);
+                                    } else {
+                                        displayText = "  " + displayText;
+                                    }
+                                    
+                                    XDrawString(display, window, gc, dims.x + 20, y, displayText.c_str(), displayText.length());
+                                    y += 18;
                                 }
                             }
                         }
-                        file.close();
-                        
-                        // Draw items with scrolling
-                        int itemY = dims.y + 60;
-                        const int VISIBLE_ITEMS = 20;
-                        
-                        size_t startIdx = viewBookmarksScrollOffset;
-                        size_t endIdx = std::min(startIdx + VISIBLE_ITEMS, bookmarkItems.size());
-                        
-                        for (size_t i = startIdx; i < endIdx; ++i) {
-                            std::string displayText = bookmarkItems[i];
-                            
-                            // Truncate if too long
-                            int maxContentLength = calculateDialogContentLength(dims);
-                            if (static_cast<int>(displayText.length()) > maxContentLength) {
-                                displayText = smartTrim(displayText, maxContentLength);
-                            }
-                            
-                            // Replace newlines with spaces for display
-                            for (char& c : displayText) {
-                                if (c == '\n' || c == '\r') c = ' ';
-                            }
-                            
-                            // Add selection indicator
-                            if (i == selectedViewBookmarkItem) {
-                                displayText = "> " + displayText;
-                                // Highlight selected
-                                XSetForeground(display, gc, selectionColor);
-                                XFillRectangle(display, window, gc, dims.x + 15, itemY - 12, dims.width - 30, 15);
-                                XSetForeground(display, gc, textColor);
-                            } else {
-                                XSetForeground(display, gc, selectionColor);
-                                displayText = "  " + displayText;
-                            }
-                            
-                            XDrawString(display, window, gc, dims.x + 20, itemY, displayText.c_str(), displayText.length());
-                            itemY += 18;
-                        }
-                        
-                        if (bookmarkItems.empty()) {
-                            XDrawString(display, window, gc, dims.x + 20, itemY, "No bookmarks in this group", 26);
-                        }
                     }
-                }
-                
-
-            }
-        }
-
         void drawPinnedDialog() {
             if (!pinnedDialogVisible) return;
             
@@ -4447,7 +4618,7 @@ public:
             FillRect(hdc, &bgRect, hBgBrush);
             DeleteObject(hBgBrush);
             
-            // --- Draw border safely (manually, to avoid Win32 Rectangle() quirks) ---
+            // --- Draw border safely ---
             HPEN hBorderPen = CreatePen(PS_SOLID, 1, borderColor);
             HPEN hOldPen = (HPEN)SelectObject(hdc, hBorderPen);
             HBRUSH hOldBrush = (HBRUSH)SelectObject(hdc, GetStockObject(NULL_BRUSH));
@@ -4468,30 +4639,47 @@ public:
             SetTextColor(hdc, textColor);
             TextOut(hdc, dims.x + (dims.width - titleWidth) / 2, dims.y + 25, title.c_str(), title.length());
             
-            // Draw bookmark groups
-            SetTextColor(hdc, textColor);
-            
+            // Filter and display groups
+            std::vector<std::string> displayedGroups;
+            if (filterAddBookmarksMode) {
+                for (const auto& group : bookmarkGroups) {
+                    if (group.find(filterAddBookmarksText) != std::string::npos) {
+                        displayedGroups.push_back(group);
+                    }
+                }
+            } else {
+                displayedGroups = bookmarkGroups;
+            }
+
+            // Adjust selection if out of bounds
+            if (selectedAddBookmarkGroup >= displayedGroups.size() && !displayedGroups.empty()) {
+                selectedAddBookmarkGroup = displayedGroups.size() - 1;
+            }
+
             int y = dims.y + 50;
             const int VISIBLE_ITEMS = 10;
             
             size_t startIdx = addBookmarkScrollOffset;
-            size_t endIdx = std::min(startIdx + VISIBLE_ITEMS, bookmarkGroups.size());
+            size_t endIdx = std::min(startIdx + VISIBLE_ITEMS, displayedGroups.size());
             
             for (size_t i = startIdx; i < endIdx; ++i) {
-                std::string displayText = "  " + bookmarkGroups[i];
+                std::string displayText = "  " + displayedGroups[i];
                 if (i == selectedAddBookmarkGroup) {
-                    displayText = "> " + bookmarkGroups[i];
-                    // Highlight selected
+                    displayText = "> " + displayedGroups[i];
                     HBRUSH hHighlightBrush = CreateSolidBrush(selectionColor);
                     RECT highlightRect = {dims.x + 15, y - WIN_SEL_RECT_OFFSET_Y, dims.x + dims.width - 15, y - WIN_SEL_RECT_OFFSET_Y + WIN_SEL_RECT_HEIGHT};
                     FillRect(hdc, &highlightRect, hHighlightBrush);
                     DeleteObject(hHighlightBrush);
                 }
                 
-                // Ensure text color is set before drawing
                 SetTextColor(hdc, textColor);
                 TextOut(hdc, dims.x + 20, y, displayText.c_str(), displayText.length());
                 y += 18;
+            }
+
+            if (filterAddBookmarksMode) {
+                std::string filterDisplay = "Filter: /" + filterAddBookmarksText + "_";
+                TextOut(hdc, dims.x + 20, dims.y + dims.height - 20, filterDisplay.c_str(), filterDisplay.length());
             }
         }
 
@@ -4532,20 +4720,34 @@ public:
                 // Show bookmark groups list with scrolling
                 SetTextColor(hdc, textColor);
                 int y = dims.y + 60;
-                // Calculate dynamic VISIBLE_ITEMS for groups view
-                // Uses global LINE_HEIGHT for consistent spacing across dialogs
+                
+                // Filter groups if in filter mode
+                std::vector<std::string> displayedGroups;
+                if (filterBookmarksMode) {
+                    for (const auto& group : bookmarkGroups) {
+                        if (group.find(filterBookmarksText) != std::string::npos) {
+                            displayedGroups.push_back(group);
+                        }
+                    }
+                } else {
+                    displayedGroups = bookmarkGroups;
+                }
+
+                // Adjust selection if out of bounds
+                if (selectedViewBookmarkGroup >= displayedGroups.size() && !displayedGroups.empty()) {
+                    selectedViewBookmarkGroup = displayedGroups.size() - 1;
+                }
+
                 int dynamicVisibleItems = std::max(1, (dims.contentHeight - (y - dims.y)) / LINE_HEIGHT);
                 
                 size_t startIdx = viewBookmarksScrollOffset;
-                size_t endIdx = std::min(startIdx + dynamicVisibleItems, bookmarkGroups.size());
+                size_t endIdx = std::min(startIdx + dynamicVisibleItems, displayedGroups.size());
                 
                 for (size_t i = startIdx; i < endIdx; ++i) {
-                    std::string displayText = bookmarkGroups[i];
+                    std::string displayText = displayedGroups[i];
                     
-                    // Add selection indicator
                     if (i == selectedViewBookmarkGroup) {
                         displayText = "> " + displayText;
-                        // Highlight selected
                         HBRUSH hHighlightBrush = CreateSolidBrush(selectionColor);
                         RECT highlightRect = {dims.x + 15, y - WIN_SEL_RECT_OFFSET_Y, dims.x + dims.width - 15, y - WIN_SEL_RECT_OFFSET_Y + WIN_SEL_RECT_HEIGHT};
                         FillRect(hdc, &highlightRect, hHighlightBrush);
@@ -4554,10 +4756,14 @@ public:
                         displayText = "  " + displayText;
                     }
                     
-                    // Ensure text color is set before drawing
                     SetTextColor(hdc, textColor);
                     TextOut(hdc, dims.x + 20, y, displayText.c_str(), displayText.length());
                     y += LINE_HEIGHT;
+                }
+
+                if (filterBookmarksMode) {
+                    std::string filterDisplay = "Filter: /" + filterBookmarksText + "_";
+                    TextOut(hdc, dims.x + 20, dims.y + dims.height - 20, filterDisplay.c_str(), filterDisplay.length());
                 }
                 
             } else {
