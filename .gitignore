@@ -1,4 +1,6 @@
 /target
 /build/
 /build/*
+/build-windows/
+/build-windows/*
 mmry_debug.log
