@@ -3614,32 +3614,27 @@ private:
         y += lineHeight;
         drawHelpTopic(hdc, topicLeft, y, contentTop, contentBottom, "/              - Filter mode");
         y += lineHeight;
-        drawHelpTopic(hdc, topicLeft, y, contentTop, contentBottom, "Shift+M        - Manage bookmark groups");
+        drawHelpTopic(hdc, topicLeft, y, contentTop, contentBottom, "Shift+m        - Manage bookmark groups");
         y += lineHeight;
         drawHelpTopic(hdc, topicLeft, y, contentTop, contentBottom, "m              - Add clip to group");
         y += lineHeight;
         drawHelpTopic(hdc, topicLeft, y, contentTop, contentBottom, "`              - View bookmarks");
         y += lineHeight;
+        drawHelpTopic(hdc, topicLeft, y, contentTop, contentBottom, "p              - Pin clip");
+        y += lineHeight;
+        drawHelpTopic(hdc, topicLeft, y, contentTop, contentBottom, "'              - view pinned clips");
+        y += lineHeight;
         drawHelpTopic(hdc, topicLeft, y, contentTop, contentBottom, "?              - This help");
         y += lineHeight;
-        drawHelpTopic(hdc, topicLeft, y, contentTop, contentBottom, "Shift+D        - Delete item");
+        drawHelpTopic(hdc, topicLeft, y, contentTop, contentBottom, "Shift+d        - Delete item");
         y += lineHeight;
-        drawHelpTopic(hdc, topicLeft, y, contentTop, contentBottom, "Shift+Q        - Quit");
+        drawHelpTopic(hdc, topicLeft, y, contentTop, contentBottom, "Shift+q        - Quit");
         y += lineHeight;
         drawHelpTopic(hdc, topicLeft, y, contentTop, contentBottom, "Enter          - Copy item");
         y += lineHeight;
         drawHelpTopic(hdc, topicLeft, y, contentTop, contentBottom, "Escape         - Hide window");
         y += lineHeight + gap;
         
-        // Help
-        drawHelpTopic(hdc, titleLeft, y, contentTop, contentBottom, "Help Window:");
-        y += lineHeight;
-        drawHelpTopic(hdc, topicLeft, y, contentTop, contentBottom, "j/k            - Navigate topics");
-        y += lineHeight;
-        drawHelpTopic(hdc, topicLeft, y, contentTop, contentBottom, "g              - Top");
-        y += lineHeight + gap;
-
-
         // Filter Mode shortcuts
         drawHelpTopic(hdc, titleLeft, y, contentTop, contentBottom, "Filter Mode:");
         y += lineHeight;
@@ -3654,6 +3649,20 @@ private:
         drawHelpTopic(hdc, topicLeft, y, contentTop, contentBottom, "Enter          - Copy item");
         y += lineHeight;
         drawHelpTopic(hdc, topicLeft, y, contentTop, contentBottom, "Escape         - Exit filter");
+        y += lineHeight + gap;
+
+        // Pinned clips shortcuts
+        drawHelpTopic(hdc, titleLeft, y, contentTop, contentBottom, "Pinned Clips:");
+        y += lineHeight;
+        drawHelpTopic(hdc, topicLeft, y, contentTop, contentBottom, "j/k            - Navigate items");
+        y += lineHeight;
+        drawHelpTopic(hdc, topicLeft, y, contentTop, contentBottom, "g/G            - Top/bottom");
+        y += lineHeight;
+        drawHelpTopic(hdc, topicLeft, y, contentTop, contentBottom, "Shift+d        - Delete item");
+        y += lineHeight;
+        drawHelpTopic(hdc, topicLeft, y, contentTop, contentBottom, "Enter          - Copy item");
+        y += lineHeight;
+        drawHelpTopic(hdc, topicLeft, y, contentTop, contentBottom, "Escape         - Exit pinned clips");
         y += lineHeight + gap;
         
         // Add bookmark group shortcuts
@@ -3691,6 +3700,8 @@ private:
         y += lineHeight;
         drawHelpTopic(hdc, topicLeft, y, contentTop, contentBottom, "h              - Back to groups list");
         y += lineHeight;
+        drawHelpTopic(hdc, topicLeft, y, contentTop, contentBottom, "Shift+d        - Delete item");
+        y += lineHeight;
         drawHelpTopic(hdc, topicLeft, y, contentTop, contentBottom, "/              - Begin filtering groups");
         y += lineHeight;
         drawHelpTopic(hdc, topicLeft, y, contentTop, contentBottom, "Enter          - View group clips/copy clip");
@@ -3710,6 +3721,13 @@ private:
         drawHelpTopic(hdc, topicLeft, y, contentTop, contentBottom, "Escape         - Cancel command");
         y += lineHeight + gap + 5;
 
+        // Help
+        drawHelpTopic(hdc, titleLeft, y, contentTop, contentBottom, "Help Window:");
+        y += lineHeight;
+        drawHelpTopic(hdc, topicLeft, y, contentTop, contentBottom, "j/k            - Navigate topics");
+        y += lineHeight;
+        drawHelpTopic(hdc, topicLeft, y, contentTop, contentBottom, "g              - Top");
+        y += lineHeight + gap;
 
         // Global hotkey
         drawHelpTopic(hdc, titleLeft, y, contentTop, contentBottom, "Global Hotkey:");
