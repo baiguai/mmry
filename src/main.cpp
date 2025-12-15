@@ -185,6 +185,10 @@ public:
             }
 #endif
             
+            if (key_value == "RETURN") {
+                if (key_edit_add_newline()) return;
+            }
+
             if (key_value == "BACKSPACE") {
                 if (key_edit_backspace()) return;
             }
@@ -779,25 +783,84 @@ public:
         }
 
         bool key_edit_backspace() {
-            if (!editDialogInput.empty()) {
-                editDialogInput.pop_back();
+            if (editDialogCursorPos > 0) {
+                std::string& text = editDialogInput;
+                size_t& line_num = editDialogCursorLine;
+                size_t& char_pos = editDialogCursorPos;
+
+                std::istringstream iss(text);
+                std::string current_line;
+                size_t current_line_index = 0;
+                size_t deletion_pos = 0;
+
+                while (current_line_index <= line_num && std::getline(iss, current_line)) {
+                    if (current_line_index < line_num) {
+                        deletion_pos += current_line.length() + 1; // +1 for newline
+                    }
+                    current_line_index++;
+                }
+
+                deletion_pos += char_pos - 1;
+                text.erase(deletion_pos, 1);
+                char_pos--;
                 drawConsole();
             }
             return true;
         }
 
         bool key_edit_delete() {
-            // For now, act like backspace. More advanced implementation could delete selected text.
-            if (!editDialogInput.empty()) {
-                editDialogInput.pop_back();
+            std::string& text = editDialogInput;
+            size_t& line_num = editDialogCursorLine;
+            size_t& char_pos = editDialogCursorPos;
+
+            std::istringstream iss(text);
+            std::string current_line;
+            size_t current_line_index = 0;
+            size_t deletion_pos = 0;
+
+            while (current_line_index <= line_num && std::getline(iss, current_line)) {
+                if (current_line_index < line_num) {
+                    deletion_pos += current_line.length() + 1; // +1 for newline
+                }
+                current_line_index++;
+            }
+
+            deletion_pos += char_pos;
+            if (deletion_pos < text.length()) {
+                text.erase(deletion_pos, 1);
                 drawConsole();
             }
             return true;
         }
 
         void key_edit_add_char(char c) {
-            editDialogInput += c;
+            std::string& text = editDialogInput;
+            size_t& line_num = editDialogCursorLine;
+            size_t& char_pos = editDialogCursorPos;
+
+            std::istringstream iss(text);
+            std::string current_line;
+            size_t current_line_index = 0;
+            size_t insertion_pos = 0;
+
+            while (current_line_index <= line_num && std::getline(iss, current_line)) {
+                if (current_line_index < line_num) {
+                    insertion_pos += current_line.length() + 1; // +1 for newline
+                }
+                current_line_index++;
+            }
+
+            insertion_pos += char_pos;
+            text.insert(insertion_pos, 1, c);
+            char_pos++;
             drawConsole();
+        }
+
+        bool key_edit_add_newline() {
+            key_edit_add_char('\n');
+            editDialogCursorLine++;
+            editDialogCursorPos = 0;
+            return true;
         }
 
         bool key_edit_scroll_up() {
@@ -1767,6 +1830,14 @@ public:
         bool key_edit_cursor_up() {
             if (editDialogCursorLine > 0) {
                 editDialogCursorLine--;
+                std::string currentLine = "";
+                std::istringstream iss(editDialogInput);
+                for (size_t i = 0; i <= editDialogCursorLine; ++i) {
+                    std::getline(iss, currentLine);
+                }
+                if (editDialogCursorPos > currentLine.length()) {
+                    editDialogCursorPos = currentLine.length();
+                }
                 drawConsole();
             }
             return true;
@@ -1779,6 +1850,14 @@ public:
             }
             if (editDialogCursorLine < totalLines - 1) {
                 editDialogCursorLine++;
+                std::string currentLine = "";
+                std::istringstream iss(editDialogInput);
+                for (size_t i = 0; i <= editDialogCursorLine; ++i) {
+                    std::getline(iss, currentLine);
+                }
+                if (editDialogCursorPos > currentLine.length()) {
+                    editDialogCursorPos = currentLine.length();
+                }
                 drawConsole();
             }
             return true;
