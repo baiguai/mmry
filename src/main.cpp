@@ -74,6 +74,7 @@ public:
             if (keysym == XK_G && (keyEvent->state & ShiftMask)) key_value = "G";
             if (keysym == XK_g) key_value = "g";
             if (keysym == XK_h) key_value = "h";
+            if (keysym == XK_i) key_value = "i";
             if (keysym == XK_j) key_value = "j";
             if (keysym == XK_k) key_value = "k";
             if (keysym == XK_M && (keyEvent->state & ShiftMask)) key_value = "M";
@@ -82,6 +83,10 @@ public:
             if (keysym == XK_Q && (keyEvent->state & ShiftMask)) key_value = "Q";
             if (keysym == XK_Up) key_value = "UP";
             if (keysym == XK_Down) key_value = "DOWN";
+            if (keysym == XK_Left) key_value = "LEFT";
+            if (keysym == XK_Right) key_value = "RIGHT";
+            if (keysym == XK_Home) key_value = "HOME";
+            if (keysym == XK_End) key_value = "END";
             if (keysym == XK_Escape) key_value = "ESCAPE";
             if (keysym == XK_Return) key_value = "RETURN";
             if (keysym == XK_BackSpace) key_value = "BACKSPACE";
@@ -101,6 +106,7 @@ public:
                 else key_value = "g";
             }
             if (msg->wParam == 'H') key_value = "h";
+            if (msg->wParam == 'I') key_value = "i";
             if (msg->wParam == 'J') key_value = "j";
             if (msg->wParam == 'K') key_value = "k";
             if (msg->wParam == 'M') {
@@ -111,6 +117,10 @@ public:
             if (msg->wParam == 'Q' && (GetKeyState(VK_SHIFT) & 0x8000)) key_value = "Q";
             if (msg->wParam == VK_UP) key_value = "UP";
             if (msg->wParam == VK_DOWN) key_value = "DOWN";
+            if (msg->wParam == VK_LEFT) key_value = "LEFT";
+            if (msg->wParam == VK_RIGHT) key_value = "RIGHT";
+            if (msg->wParam == VK_HOME) key_value = "HOME";
+            if (msg->wParam == VK_END) key_value = "END";
             if (msg->wParam == VK_ESCAPE) key_value = "ESCAPE";
             if (msg->wParam == VK_RETURN) key_value = "RETURN";
             if (msg->wParam == VK_BACK) key_value = "BACKSPACE";
@@ -158,6 +168,78 @@ public:
                 if (key_help_scroll_top()) return;
             }
 
+            return;
+        }
+
+        //---- Edit Dialog -----------------------------------------------------
+        if (editDialogVisible) {
+            if (key_value == "ESCAPE") {
+                if (key_edit_escape()) return;
+            }
+
+            // Handle CTRL+ENTER for saving
+#ifdef __linux__
+            if (keysym == XK_Return && (keyEvent->state & ControlMask)) {
+                if (key_edit_save()) return;
+            }
+#endif
+#ifdef _WIN32
+            if (msg->wParam == VK_RETURN && (GetKeyState(VK_CONTROL) & 0x8000)) {
+                if (key_edit_save()) return;
+            }
+#endif
+            
+            if (key_value == "RETURN") {
+                if (key_edit_add_newline()) return;
+            }
+
+            if (key_value == "BACKSPACE") {
+                if (key_edit_backspace()) return;
+            }
+
+            if (key_value == "DELETE") {
+                if (key_edit_delete()) return;
+            }
+
+            if (key_value == "UP") {
+                if (key_edit_cursor_up()) return;
+            }
+
+            if (key_value == "DOWN") {
+                if (key_edit_cursor_down()) return;
+            }
+
+            if (key_value == "LEFT") {
+                if (key_edit_cursor_left()) return;
+            }
+
+            if (key_value == "RIGHT") {
+                if (key_edit_cursor_right()) return;
+            }
+
+            if (key_value == "HOME") {
+                if (key_edit_home()) return;
+            }
+
+            if (key_value == "END") {
+                if (key_edit_end()) return;
+            }
+
+            // Text input
+#ifdef _WIN32
+            char typedChar = getCharFromMsg(msg);
+            if (typedChar != 0 && typedChar != '\r' && typedChar != '\n') { // Ignore enter key here as it is handled by CTRL+ENTER
+                key_edit_add_char(typedChar);
+                return;
+            }
+#else
+            char buffer[10];
+            int count = XLookupString(keyEvent, buffer, sizeof(buffer), nullptr, nullptr);
+            if (count > 0 && buffer[0] != '\r' && buffer[0] != '\n') { // Ignore enter key here as it is handled by CTRL+ENTER
+                key_edit_add_char(buffer[0]);
+                return;
+            }
+#endif
             return;
         }
 
@@ -610,6 +692,10 @@ public:
             if (key_main_pin_clip()) return;
         }
 
+        if (key_value == "i") {
+            if (key_main_edit_start()) return;
+        }
+
         // Pinned clips dialog
         if (key_value == "'") {
             if (key_main_pins_start()) return;
@@ -619,6 +705,9 @@ public:
 
     //// Key Press Methods /////////////////////////////////////////////////////
         bool key_global_escape() {
+            if (editDialogVisible) {
+                if (key_edit_escape()) return true;
+            }
             if (filterBookmarksMode) {
                 filterBookmarksMode = false;
                 filterBookmarksText.clear();
@@ -678,6 +767,155 @@ public:
                 hideWindow();
             }
 
+            return true;
+        }
+
+        bool key_edit_escape() {
+            editDialogVisible = false;
+            drawConsole();
+            return true;
+        }
+
+        bool key_edit_save() {
+            if (!editDialogInput.empty()) {
+                // Create a new ClipboardItem from the edited content
+                ClipboardItem newItem(editDialogInput);
+
+                // Insert the new item at the beginning of the items vector
+                items.insert(items.begin(), newItem);
+
+                // Save to file with updated content
+                saveToFile();
+
+                std::cout << "Clip edited and saved as new item." << std::endl;
+            }
+            editDialogVisible = false;
+            drawConsole();
+            return true;
+        }
+
+        bool key_edit_backspace() {
+            std::string& text = editDialogInput;
+            size_t& line_num = editDialogCursorLine;
+            size_t& char_pos = editDialogCursorPos;
+
+            if (char_pos > 0) {
+                // Find the position of the character to delete
+                size_t deletion_pos = 0;
+                std::istringstream iss(text);
+                std::string current_line;
+                for (size_t i = 0; i < line_num; ++i) {
+                    std::getline(iss, current_line);
+                    deletion_pos += current_line.length() + 1; // +1 for newline
+                }
+                deletion_pos += char_pos -1;
+                text.erase(deletion_pos, 1);
+                char_pos--;
+
+            } else if (line_num > 0) {
+                // Find the end of the previous line
+                size_t prev_line_end = 0;
+                std::istringstream iss(text);
+                std::string current_line;
+                for (size_t i = 0; i < line_num -1; ++i) {
+                    std::getline(iss, current_line);
+                    prev_line_end += current_line.length() + 1;
+                }
+                std::getline(iss, current_line);
+                size_t prev_line_len = current_line.length();
+
+                // Find the start of the current line
+                size_t current_line_start = prev_line_end + prev_line_len +1;
+                
+                // Erase the newline character
+                text.erase(current_line_start -1, 1);
+
+                line_num--;
+                char_pos = prev_line_len;
+            }
+
+            drawConsole();
+            return true;
+        }
+
+        bool key_edit_delete() {
+            std::string& text = editDialogInput;
+            size_t& line_num = editDialogCursorLine;
+            size_t& char_pos = editDialogCursorPos;
+
+            std::istringstream iss(text);
+            std::string current_line;
+            size_t current_line_index = 0;
+            size_t deletion_pos = 0;
+
+            while (current_line_index <= line_num && std::getline(iss, current_line)) {
+                if (current_line_index < line_num) {
+                    deletion_pos += current_line.length() + 1; // +1 for newline
+                }
+                current_line_index++;
+            }
+
+            deletion_pos += char_pos;
+            if (deletion_pos < text.length()) {
+                text.erase(deletion_pos, 1);
+                drawConsole();
+            }
+            return true;
+        }
+
+        void key_edit_add_char(char c) {
+            std::string& text = editDialogInput;
+            size_t& line_num = editDialogCursorLine;
+            size_t& char_pos = editDialogCursorPos;
+
+            std::istringstream iss(text);
+            std::string current_line;
+            size_t current_line_index = 0;
+            size_t insertion_pos = 0;
+
+            while (current_line_index <= line_num && std::getline(iss, current_line)) {
+                if (current_line_index < line_num) {
+                    insertion_pos += current_line.length() + 1; // +1 for newline
+                }
+                current_line_index++;
+            }
+
+            insertion_pos += char_pos;
+            text.insert(insertion_pos, 1, c);
+            char_pos++;
+            drawConsole();
+        }
+
+        bool key_edit_add_newline() {
+            key_edit_add_char('\n');
+            editDialogCursorLine++;
+            editDialogCursorPos = 0; // Ensure cursor is at the beginning of the new line
+            return true;
+        }
+
+        bool key_edit_scroll_up() {
+            if (editDialogScrollOffset > 0) {
+                editDialogScrollOffset--;
+                drawConsole();
+            }
+            return true;
+        }
+
+        bool key_edit_scroll_down() {
+            // Need to calculate max scroll offset based on content and dialog height
+            // For now, allow scrolling down as long as there's content below
+            size_t totalLines = 1;
+            for (char c : editDialogInput) {
+                if (c == '\n') totalLines++;
+            }
+            
+            DialogDimensions dims = getEditDialogDimensions();
+            int maxVisibleLines = (dims.height - 70) / 15; // 15 is LINE_HEIGHT for the dialog
+            
+            if (editDialogScrollOffset < (int)totalLines - maxVisibleLines) {
+                editDialogScrollOffset++;
+                drawConsole();
+            }
             return true;
         }
 
@@ -1585,6 +1823,107 @@ public:
 
             return true;
         }
+
+        bool key_main_edit_start() {
+            if (!items.empty() && selectedItem < getDisplayItemCount()) {
+                size_t actualIndex = getActualItemIndex(selectedItem);
+                editDialogInput = items[actualIndex].content;
+                editDialogVisible = true;
+                editDialogScrollOffset = 0;
+
+                // Initialize cursor position
+                editDialogCursorLine = 0;
+                editDialogCursorPos = 0;
+                std::string lastLine;
+                for (char c : editDialogInput) {
+                    if (c == '\n') {
+                        editDialogCursorLine++;
+                        lastLine.clear();
+                    } else {
+                        lastLine += c;
+                    }
+                }
+                editDialogCursorPos = lastLine.length();
+
+                drawConsole();
+            }
+            return true;
+        }
+
+        bool key_edit_cursor_left() {
+            if (editDialogCursorPos > 0) {
+                editDialogCursorPos--;
+                drawConsole();
+            }
+            return true;
+        }
+
+        bool key_edit_cursor_right() {
+            std::string currentLine = "";
+            std::istringstream iss(editDialogInput);
+            for (size_t i = 0; i <= editDialogCursorLine; ++i) {
+                std::getline(iss, currentLine);
+            }
+
+            if (editDialogCursorPos < currentLine.length()) {
+                editDialogCursorPos++;
+                drawConsole();
+            }
+            return true;
+        }
+
+        bool key_edit_cursor_up() {
+            if (editDialogCursorLine > 0) {
+                editDialogCursorLine--;
+                std::string currentLine = "";
+                std::istringstream iss(editDialogInput);
+                for (size_t i = 0; i <= editDialogCursorLine; ++i) {
+                    std::getline(iss, currentLine);
+                }
+                if (editDialogCursorPos > currentLine.length()) {
+                    editDialogCursorPos = currentLine.length();
+                }
+                drawConsole();
+            }
+            return true;
+        }
+
+        bool key_edit_cursor_down() {
+            size_t totalLines = 1;
+            for (char c : editDialogInput) {
+                if (c == '\n') totalLines++;
+            }
+            if (editDialogCursorLine < totalLines - 1) {
+                editDialogCursorLine++;
+                std::string currentLine = "";
+                std::istringstream iss(editDialogInput);
+                for (size_t i = 0; i <= editDialogCursorLine; ++i) {
+                    std::getline(iss, currentLine);
+                }
+                if (editDialogCursorPos > currentLine.length()) {
+                    editDialogCursorPos = currentLine.length();
+                }
+                drawConsole();
+            }
+            return true;
+        }
+
+        bool key_edit_home() {
+            editDialogCursorPos = 0;
+            drawConsole();
+            return true;
+        }
+
+        bool key_edit_end() {
+            std::string currentLine = "";
+            std::istringstream iss(editDialogInput);
+            for (size_t i = 0; i <= editDialogCursorLine; ++i) {
+                std::getline(iss, currentLine);
+            }
+            editDialogCursorPos = currentLine.length();
+            drawConsole();
+            return true;
+        }
     //// End Key Press Methods /////////////////////////////////////////////////
 
 
@@ -2066,6 +2405,13 @@ private:
     // Help dialog state
     bool helpDialogVisible = false;
     size_t helpDialogScrollOffset = 0;
+
+    // Edit dialog state
+    bool editDialogVisible = false;
+    std::string editDialogInput;
+    int editDialogScrollOffset = 0;
+    size_t editDialogCursorPos = 0;
+    size_t editDialogCursorLine = 0;
     
     // View bookmarks dialog state
     bool viewBookmarksDialogVisible = false;
@@ -2866,6 +3212,10 @@ private:
     
     DialogDimensions getHelpDialogDimensions() const {
         return calculateDialogDimensions(600, 500);
+    }
+    
+    DialogDimensions getEditDialogDimensions() const {
+        return calculateDialogDimensions(600, 400); // Or adjust preferred size as needed
     }
     
     DialogDimensions getViewBookmarksDialogDimensions() const {
@@ -3927,6 +4277,7 @@ public:
             drawViewBookmarksDialog();
             drawPinnedDialog();
             drawHelpDialog();
+            drawEditDialog();
         }
 
         void drawBookmarkDialog() {
@@ -4298,6 +4649,58 @@ public:
 
             drawAllHelpTopics(nullptr, titleLeft, topicLeft, lineHeight, gap, y, contentTop, contentBottom);
         }
+
+        void drawEditDialog() {
+            if (!editDialogVisible) return;
+            
+            // Get dynamic dialog dimensions
+            DialogDimensions dims = getEditDialogDimensions();
+            
+            // Draw dialog background
+            XSetForeground(display, gc, backgroundColor);
+            XFillRectangle(display, window, gc, dims.x, dims.y, dims.width, dims.height);
+            XSetForeground(display, gc, borderColor);
+            XDrawRectangle(display, window, gc, dims.x, dims.y, dims.width, dims.height);
+            
+            // Draw title
+            std::string title = "Edit Clip (CTRL+ENTER to save, ESC to cancel)";
+            int titleWidth = XTextWidth(font, title.c_str(), title.length());
+            XDrawString(display, window, gc, dims.x + (dims.width - titleWidth) / 2, dims.y + 25, title.c_str(), title.length());
+            
+            // Draw input box
+            XSetForeground(display, gc, backgroundColor);
+            XFillRectangle(display, window, gc, dims.x + 20, dims.y + 50, dims.width - 40, dims.height - 70);
+            XSetForeground(display, gc, textColor);
+            XDrawRectangle(display, window, gc, dims.x + 20, dims.y + 50, dims.width - 40, dims.height - 70);
+            
+            // Draw input text (multi-line)
+            std::string currentText = editDialogInput;
+            std::string line;
+            std::istringstream iss(currentText);
+            int y = dims.y + 65;
+            int lineHeight = 15; // Assuming fixed font line height
+            
+            int maxVisibleLines = (dims.height - 70) / lineHeight;
+            int startLine = editDialogScrollOffset;
+            int endLine = startLine + maxVisibleLines;
+            
+            int currentLine = 0;
+            while (std::getline(iss, line)) {
+                if (currentLine >= startLine && currentLine < endLine) {
+                    std::string displayText = line;
+                    if (currentLine == (int)editDialogCursorLine) {
+                        if (editDialogCursorPos <= displayText.length()) {
+                            displayText.insert(editDialogCursorPos, "_");
+                        } else {
+                            displayText += "_";
+                        }
+                    }
+                    XDrawString(display, window, gc, dims.x + 25, y, displayText.c_str(), displayText.length());
+                    y += lineHeight;
+                }
+                currentLine++;
+            }
+        }
 #endif
     // End Linux UI Methods
 
@@ -4518,6 +4921,7 @@ public:
             drawViewBookmarksDialog(hdc);
             drawPinnedDialog(hdc);
             drawHelpDialog(hdc);
+            drawEditDialog(hdc);
             
             // Cleanup
             SelectObject(hdc, hOldFont);
@@ -5046,6 +5450,94 @@ public:
 
             // Restore clipping region (VERY important)
             SelectClipRgn(hdc, oldClip == NULLREGION ? nullptr : reinterpret_cast<HRGN>(oldClip));
+        }
+
+        void drawEditDialog(HDC hdc) {
+            if (!editDialogVisible) return;
+            
+            // Create and select font
+            HFONT hFont = CreateFont(14, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
+                                   DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
+                                   CLEARTYPE_QUALITY, DEFAULT_PITCH | FF_DONTCARE, "Consolas");
+            HFONT hOldFont = (HFONT)SelectObject(hdc, hFont);
+            SetBkMode(hdc, TRANSPARENT);
+            
+            // Get dynamic dialog dimensions
+            DialogDimensions dims = getEditDialogDimensions();
+            
+            // Draw dialog background
+            HBRUSH hBgBrush = CreateSolidBrush(backgroundColor);
+            RECT bgRect = {dims.x, dims.y, dims.x + dims.width, dims.y + dims.height};
+            FillRect(hdc, &bgRect, hBgBrush);
+            DeleteObject(hBgBrush);
+            
+            // --- Draw border safely (manually, to avoid Win32 Rectangle() quirks) ---
+            HPEN hBorderPen = CreatePen(PS_SOLID, 1, borderColor);
+            HPEN hOldPen = (HPEN)SelectObject(hdc, hBorderPen);
+            HBRUSH hOldBrush = (HBRUSH)SelectObject(hdc, GetStockObject(NULL_BRUSH));
+
+            MoveToEx(hdc, dims.x,               dims.y,                NULL);
+            LineTo(hdc,   dims.x + dims.width,  dims.y);
+            LineTo(hdc,   dims.x + dims.width,  dims.y + dims.height);
+            LineTo(hdc,   dims.x,               dims.y + dims.height);
+            LineTo(hdc,   dims.x,               dims.y);
+
+            SelectObject(hdc, hOldBrush);
+            SelectObject(hdc, hOldPen);
+            DeleteObject(hBorderPen);
+            
+            // Draw title
+            std::string title = "Edit Clip (CTRL+ENTER to save, ESC to cancel)";
+            SetTextColor(hdc, textColor);
+            TextOut(hdc, dims.x + 20, dims.y + 25, title.c_str(), title.length());
+            
+            // Draw input box
+            HBRUSH hInputBrush = CreateSolidBrush(backgroundColor);
+            RECT inputRect = {dims.x + 20, dims.y + 50, dims.x + dims.width - 20, dims.y + dims.height - 20};
+            FillRect(hdc, &inputRect, hInputBrush);
+            DeleteObject(hInputBrush);
+            
+            // Draw input box border
+            HPEN hInputPen = CreatePen(PS_SOLID, 1, textColor);
+            hOldBrush = (HBRUSH)SelectObject(hdc, GetStockObject(NULL_BRUSH));
+            hOldPen = (HPEN)SelectObject(hdc, hInputPen);
+            Rectangle(hdc, dims.x + 20, dims.y + 50, dims.x + dims.width - 20, dims.y + dims.height - 20);
+            SelectObject(hdc, hOldPen);
+            SelectObject(hdc, hOldBrush);
+            DeleteObject(hInputPen);
+            
+            // Draw input text (multi-line)
+            std::string currentText = editDialogInput;
+            std::string line;
+            std::istringstream iss(currentText);
+            int y = dims.y + 55; // Starting Y for text content
+            int lineHeight = 15; // Assuming fixed font line height
+            
+            int maxVisibleLines = (dims.height - 70) / lineHeight;
+            int startLine = editDialogScrollOffset;
+            int endLine = startLine + maxVisibleLines;
+            
+            int currentLineNum = 0;
+            while (std::getline(iss, line)) {
+                if (currentLineNum >= startLine && currentLineNum < endLine) {
+                    std::string displayText = line;
+                    if (currentLineNum == (int)editDialogCursorLine) {
+                        if (editDialogCursorPos <= displayText.length()) {
+                            displayText.insert(editDialogCursorPos, "_");
+                        } else {
+                            displayText += "_";
+                        }
+                    }
+                    SetTextColor(hdc, textColor);
+                    TextOut(hdc, dims.x + 25, y, displayText.c_str(), displayText.length());
+                    y += lineHeight;
+                }
+                currentLineNum++;
+            }
+            
+            // Cleanup
+            SelectObject(hdc, hOldFont);
+            DeleteObject(hFont);
         }
 #endif
     // End Windows UI Methods
