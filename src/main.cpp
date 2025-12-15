@@ -85,6 +85,8 @@ public:
             if (keysym == XK_Down) key_value = "DOWN";
             if (keysym == XK_Left) key_value = "LEFT";
             if (keysym == XK_Right) key_value = "RIGHT";
+            if (keysym == XK_Home) key_value = "HOME";
+            if (keysym == XK_End) key_value = "END";
             if (keysym == XK_Escape) key_value = "ESCAPE";
             if (keysym == XK_Return) key_value = "RETURN";
             if (keysym == XK_BackSpace) key_value = "BACKSPACE";
@@ -117,6 +119,8 @@ public:
             if (msg->wParam == VK_DOWN) key_value = "DOWN";
             if (msg->wParam == VK_LEFT) key_value = "LEFT";
             if (msg->wParam == VK_RIGHT) key_value = "RIGHT";
+            if (msg->wParam == VK_HOME) key_value = "HOME";
+            if (msg->wParam == VK_END) key_value = "END";
             if (msg->wParam == VK_ESCAPE) key_value = "ESCAPE";
             if (msg->wParam == VK_RETURN) key_value = "RETURN";
             if (msg->wParam == VK_BACK) key_value = "BACKSPACE";
@@ -211,6 +215,14 @@ public:
 
             if (key_value == "RIGHT") {
                 if (key_edit_cursor_right()) return;
+            }
+
+            if (key_value == "HOME") {
+                if (key_edit_home()) return;
+            }
+
+            if (key_value == "END") {
+                if (key_edit_end()) return;
             }
 
             // Text input
@@ -783,28 +795,46 @@ public:
         }
 
         bool key_edit_backspace() {
-            if (editDialogCursorPos > 0) {
-                std::string& text = editDialogInput;
-                size_t& line_num = editDialogCursorLine;
-                size_t& char_pos = editDialogCursorPos;
+            std::string& text = editDialogInput;
+            size_t& line_num = editDialogCursorLine;
+            size_t& char_pos = editDialogCursorPos;
 
+            if (char_pos > 0) {
+                // Find the position of the character to delete
+                size_t deletion_pos = 0;
                 std::istringstream iss(text);
                 std::string current_line;
-                size_t current_line_index = 0;
-                size_t deletion_pos = 0;
-
-                while (current_line_index <= line_num && std::getline(iss, current_line)) {
-                    if (current_line_index < line_num) {
-                        deletion_pos += current_line.length() + 1; // +1 for newline
-                    }
-                    current_line_index++;
+                for (size_t i = 0; i < line_num; ++i) {
+                    std::getline(iss, current_line);
+                    deletion_pos += current_line.length() + 1; // +1 for newline
                 }
-
-                deletion_pos += char_pos - 1;
+                deletion_pos += char_pos -1;
                 text.erase(deletion_pos, 1);
                 char_pos--;
-                drawConsole();
+
+            } else if (line_num > 0) {
+                // Find the end of the previous line
+                size_t prev_line_end = 0;
+                std::istringstream iss(text);
+                std::string current_line;
+                for (size_t i = 0; i < line_num -1; ++i) {
+                    std::getline(iss, current_line);
+                    prev_line_end += current_line.length() + 1;
+                }
+                std::getline(iss, current_line);
+                size_t prev_line_len = current_line.length();
+
+                // Find the start of the current line
+                size_t current_line_start = prev_line_end + prev_line_len +1;
+                
+                // Erase the newline character
+                text.erase(current_line_start -1, 1);
+
+                line_num--;
+                char_pos = prev_line_len;
             }
+
+            drawConsole();
             return true;
         }
 
@@ -1860,6 +1890,23 @@ public:
                 }
                 drawConsole();
             }
+            return true;
+        }
+
+        bool key_edit_home() {
+            editDialogCursorPos = 0;
+            drawConsole();
+            return true;
+        }
+
+        bool key_edit_end() {
+            std::string currentLine = "";
+            std::istringstream iss(editDialogInput);
+            for (size_t i = 0; i <= editDialogCursorLine; ++i) {
+                std::getline(iss, currentLine);
+            }
+            editDialogCursorPos = currentLine.length();
+            drawConsole();
             return true;
         }
     //// End Key Press Methods /////////////////////////////////////////////////
