@@ -5647,7 +5647,7 @@ public:
         }
 
         items.emplace(items.begin(), trimmed_content);
-        if (items.size() > maxClips) {
+        while (items.size() > maxClips) {
             items.pop_back();
         }
         
