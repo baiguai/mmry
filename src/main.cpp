@@ -889,7 +889,7 @@ public:
         bool key_edit_add_newline() {
             key_edit_add_char('\n');
             editDialogCursorLine++;
-            editDialogCursorPos = 0;
+            editDialogCursorPos = 0; // Ensure cursor is at the beginning of the new line
             return true;
         }
 
@@ -1830,6 +1830,21 @@ public:
                 editDialogInput = items[actualIndex].content;
                 editDialogVisible = true;
                 editDialogScrollOffset = 0;
+
+                // Initialize cursor position
+                editDialogCursorLine = 0;
+                editDialogCursorPos = 0;
+                std::string lastLine;
+                for (char c : editDialogInput) {
+                    if (c == '\n') {
+                        editDialogCursorLine++;
+                        lastLine.clear();
+                    } else {
+                        lastLine += c;
+                    }
+                }
+                editDialogCursorPos = lastLine.length();
+
                 drawConsole();
             }
             return true;
