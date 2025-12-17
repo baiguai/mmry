@@ -15,7 +15,7 @@ public:
         writeLog("");
         writeLog("");
         logfile.close();
-        std::cout << "ClipboardManager destructor called - cleaning up resources" << std::endl;
+        std::cout << "ClipboardManager destructor called - cleaning up resources\n";
         stop();
     }
 
@@ -139,7 +139,7 @@ public:
 
         if (key_value == "Q") {
             // Shift+Q quits application even from dialog
-            std::cout << "Quitting MMRY..." << std::endl;
+            std::cout << "Quitting MMRY...\n";
             running = false; // Let main loop exit naturally to avoid deadlock
         }
 
@@ -787,7 +787,7 @@ public:
                 // Save to file with updated content
                 saveToFile();
 
-                std::cout << "Clip edited and saved as new item." << std::endl;
+                std::cout << "Clip edited and saved as new item.\n";
             }
             editDialogVisible = false;
             drawConsole();
@@ -968,14 +968,14 @@ public:
                     if (!items.empty() && selectedItem < getDisplayItemCount()) {
                         size_t actualIndex = getActualItemIndex(selectedItem);
                         addClipToBookmarkGroup(bookmarkDialogInput, items[actualIndex].content);
-                        std::cout << "Added clip to bookmark group: " << bookmarkDialogInput << std::endl;
+                        std::cout << "Added clip to bookmark group: " << bookmarkDialogInput << "\n";
                     }
                 } else {
                     // Add current clip to existing group
                     if (!items.empty() && selectedItem < getDisplayItemCount()) {
                         size_t actualIndex = getActualItemIndex(selectedItem);
                         addClipToBookmarkGroup(bookmarkDialogInput, items[actualIndex].content);
-                        std::cout << "Added clip to bookmark group: " << bookmarkDialogInput << std::endl;
+                        std::cout << "Added clip to bookmark group: " << bookmarkDialogInput << "\n";
                     }
                 }
                 
@@ -1053,7 +1053,7 @@ public:
                 std::string bookmarkFile = bookmarksDir + "/bookmarks_" + groupToDelete + ".txt";
                 unlink(bookmarkFile.c_str());
                 
-                std::cout << "Deleted bookmark group and all clips: " << groupToDelete << std::endl;
+                std::cout << "Deleted bookmark group and all clips: " << groupToDelete << "\n";
                 
                 // Adjust selection
                 if (selectedViewBookmarkGroup > 0 && selectedViewBookmarkGroup >= bookmarkGroups.size()) {
@@ -1182,7 +1182,7 @@ public:
                             }
                             outFile.close();
                             
-                            std::cout << "Deleted bookmark item from group: " << selectedGroup << std::endl;
+                            std::cout << "Deleted bookmark item from group: " << selectedGroup << "\n";
                             
                             // Adjust selection
                             if (selectedViewBookmarkItem > 0 && selectedViewBookmarkItem >= lines.size()) {
@@ -1225,9 +1225,9 @@ public:
                         copyToClipboard(bookmarkItems[selectedViewBookmarkItem]);
                         int lines = countLines(bookmarkItems[selectedViewBookmarkItem]);
                         if (lines > 1) {
-                            std::cout << "Copied " << lines << " lines from bookmark" << std::endl;
+                            std::cout << "Copied " << lines << " lines from bookmark" << "\n";
                         } else {
-                            std::cout << "Copied from bookmark: " << bookmarkItems[selectedViewBookmarkItem].substr(0, 50) << "..." << std::endl;
+                            std::cout << "Copied from bookmark: " << bookmarkItems[selectedViewBookmarkItem].substr(0, 50) << "..." << "\n";
                         }
                         viewBookmarksDialogVisible = false;
                         hideWindow();
@@ -1295,7 +1295,7 @@ public:
                     }
                     outFile.close();
                     
-                    std::cout << "Deleted pinned clip" << std::endl;
+                    std::cout << "Deleted pinned clip\n";
                     
                     // Adjust selection
                     if (selectedViewPinnedItem > 0 && selectedViewPinnedItem >= sortedItems.size()) {
@@ -1332,9 +1332,9 @@ public:
 
                     int lineCount = countLines(contentToCopy);
                     if (lineCount > 1) {
-                        std::cout << "Copied " << lineCount << " lines from pinned clips" << std::endl;
+                        std::cout << "Copied " << lineCount << " lines from pinned clips\n";
                     } else {
-                        std::cout << "Copied from pinned clips: " << contentToCopy.substr(0, 50) << "..." << std::endl;
+                        std::cout << "Copied from pinned clips: " << contentToCopy.substr(0, 50) << "...\n";
                     }
 
                     // Remove the old line from sorted items
@@ -1397,9 +1397,9 @@ public:
                     
                     if (!alreadyExists) {
                         addClipToBookmarkGroup(selectedGroup, clipContent);
-                        std::cout << "Added clip to bookmark group: " << selectedGroup << std::endl;
+                        std::cout << "Added clip to bookmark group: " << selectedGroup << "\n";
                     } else {
-                        std::cout << "Clip already exists in bookmark group: " << selectedGroup << std::endl;
+                        std::cout << "Clip already exists in bookmark group: " << selectedGroup << "\n";
                     }
                 }
                 
@@ -1472,9 +1472,9 @@ public:
                 copyToClipboard(items[actualIndex].content);
                 int lines = countLines(items[actualIndex].content);
                 if (lines > 1) {
-                    std::cout << "Copied " << lines << " lines to clipboard" << std::endl;
+                    std::cout << "Copied " << lines << " lines to clipboard" << "\n";
                 } else {
-                    std::cout << "Copied to clipboard: " << items[actualIndex].content.substr(0, 50) << "..." << std::endl;
+                    std::cout << "Copied to clipboard: " << items[actualIndex].content.substr(0, 50) << "...\n";
                 }
                 filterMode = false;
                 filterText = "";
@@ -1731,15 +1731,15 @@ public:
                     // Save to file with updated timestamp
                     saveToFile();
 
-                    std::cout << "Clip moved to top after copying" << std::endl;
+                    std::cout << "Clip moved to top after copying\n";
                 }
 
                 int lines = countLines(clipContent);
 
                 if (lines > 1) {
-                    std::cout << "Copied " << lines << " lines to clipboard" << std::endl;
+                    std::cout << "Copied " << lines << " lines to clipboard\n";
                 } else {
-                    std::cout << "Copied to clipboard: " << clipContent.substr(0, 50) << "..." << std::endl;
+                    std::cout << "Copied to clipboard: " << clipContent.substr(0, 50) << "...\n";
                 }
                 hideWindow();
             }
@@ -1807,9 +1807,9 @@ public:
                 
                 if (!alreadyExists) {
                     addClipToPinned(clipContent);
-                    std::cout << "Added clip to pinned" << std::endl;
+                    std::cout << "Added clip to pinned\n";
                 } else {
-                    std::cout << "Clip is already pinned" << std::endl;
+                    std::cout << "Clip is already pinned\n";
                 }
             }
             return true;
@@ -2011,10 +2011,10 @@ public:
 
 
         #ifdef _WIN32
-            std::cout << "Running on Windows." << std::endl;
+            std::cout << "Running on Windows.\n";
             // Add Windows-specific auto-start code here
         #elif __APPLE__
-            std::cout << "Running on macOS." << std::endl;
+            std::cout << "Running on macOS.\n";
             // Add macOS-specific auto-start code here
         #elif __linux__
             std::string dir = std::string(getenv("HOME")) + "/.config/autostart";
@@ -2034,9 +2034,9 @@ public:
                 ssize_t count = readlink("/proc/self/exe", result, PATH_MAX);
                 if (count != -1) {
                     result[count] = '\0'; // Null-terminate the string
-                    std::cout << "Full path: " << result << std::endl;
+                    std::cout << "Full path: " << result << "\n";
                 } else {
-                    std::cerr << "Error getting path" << std::endl;
+                    std::cerr << "Error getting path" << "\n";
                 }
 
                 std::ofstream file(filePath);
@@ -2053,27 +2053,27 @@ Comment=Autostart for )" << appLabel << R"(
                 file.close();
             } else {
                 if (remove(filePath.c_str()) != 0) {
-                    std::cout << "Autostart already disabled" << std::endl;
+                    std::cout << "Autostart already disabled\n";
                 } else {
-                    std::cout << "Autostart disabled" << std::endl;
+                    std::cout << "Autostart disabled\n";
                 }
             }
         #else
-            std::cout << "Unknown operating system." << std::endl;
+            std::cout << "Unknown operating system.\n";
         #endif
 
         
-        std::cout << "MMRY Clipboard Manager started" << std::endl;
-        std::cout << "Config directory: " << configDir << std::endl;
-        std::cout << "Press Ctrl+Alt+C to show window, Escape to hide" << std::endl;
-        std::cout << "Press Shift+Q in window to quit application" << std::endl;
-        std::cout << "Press Ctrl+C in terminal to exit" << std::endl;
+        std::cout << "MMRY Clipboard Manager started\n";
+        std::cout << "Config directory: " << configDir << "\n";
+        std::cout << "Press Ctrl+Alt+C to show window, Escape to hide\n";
+        std::cout << "Press Shift+Q in window to quit application\n";
+        std::cout << "Press Ctrl+C in terminal to exit\n";
         
 #ifdef __linux__
         // --- Reliable X11 global hotkey setup for Ctrl+Alt+C ----------
         auto grab_global_hotkey = [&](Display* dpy, Window rootWin, KeySym keysym) {
             if (!dpy) {
-                std::cout << "!dpy - returning" << std::endl;
+                std::cout << "!dpy - returning\n";
                 return;
             }
             // Ensure root receives KeyPress events
@@ -2155,7 +2155,7 @@ Comment=Autostart for )" << appLabel << R"(
             if (event.type == KeyPress && event.xkey.keycode == grabbed_keycode) {
                 if ((event.xkey.state & ControlMask) && (event.xkey.state & Mod1Mask)) {
                     // Hotkey triggered
-                    std::cout << "Hotkey triggered: Ctrl+Alt+C" << std::endl;
+                    std::cout << "Hotkey triggered: Ctrl+Alt+C\n";
                     showWindow();
                     continue;
                 }
@@ -2186,7 +2186,7 @@ Comment=Autostart for )" << appLabel << R"(
 #endif
 
 #ifdef _WIN32
-        std::cout << "Windows: registering global hotkey Ctrl+Alt+C..." << std::endl;
+        std::cout << "Windows: registering global hotkey Ctrl+Alt+C...\n" << std::endl;
 
         // Register Ctrl+Alt+C (ID: 1)
         if (!RegisterHotKey(NULL, 1, MOD_CONTROL | MOD_ALT, 'C')) {
@@ -3368,11 +3368,11 @@ private:
         }
         
         if (!file.is_open()) {
-            std::cout << "Theme file not found for theme: " << theme << ", using default colors" << std::endl;
+            std::cout << "Theme file not found for theme: " << theme << ", using default colors\n";
             return;
         }
         
-        std::cout << "Loading theme from: " << themePath << std::endl;
+        std::cout << "Loading theme from: " << themePath << "\n";
         
         // Parse JSON theme file
         std::string line;
@@ -3467,7 +3467,7 @@ private:
             outFile << "  }\n";
             outFile << "}\n";
             outFile.close();
-            std::cout << "Created default theme file: " << themeFile << std::endl;
+            std::cout << "Created default theme file: " << themeFile << "\n";
         }
     }
     
@@ -3506,7 +3506,7 @@ private:
         }
         
         // Handle other commands (for future implementation)
-        std::cout << "Command executed: " << command << std::endl;
+        std::cout << "Command executed: " << command << "\n";
         
         // TODO: Add specific command implementations here
         // Examples:
@@ -3558,7 +3558,7 @@ private:
     void switchTheme(const std::string& themeName) {
         theme = themeName;
         loadTheme();
-        std::cout << "Switched to theme: " << themeName << std::endl;
+        std::cout << "Switched to theme: " << themeName << "\n";
     }
     
     void loadBookmarkGroups() {
@@ -3665,9 +3665,9 @@ private:
         struct stat st = {};
         if (stat(configDir.c_str(), &st) == -1) {
             if (createDirectory(configDir)) {
-                std::cout << "Created config directory: " << configDir << std::endl;
+                std::cout << "Created config directory: " << configDir << "\n";
             } else {
-                std::cerr << "Failed to create config directory: " << configDir << std::endl;
+                std::cerr << "Failed to create config directory: " << configDir << "\n";
             }
         }
         
@@ -3682,9 +3682,9 @@ private:
         std::string themesDir = configDir + pathSep + "themes";
         if (stat(themesDir.c_str(), &st) == -1) {
             if (createDirectory(themesDir)) {
-                std::cout << "Created themes directory: " << themesDir << std::endl;
+                std::cout << "Created themes directory: " << themesDir << "\n";
             } else {
-                std::cerr << "Failed to create themes directory: " << themesDir << std::endl;
+                std::cerr << "Failed to create themes directory: " << themesDir << "\n";
             }
         }
         
@@ -3692,9 +3692,9 @@ private:
         bookmarksDir = configDir + pathSep + "bookmarks";
         if (stat(bookmarksDir.c_str(), &st) == -1) {
             if (createDirectory(bookmarksDir)) {
-                std::cout << "Created bookmarks directory: " << bookmarksDir << std::endl;
+                std::cout << "Created bookmarks directory: " << bookmarksDir << "\n";
             } else {
-                std::cerr << "Failed to create bookmarks directory: " << bookmarksDir << std::endl;
+                std::cerr << "Failed to create bookmarks directory: " << bookmarksDir << "\n";
             }
         }
         
@@ -3726,7 +3726,7 @@ private:
             if (outFile.is_open()) {
                 outFile << "default|0\n";
                 outFile.close();
-                std::cout << "Created bookmarks file: " << bookmarksFile << std::endl;
+                std::cout << "Created bookmarks file: " << bookmarksFile << "\n";
             }
         }
         
@@ -3735,7 +3735,7 @@ private:
             std::ofstream outFile(dataFile);
             if (outFile.is_open()) {
                 outFile.close();
-                std::cout << "Created clips file: " << dataFile << std::endl;
+                std::cout << "Created clips file: " << dataFile << "\n";
             }
         }
         // Check and create pinned.txt if needed
@@ -3743,7 +3743,7 @@ private:
             std::ofstream outFile(pinnedFile);
             if (outFile.is_open()) {
                 outFile.close();
-                std::cout << "Created pinned clips file: " << pinnedFile << std::endl;
+                std::cout << "Created pinned clips file: " << pinnedFile << "\n";
             }
         }
     }
@@ -3812,7 +3812,7 @@ private:
         // Install X11 error handler to catch grab failures
         auto oldHandler = XSetErrorHandler([](Display* /*d*/, XErrorEvent* e) -> int {
             if (e->error_code == BadAccess) {
-                std::cerr << "X11 Error: BadAccess when trying to grab key" << std::endl;
+                std::cerr << "X11 Error: BadAccess when trying to grab key\n";
                 return 0;
             }
             return 0;
@@ -3824,7 +3824,7 @@ private:
         
         for (int retry = 0; retry < MAX_RETRIES && !success; retry++) {
             if (retry > 0) {
-                std::cerr << "Retry " << retry << " of " << MAX_RETRIES << "..." << std::endl;
+                std::cerr << "Retry " << retry << " of " << MAX_RETRIES << "...\n";
                 std::this_thread::sleep_for(std::chrono::milliseconds(500 * retry));
             }
             
@@ -3862,7 +3862,7 @@ private:
             if (!grabFailed) {
                 success = true;
                 hotkeyGrabbed = true;
-                std::cout << "Successfully grabbed Ctrl+Alt+C hotkey" << std::endl;
+                std::cout << "Successfully grabbed Ctrl+Alt+C hotkey\n";
             }
         }
         
@@ -3884,7 +3884,7 @@ private:
 
     
     void showWindow() {
-        std::cout << "Visible: " << visible << std::endl;
+        std::cout << "Visible: " << visible << "\n";
 
         if (!visible) {
 #ifdef __linux__
@@ -3894,7 +3894,7 @@ private:
             ShowWindow(hwnd, SW_SHOW);
 #endif
             visible = true;
-            std::cout << "Window shown" << std::endl;
+            std::cout << "Window shown\n";
         }
     }
     
@@ -3905,14 +3905,14 @@ private:
 #endif
 #ifdef _WIN32
             if (hwnd) {
-                std::cout << "Calling ShowWindow(SW_HIDE)" << std::endl;
+                std::cout << "Calling ShowWindow(SW_HIDE)\n";
                 ShowWindow(hwnd, SW_HIDE);
             } else {
-                std::cout << "hwnd is null!" << std::endl;
+                std::cout << "hwnd is null!\n";
             }
 #endif
             visible = false;
-            std::cout << "Window hidden" << std::endl;
+            std::cout << "Window hidden\n";
         }
     }
     
@@ -3972,7 +3972,9 @@ private:
         y += lineHeight;
         drawHelpTopic(hdc, topicLeft, y, contentTop, contentBottom, "p              - Pin clip");
         y += lineHeight;
-        drawHelpTopic(hdc, topicLeft, y, contentTop, contentBottom, "'              - view pinned clips");
+        drawHelpTopic(hdc, topicLeft, y, contentTop, contentBottom, "'              - View pinned clips");
+        y += lineHeight;
+        drawHelpTopic(hdc, topicLeft, y, contentTop, contentBottom, "i              - Edit current clip");
         y += lineHeight;
         drawHelpTopic(hdc, topicLeft, y, contentTop, contentBottom, "?              - This help");
         y += lineHeight;
@@ -5634,7 +5636,7 @@ public:
 
             saveToFile();
 
-            std::cout << "Existing clip moved to top" << std::endl;
+            std::cout << "Existing clip moved to top\n";
 
             // Refresh display if window is visible
             if (visible) {
@@ -5645,7 +5647,7 @@ public:
         }
 
         items.emplace(items.begin(), trimmed_content);
-        if (items.size() > maxClips) {
+        while (items.size() > maxClips) {
             items.pop_back();
         }
         
@@ -5659,7 +5661,7 @@ public:
         
         saveToFile();
         
-        std::cout << "New clipboard item added" << std::endl;
+        std::cout << "New clipboard item added\n";
         
         // Refresh display if window is visible
         if (visible) {
@@ -5760,7 +5762,7 @@ public:
         outFile << "}\n";
         outFile.close();
         
-        std::cout << "Created default config at: " << configFile << std::endl;
+        std::cout << "Created default config at: " << configFile << "\n";
     }
     
     int countLines(const std::string& content) {
@@ -5871,9 +5873,9 @@ public:
             std::ofstream outFile(dataFile);
             if (outFile.is_open()) {
                 outFile.close();
-                std::cout << "Created empty clips file: " << dataFile << std::endl;
+                std::cout << "Created empty clips file: " << dataFile << "\n";
             } else {
-                std::cerr << "Failed to create clips file: " << dataFile << std::endl;
+                std::cerr << "Failed to create clips file: " << dataFile << "\n";
             }
         }
     }
@@ -5885,7 +5887,7 @@ ClipboardManager* g_manager = nullptr;
 
 #include <signal.h>
 void signal_handler(int signal) {
-    std::cout << "\nReceived signal " << signal << ", cleaning up..." << std::endl;
+    std::cout << "\nReceived signal " << signal << ", cleaning up...\n";
     if (g_manager) {
         // Just set running to false, don't join in signal handler
         g_manager->setRunning(false);
@@ -5978,7 +5980,7 @@ int main() {
 
     SingleInstance guard("Mmry");
     if (guard.isAnotherInstanceRunning()) {
-        std::cerr << "Another instance is already running. Exiting." << std::endl;
+        std::cerr << "Another instance is already running. Exiting.\n";
         return 1;
     }
     
@@ -5996,7 +5998,7 @@ int main() {
     // Check for another instance using a named mutex
     HANDLE hMutex = CreateMutexA(NULL, TRUE, "Global\\MmryClipboardManager");
     if (GetLastError() == ERROR_ALREADY_EXISTS) {
-        std::cerr << "Another instance is already running. Exiting." << std::endl;
+        std::cerr << "Another instance is already running. Exiting.\n";
         if (hMutex) {
             CloseHandle(hMutex);
         }
