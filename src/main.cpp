@@ -15,7 +15,7 @@ public:
         writeLog("");
         writeLog("");
         logfile.close();
-        std::cout << "ClipboardManager destructor called - cleaning up resources" << std::endl;
+        std::cout << "ClipboardManager destructor called - cleaning up resources\n";
         stop();
     }
 
@@ -74,6 +74,7 @@ public:
             if (keysym == XK_G && (keyEvent->state & ShiftMask)) key_value = "G";
             if (keysym == XK_g) key_value = "g";
             if (keysym == XK_h) key_value = "h";
+            if (keysym == XK_i) key_value = "i";
             if (keysym == XK_j) key_value = "j";
             if (keysym == XK_k) key_value = "k";
             if (keysym == XK_M && (keyEvent->state & ShiftMask)) key_value = "M";
@@ -82,6 +83,10 @@ public:
             if (keysym == XK_Q && (keyEvent->state & ShiftMask)) key_value = "Q";
             if (keysym == XK_Up) key_value = "UP";
             if (keysym == XK_Down) key_value = "DOWN";
+            if (keysym == XK_Left) key_value = "LEFT";
+            if (keysym == XK_Right) key_value = "RIGHT";
+            if (keysym == XK_Home) key_value = "HOME";
+            if (keysym == XK_End) key_value = "END";
             if (keysym == XK_Escape) key_value = "ESCAPE";
             if (keysym == XK_Return) key_value = "RETURN";
             if (keysym == XK_BackSpace) key_value = "BACKSPACE";
@@ -101,6 +106,7 @@ public:
                 else key_value = "g";
             }
             if (msg->wParam == 'H') key_value = "h";
+            if (msg->wParam == 'I') key_value = "i";
             if (msg->wParam == 'J') key_value = "j";
             if (msg->wParam == 'K') key_value = "k";
             if (msg->wParam == 'M') {
@@ -111,6 +117,10 @@ public:
             if (msg->wParam == 'Q' && (GetKeyState(VK_SHIFT) & 0x8000)) key_value = "Q";
             if (msg->wParam == VK_UP) key_value = "UP";
             if (msg->wParam == VK_DOWN) key_value = "DOWN";
+            if (msg->wParam == VK_LEFT) key_value = "LEFT";
+            if (msg->wParam == VK_RIGHT) key_value = "RIGHT";
+            if (msg->wParam == VK_HOME) key_value = "HOME";
+            if (msg->wParam == VK_END) key_value = "END";
             if (msg->wParam == VK_ESCAPE) key_value = "ESCAPE";
             if (msg->wParam == VK_RETURN) key_value = "RETURN";
             if (msg->wParam == VK_BACK) key_value = "BACKSPACE";
@@ -129,7 +139,7 @@ public:
 
         if (key_value == "Q") {
             // Shift+Q quits application even from dialog
-            std::cout << "Quitting MMRY..." << std::endl;
+            std::cout << "Quitting MMRY...\n";
             running = false; // Let main loop exit naturally to avoid deadlock
         }
 
@@ -158,6 +168,78 @@ public:
                 if (key_help_scroll_top()) return;
             }
 
+            return;
+        }
+
+        //---- Edit Dialog -----------------------------------------------------
+        if (editDialogVisible) {
+            if (key_value == "ESCAPE") {
+                if (key_edit_escape()) return;
+            }
+
+            // Handle CTRL+ENTER for saving
+#ifdef __linux__
+            if (keysym == XK_Return && (keyEvent->state & ControlMask)) {
+                if (key_edit_save()) return;
+            }
+#endif
+#ifdef _WIN32
+            if (msg->wParam == VK_RETURN && (GetKeyState(VK_CONTROL) & 0x8000)) {
+                if (key_edit_save()) return;
+            }
+#endif
+            
+            if (key_value == "RETURN") {
+                if (key_edit_add_newline()) return;
+            }
+
+            if (key_value == "BACKSPACE") {
+                if (key_edit_backspace()) return;
+            }
+
+            if (key_value == "DELETE") {
+                if (key_edit_delete()) return;
+            }
+
+            if (key_value == "UP") {
+                if (key_edit_cursor_up()) return;
+            }
+
+            if (key_value == "DOWN") {
+                if (key_edit_cursor_down()) return;
+            }
+
+            if (key_value == "LEFT") {
+                if (key_edit_cursor_left()) return;
+            }
+
+            if (key_value == "RIGHT") {
+                if (key_edit_cursor_right()) return;
+            }
+
+            if (key_value == "HOME") {
+                if (key_edit_home()) return;
+            }
+
+            if (key_value == "END") {
+                if (key_edit_end()) return;
+            }
+
+            // Text input
+#ifdef _WIN32
+            char typedChar = getCharFromMsg(msg);
+            if (typedChar != 0 && typedChar != '\r' && typedChar != '\n') { // Ignore enter key here as it is handled by CTRL+ENTER
+                key_edit_add_char(typedChar);
+                return;
+            }
+#else
+            char buffer[10];
+            int count = XLookupString(keyEvent, buffer, sizeof(buffer), nullptr, nullptr);
+            if (count > 0 && buffer[0] != '\r' && buffer[0] != '\n') { // Ignore enter key here as it is handled by CTRL+ENTER
+                key_edit_add_char(buffer[0]);
+                return;
+            }
+#endif
             return;
         }
 
@@ -555,6 +637,36 @@ public:
             return;
         }
 
+        // Config selection mode
+        //
+        if (cmd_configSelectMode) {
+            if (key_value == "ESCAPE") {
+                if (key_config_cancel()) return;
+            }
+
+            if (key_value == "RETURN") {
+                if (key_config_select()) return;
+            }
+
+            if (key_value == "j" || key_value == "DOWN") {
+                if (key_config_down()) return;
+            }
+
+            if (key_value == "k" || key_value == "UP") {
+                if (key_config_up()) return;
+            }
+
+            if (key_value == "g") {
+                if (key_config_top()) return;
+            }
+
+            if (key_value == "G") {
+                if (key_config_bottom()) return;
+            }
+
+            return;
+        }
+
 
         // General keys - main clips list
         //
@@ -610,6 +722,10 @@ public:
             if (key_main_pin_clip()) return;
         }
 
+        if (key_value == "i") {
+            if (key_main_edit_start()) return;
+        }
+
         // Pinned clips dialog
         if (key_value == "'") {
             if (key_main_pins_start()) return;
@@ -619,6 +735,9 @@ public:
 
     //// Key Press Methods /////////////////////////////////////////////////////
         bool key_global_escape() {
+            if (editDialogVisible) {
+                if (key_edit_escape()) return true;
+            }
             if (filterBookmarksMode) {
                 filterBookmarksMode = false;
                 filterBookmarksText.clear();
@@ -673,11 +792,168 @@ public:
                 originalTheme.clear();
                 selectedItem = 0;
                 drawConsole();
+            } else if (cmd_configSelectMode) {
+                // Exit config selection mode and return to command mode
+                cmd_configSelectMode = false;
+                commandMode = true;
+                commandText = "";
+                availableConfigs.clear();
+                selectedItem = 0;
+                drawConsole();
             } else {
                 // Normal escape behavior - hide window
                 hideWindow();
             }
 
+            return true;
+        }
+
+        bool key_edit_escape() {
+            editDialogVisible = false;
+            drawConsole();
+            return true;
+        }
+
+        bool key_edit_save() {
+            if (!editDialogInput.empty()) {
+                // Create a new ClipboardItem from the edited content
+                ClipboardItem newItem(editDialogInput);
+
+                // Insert the new item at the beginning of the items vector
+                items.insert(items.begin(), newItem);
+
+                // Save to file with updated content
+                saveToFile();
+
+                std::cout << "Clip edited and saved as new item.\n";
+            }
+            editDialogVisible = false;
+            drawConsole();
+            return true;
+        }
+
+        bool key_edit_backspace() {
+            std::string& text = editDialogInput;
+            size_t& line_num = editDialogCursorLine;
+            size_t& char_pos = editDialogCursorPos;
+
+            if (char_pos > 0) {
+                // Find the position of the character to delete
+                size_t deletion_pos = 0;
+                std::istringstream iss(text);
+                std::string current_line;
+                for (size_t i = 0; i < line_num; ++i) {
+                    std::getline(iss, current_line);
+                    deletion_pos += current_line.length() + 1; // +1 for newline
+                }
+                deletion_pos += char_pos -1;
+                text.erase(deletion_pos, 1);
+                char_pos--;
+
+            } else if (line_num > 0) {
+                // Find the end of the previous line
+                size_t prev_line_end = 0;
+                std::istringstream iss(text);
+                std::string current_line;
+                for (size_t i = 0; i < line_num -1; ++i) {
+                    std::getline(iss, current_line);
+                    prev_line_end += current_line.length() + 1;
+                }
+                std::getline(iss, current_line);
+                size_t prev_line_len = current_line.length();
+
+                // Find the start of the current line
+                size_t current_line_start = prev_line_end + prev_line_len +1;
+                
+                // Erase the newline character
+                text.erase(current_line_start -1, 1);
+
+                line_num--;
+                char_pos = prev_line_len;
+            }
+
+            drawConsole();
+            return true;
+        }
+
+        bool key_edit_delete() {
+            std::string& text = editDialogInput;
+            size_t& line_num = editDialogCursorLine;
+            size_t& char_pos = editDialogCursorPos;
+
+            std::istringstream iss(text);
+            std::string current_line;
+            size_t current_line_index = 0;
+            size_t deletion_pos = 0;
+
+            while (current_line_index <= line_num && std::getline(iss, current_line)) {
+                if (current_line_index < line_num) {
+                    deletion_pos += current_line.length() + 1; // +1 for newline
+                }
+                current_line_index++;
+            }
+
+            deletion_pos += char_pos;
+            if (deletion_pos < text.length()) {
+                text.erase(deletion_pos, 1);
+                drawConsole();
+            }
+            return true;
+        }
+
+        void key_edit_add_char(char c) {
+            std::string& text = editDialogInput;
+            size_t& line_num = editDialogCursorLine;
+            size_t& char_pos = editDialogCursorPos;
+
+            std::istringstream iss(text);
+            std::string current_line;
+            size_t current_line_index = 0;
+            size_t insertion_pos = 0;
+
+            while (current_line_index <= line_num && std::getline(iss, current_line)) {
+                if (current_line_index < line_num) {
+                    insertion_pos += current_line.length() + 1; // +1 for newline
+                }
+                current_line_index++;
+            }
+
+            insertion_pos += char_pos;
+            text.insert(insertion_pos, 1, c);
+            char_pos++;
+            drawConsole();
+        }
+
+        bool key_edit_add_newline() {
+            key_edit_add_char('\n');
+            editDialogCursorLine++;
+            editDialogCursorPos = 0; // Ensure cursor is at the beginning of the new line
+            return true;
+        }
+
+        bool key_edit_scroll_up() {
+            if (editDialogScrollOffset > 0) {
+                editDialogScrollOffset--;
+                drawConsole();
+            }
+            return true;
+        }
+
+        bool key_edit_scroll_down() {
+            // Need to calculate max scroll offset based on content and dialog height
+            // For now, allow scrolling down as long as there's content below
+            size_t totalLines = 1;
+            for (char c : editDialogInput) {
+                if (c == '\n') totalLines++;
+            }
+            
+            DialogDimensions dims = getEditDialogDimensions();
+            int maxVisibleLines = (dims.height - 70) / 15; // 15 is LINE_HEIGHT for the dialog
+            
+            if (editDialogScrollOffset < (int)totalLines - maxVisibleLines) {
+                editDialogScrollOffset++;
+                drawConsole();
+            }
             return true;
         }
 
@@ -730,14 +1006,14 @@ public:
                     if (!items.empty() && selectedItem < getDisplayItemCount()) {
                         size_t actualIndex = getActualItemIndex(selectedItem);
                         addClipToBookmarkGroup(bookmarkDialogInput, items[actualIndex].content);
-                        std::cout << "Added clip to bookmark group: " << bookmarkDialogInput << std::endl;
+                        std::cout << "Added clip to bookmark group: " << bookmarkDialogInput << "\n";
                     }
                 } else {
                     // Add current clip to existing group
                     if (!items.empty() && selectedItem < getDisplayItemCount()) {
                         size_t actualIndex = getActualItemIndex(selectedItem);
                         addClipToBookmarkGroup(bookmarkDialogInput, items[actualIndex].content);
-                        std::cout << "Added clip to bookmark group: " << bookmarkDialogInput << std::endl;
+                        std::cout << "Added clip to bookmark group: " << bookmarkDialogInput << "\n";
                     }
                 }
                 
@@ -815,7 +1091,7 @@ public:
                 std::string bookmarkFile = bookmarksDir + "/bookmarks_" + groupToDelete + ".txt";
                 unlink(bookmarkFile.c_str());
                 
-                std::cout << "Deleted bookmark group and all clips: " << groupToDelete << std::endl;
+                std::cout << "Deleted bookmark group and all clips: " << groupToDelete << "\n";
                 
                 // Adjust selection
                 if (selectedViewBookmarkGroup > 0 && selectedViewBookmarkGroup >= bookmarkGroups.size()) {
@@ -944,7 +1220,7 @@ public:
                             }
                             outFile.close();
                             
-                            std::cout << "Deleted bookmark item from group: " << selectedGroup << std::endl;
+                            std::cout << "Deleted bookmark item from group: " << selectedGroup << "\n";
                             
                             // Adjust selection
                             if (selectedViewBookmarkItem > 0 && selectedViewBookmarkItem >= lines.size()) {
@@ -987,9 +1263,9 @@ public:
                         copyToClipboard(bookmarkItems[selectedViewBookmarkItem]);
                         int lines = countLines(bookmarkItems[selectedViewBookmarkItem]);
                         if (lines > 1) {
-                            std::cout << "Copied " << lines << " lines from bookmark" << std::endl;
+                            std::cout << "Copied " << lines << " lines from bookmark" << "\n";
                         } else {
-                            std::cout << "Copied from bookmark: " << bookmarkItems[selectedViewBookmarkItem].substr(0, 50) << "..." << std::endl;
+                            std::cout << "Copied from bookmark: " << bookmarkItems[selectedViewBookmarkItem].substr(0, 50) << "..." << "\n";
                         }
                         viewBookmarksDialogVisible = false;
                         hideWindow();
@@ -1057,7 +1333,7 @@ public:
                     }
                     outFile.close();
                     
-                    std::cout << "Deleted pinned clip" << std::endl;
+                    std::cout << "Deleted pinned clip\n";
                     
                     // Adjust selection
                     if (selectedViewPinnedItem > 0 && selectedViewPinnedItem >= sortedItems.size()) {
@@ -1094,9 +1370,9 @@ public:
 
                     int lineCount = countLines(contentToCopy);
                     if (lineCount > 1) {
-                        std::cout << "Copied " << lineCount << " lines from pinned clips" << std::endl;
+                        std::cout << "Copied " << lineCount << " lines from pinned clips\n";
                     } else {
-                        std::cout << "Copied from pinned clips: " << contentToCopy.substr(0, 50) << "..." << std::endl;
+                        std::cout << "Copied from pinned clips: " << contentToCopy.substr(0, 50) << "...\n";
                     }
 
                     // Remove the old line from sorted items
@@ -1159,9 +1435,9 @@ public:
                     
                     if (!alreadyExists) {
                         addClipToBookmarkGroup(selectedGroup, clipContent);
-                        std::cout << "Added clip to bookmark group: " << selectedGroup << std::endl;
+                        std::cout << "Added clip to bookmark group: " << selectedGroup << "\n";
                     } else {
-                        std::cout << "Clip already exists in bookmark group: " << selectedGroup << std::endl;
+                        std::cout << "Clip already exists in bookmark group: " << selectedGroup << "\n";
                     }
                 }
                 
@@ -1234,9 +1510,9 @@ public:
                 copyToClipboard(items[actualIndex].content);
                 int lines = countLines(items[actualIndex].content);
                 if (lines > 1) {
-                    std::cout << "Copied " << lines << " lines to clipboard" << std::endl;
+                    std::cout << "Copied " << lines << " lines to clipboard" << "\n";
                 } else {
-                    std::cout << "Copied to clipboard: " << items[actualIndex].content.substr(0, 50) << "..." << std::endl;
+                    std::cout << "Copied to clipboard: " << items[actualIndex].content.substr(0, 50) << "...\n";
                 }
                 filterMode = false;
                 filterText = "";
@@ -1307,6 +1583,14 @@ public:
                     selectedTheme = 0;
                     switchTheme(availableThemes[0]);
                 }
+                drawConsole();
+                return true;
+            }
+            if (commandText == "config") {
+                // Enter config selection mode
+                commandMode = false;
+                cmd_configSelectMode = true;
+                discoverConfigs();
                 drawConsole();
                 return true;
             }
@@ -1383,6 +1667,62 @@ public:
             if (!availableThemes.empty()) {
                 selectedTheme = availableThemes.size() - 1;
                 updateThemeSelectScrollOffset();
+                drawConsole();
+            }
+            return true;
+        }
+
+        // Config Command
+        bool key_config_cancel() {
+            cmd_configSelectMode = false;
+            commandMode = true;
+            commandText = "";
+            availableConfigs.clear();
+            selectedItem = 0;
+            drawConsole();
+            return true;
+        }
+
+        bool key_config_select() {
+            if (selectedConfig < availableConfigs.size()) {
+                cmd_configSelectMode = false;
+                commandText = "config " + availableConfigs[selectedConfig] + " ";
+                commandMode = true;
+                availableConfigs.clear();
+                drawConsole();
+            }
+            return true;
+        }
+
+        bool key_config_down() {
+            if (selectedConfig < availableConfigs.size() - 1) {
+                selectedConfig++;
+                updateConfigSelectScrollOffset();
+                drawConsole();
+            }
+            return true;
+        }
+
+        bool key_config_up() {
+            if (selectedConfig > 0) {
+                selectedConfig--;
+                updateConfigSelectScrollOffset();
+                drawConsole();
+            }
+            return true;
+        }
+
+        bool key_config_top() {
+            selectedConfig = 0;
+            configSelectScrollOffset = 0;
+            drawConsole();
+            return true;
+        }
+
+        bool key_config_bottom() {
+            if (!availableConfigs.empty()) {
+                selectedConfig = availableConfigs.size() - 1;
+                updateConfigSelectScrollOffset();
                 drawConsole();
             }
             return true;
@@ -1493,15 +1833,15 @@ public:
                     // Save to file with updated timestamp
                     saveToFile();
 
-                    std::cout << "Clip moved to top after copying" << std::endl;
+                    std::cout << "Clip moved to top after copying\n";
                 }
 
                 int lines = countLines(clipContent);
 
                 if (lines > 1) {
-                    std::cout << "Copied " << lines << " lines to clipboard" << std::endl;
+                    std::cout << "Copied " << lines << " lines to clipboard\n";
                 } else {
-                    std::cout << "Copied to clipboard: " << clipContent.substr(0, 50) << "..." << std::endl;
+                    std::cout << "Copied to clipboard: " << clipContent.substr(0, 50) << "...\n";
                 }
                 hideWindow();
             }
@@ -1569,9 +1909,9 @@ public:
                 
                 if (!alreadyExists) {
                     addClipToPinned(clipContent);
-                    std::cout << "Added clip to pinned" << std::endl;
+                    std::cout << "Added clip to pinned\n";
                 } else {
-                    std::cout << "Clip is already pinned" << std::endl;
+                    std::cout << "Clip is already pinned\n";
                 }
             }
             return true;
@@ -1583,6 +1923,107 @@ public:
             viewPinnedScrollOffset = 0; // Reset scroll when opening
             drawConsole();
 
+            return true;
+        }
+
+        bool key_main_edit_start() {
+            if (!items.empty() && selectedItem < getDisplayItemCount()) {
+                size_t actualIndex = getActualItemIndex(selectedItem);
+                editDialogInput = items[actualIndex].content;
+                editDialogVisible = true;
+                editDialogScrollOffset = 0;
+
+                // Initialize cursor position
+                editDialogCursorLine = 0;
+                editDialogCursorPos = 0;
+                std::string lastLine;
+                for (char c : editDialogInput) {
+                    if (c == '\n') {
+                        editDialogCursorLine++;
+                        lastLine.clear();
+                    } else {
+                        lastLine += c;
+                    }
+                }
+                editDialogCursorPos = lastLine.length();
+
+                drawConsole();
+            }
+            return true;
+        }
+
+        bool key_edit_cursor_left() {
+            if (editDialogCursorPos > 0) {
+                editDialogCursorPos--;
+                drawConsole();
+            }
+            return true;
+        }
+
+        bool key_edit_cursor_right() {
+            std::string currentLine = "";
+            std::istringstream iss(editDialogInput);
+            for (size_t i = 0; i <= editDialogCursorLine; ++i) {
+                std::getline(iss, currentLine);
+            }
+
+            if (editDialogCursorPos < currentLine.length()) {
+                editDialogCursorPos++;
+                drawConsole();
+            }
+            return true;
+        }
+
+        bool key_edit_cursor_up() {
+            if (editDialogCursorLine > 0) {
+                editDialogCursorLine--;
+                std::string currentLine = "";
+                std::istringstream iss(editDialogInput);
+                for (size_t i = 0; i <= editDialogCursorLine; ++i) {
+                    std::getline(iss, currentLine);
+                }
+                if (editDialogCursorPos > currentLine.length()) {
+                    editDialogCursorPos = currentLine.length();
+                }
+                drawConsole();
+            }
+            return true;
+        }
+
+        bool key_edit_cursor_down() {
+            size_t totalLines = 1;
+            for (char c : editDialogInput) {
+                if (c == '\n') totalLines++;
+            }
+            if (editDialogCursorLine < totalLines - 1) {
+                editDialogCursorLine++;
+                std::string currentLine = "";
+                std::istringstream iss(editDialogInput);
+                for (size_t i = 0; i <= editDialogCursorLine; ++i) {
+                    std::getline(iss, currentLine);
+                }
+                if (editDialogCursorPos > currentLine.length()) {
+                    editDialogCursorPos = currentLine.length();
+                }
+                drawConsole();
+            }
+            return true;
+        }
+
+        bool key_edit_home() {
+            editDialogCursorPos = 0;
+            drawConsole();
+            return true;
+        }
+
+        bool key_edit_end() {
+            std::string currentLine = "";
+            std::istringstream iss(editDialogInput);
+            for (size_t i = 0; i <= editDialogCursorLine; ++i) {
+                std::getline(iss, currentLine);
+            }
+            editDialogCursorPos = currentLine.length();
+            drawConsole();
             return true;
         }
     //// End Key Press Methods /////////////////////////////////////////////////
@@ -1672,10 +2113,10 @@ public:
 
 
         #ifdef _WIN32
-            std::cout << "Running on Windows." << std::endl;
+            std::cout << "Running on Windows.\n";
             // Add Windows-specific auto-start code here
         #elif __APPLE__
-            std::cout << "Running on macOS." << std::endl;
+            std::cout << "Running on macOS.\n";
             // Add macOS-specific auto-start code here
         #elif __linux__
             std::string dir = std::string(getenv("HOME")) + "/.config/autostart";
@@ -1695,9 +2136,9 @@ public:
                 ssize_t count = readlink("/proc/self/exe", result, PATH_MAX);
                 if (count != -1) {
                     result[count] = '\0'; // Null-terminate the string
-                    std::cout << "Full path: " << result << std::endl;
+                    std::cout << "Full path: " << result << "\n";
                 } else {
-                    std::cerr << "Error getting path" << std::endl;
+                    std::cerr << "Error getting path" << "\n";
                 }
 
                 std::ofstream file(filePath);
@@ -1714,27 +2155,27 @@ Comment=Autostart for )" << appLabel << R"(
                 file.close();
             } else {
                 if (remove(filePath.c_str()) != 0) {
-                    std::cout << "Autostart already disabled" << std::endl;
+                    std::cout << "Autostart already disabled\n";
                 } else {
-                    std::cout << "Autostart disabled" << std::endl;
+                    std::cout << "Autostart disabled\n";
                 }
             }
         #else
-            std::cout << "Unknown operating system." << std::endl;
+            std::cout << "Unknown operating system.\n";
         #endif
 
         
-        std::cout << "MMRY Clipboard Manager started" << std::endl;
-        std::cout << "Config directory: " << configDir << std::endl;
-        std::cout << "Press Ctrl+Alt+C to show window, Escape to hide" << std::endl;
-        std::cout << "Press Shift+Q in window to quit application" << std::endl;
-        std::cout << "Press Ctrl+C in terminal to exit" << std::endl;
+        std::cout << "MMRY Clipboard Manager started\n";
+        std::cout << "Config directory: " << configDir << "\n";
+        std::cout << "Press Ctrl+Alt+C to show window, Escape to hide\n";
+        std::cout << "Press Shift+Q in window to quit application\n";
+        std::cout << "Press Ctrl+C in terminal to exit\n";
         
 #ifdef __linux__
         // --- Reliable X11 global hotkey setup for Ctrl+Alt+C ----------
         auto grab_global_hotkey = [&](Display* dpy, Window rootWin, KeySym keysym) {
             if (!dpy) {
-                std::cout << "!dpy - returning" << std::endl;
+                std::cout << "!dpy - returning\n";
                 return;
             }
             // Ensure root receives KeyPress events
@@ -1816,7 +2257,7 @@ Comment=Autostart for )" << appLabel << R"(
             if (event.type == KeyPress && event.xkey.keycode == grabbed_keycode) {
                 if ((event.xkey.state & ControlMask) && (event.xkey.state & Mod1Mask)) {
                     // Hotkey triggered
-                    std::cout << "Hotkey triggered: Ctrl+Alt+C" << std::endl;
+                    std::cout << "Hotkey triggered: Ctrl+Alt+C\n";
                     showWindow();
                     continue;
                 }
@@ -1847,7 +2288,7 @@ Comment=Autostart for )" << appLabel << R"(
 #endif
 
 #ifdef _WIN32
-        std::cout << "Windows: registering global hotkey Ctrl+Alt+C..." << std::endl;
+        std::cout << "Windows: registering global hotkey Ctrl+Alt+C...\n" << std::endl;
 
         // Register Ctrl+Alt+C (ID: 1)
         if (!RegisterHotKey(NULL, 1, MOD_CONTROL | MOD_ALT, 'C')) {
@@ -2044,6 +2485,14 @@ private:
     std::vector<std::string> availableThemes;
     size_t selectedTheme = 0;
     size_t themeSelectScrollOffset = 0;
+
+    // Config selection mode
+    bool cmd_configSelectMode = false;
+    std::vector<std::string> availableConfigs;
+    size_t selectedConfig = 0;
+    size_t configSelectScrollOffset = 0;
+    
+
     
     // Bookmark dialog
     bool bookmarkDialogVisible = false;
@@ -2066,6 +2515,13 @@ private:
     // Help dialog state
     bool helpDialogVisible = false;
     size_t helpDialogScrollOffset = 0;
+
+    // Edit dialog state
+    bool editDialogVisible = false;
+    std::string editDialogInput;
+    int editDialogScrollOffset = 0;
+    size_t editDialogCursorPos = 0;
+    size_t editDialogCursorLine = 0;
     
     // View bookmarks dialog state
     bool viewBookmarksDialogVisible = false;
@@ -2674,7 +3130,7 @@ private:
         const int SCROLL_INDICATOR_HEIGHT = 15; // Height reserved for scroll indicator
         
         // Calculate starting Y position (accounting for filter, command, or theme selection mode)
-        int startY = (filterMode || commandMode || cmd_themeSelectMode) ? 45 : 20;
+        int startY = (filterMode || commandMode || cmd_themeSelectMode || cmd_configSelectMode) ? 45 : 20;
         
         // Calculate available height for items
         int availableHeight = windowHeight - startY - 10; // 10px bottom margin
@@ -2750,6 +3206,16 @@ private:
             themeSelectScrollOffset = selectedTheme;
         } else if (selectedTheme >= themeSelectScrollOffset + VISIBLE_ITEMS) {
             themeSelectScrollOffset = selectedTheme - VISIBLE_ITEMS + 1;
+        }
+    }
+    
+    void updateConfigSelectScrollOffset() {
+        const int VISIBLE_ITEMS = 10; // Number of configs visible in config selection
+        
+        if (selectedConfig < configSelectScrollOffset) {
+            configSelectScrollOffset = selectedConfig;
+        } else if (selectedConfig >= configSelectScrollOffset + VISIBLE_ITEMS) {
+            configSelectScrollOffset = selectedConfig - VISIBLE_ITEMS + 1;
         }
     }
     
@@ -2866,6 +3332,10 @@ private:
     
     DialogDimensions getHelpDialogDimensions() const {
         return calculateDialogDimensions(600, 500);
+    }
+    
+    DialogDimensions getEditDialogDimensions() const {
+        return calculateDialogDimensions(600, 400); // Or adjust preferred size as needed
     }
     
     DialogDimensions getViewBookmarksDialogDimensions() const {
@@ -3018,11 +3488,11 @@ private:
         }
         
         if (!file.is_open()) {
-            std::cout << "Theme file not found for theme: " << theme << ", using default colors" << std::endl;
+            std::cout << "Theme file not found for theme: " << theme << ", using default colors\n";
             return;
         }
         
-        std::cout << "Loading theme from: " << themePath << std::endl;
+        std::cout << "Loading theme from: " << themePath << "\n";
         
         // Parse JSON theme file
         std::string line;
@@ -3117,7 +3587,7 @@ private:
             outFile << "  }\n";
             outFile << "}\n";
             outFile.close();
-            std::cout << "Created default theme file: " << themeFile << std::endl;
+            std::cout << "Created default theme file: " << themeFile << "\n";
         }
     }
     
@@ -3155,8 +3625,48 @@ private:
             return;
         }
         
+        if (cmd == "config") {
+            if (!args.empty()) {
+                std::cout << "DEBUG: Processing config command with args: '" << args << "'\n";
+                // Parse "config key value" format
+                std::istringstream configIss(args);
+                std::string configKey, configValue;
+                
+                if (configIss >> configKey) {
+                    std::string remaining;
+                    std::getline(configIss, remaining);
+                    // Trim leading whitespace from config value
+                    if (!remaining.empty() && remaining[0] == ' ') {
+                        remaining = remaining.substr(1);
+                    }
+                    configValue = remaining;
+                    
+                    std::cout << "DEBUG: Parsed configKey='" << configKey << "', configValue='" << configValue << "'\n";
+                    
+                        // Validate and update config based on type
+                    if (updateConfigValue(configKey, configValue)) {
+                        std::cout << "DEBUG: updateConfigValue returned true, calling saveConfig()\n";
+                        saveConfig();
+                        std::cout << "Updated " << configKey << " = " << configValue << "\n";
+                    } else {
+                        std::cout << "DEBUG: updateConfigValue returned false\n";
+                        std::cout << "Invalid value for " << configKey << ". Expected type: " << getConfigType(configKey) << "\n";
+                    }
+                } else {
+                    std::cout << "DEBUG: Failed to parse config key from args\n";
+                }
+            } else {
+                // Enter config selection mode: "config"
+                commandMode = false;
+                cmd_configSelectMode = true;
+                discoverConfigs();
+                drawConsole();
+            }
+            return;
+        }
+        
         // Handle other commands (for future implementation)
-        std::cout << "Command executed: " << command << std::endl;
+        std::cout << "Command executed: " << command << "\n";
         
         // TODO: Add specific command implementations here
         // Examples:
@@ -3204,11 +3714,40 @@ private:
         selectedTheme = 0;
         themeSelectScrollOffset = 0;
     }
-    
+
+    void discoverConfigs() {
+        availableConfigs.clear();
+
+        std::string configFile = configDir + "/config.json";
+       
+        std::ifstream file(configFile);
+        if (file.is_open()) {
+            std::string line;
+            while (std::getline(file, line)) {
+                // Look for lines containing config keys (in quotes)
+                size_t start = line.find('"');
+                if (start != std::string::npos && start != line.rfind('"')) {
+                    size_t end = line.find('"', start + 1);
+                    if (end != std::string::npos) {
+                        std::string configKey = line.substr(start + 1, end - start - 1);
+                        if (!configKey.empty()) {
+                            availableConfigs.push_back(configKey);
+                        }
+                    }
+                }
+            }
+            file.close();
+        }
+        
+        // Reset selection
+        selectedConfig = 0;
+        configSelectScrollOffset = 0;
+    }
+
     void switchTheme(const std::string& themeName) {
         theme = themeName;
         loadTheme();
-        std::cout << "Switched to theme: " << themeName << std::endl;
+        std::cout << "Switched to theme: " << themeName << "\n";
     }
     
     void loadBookmarkGroups() {
@@ -3315,9 +3854,9 @@ private:
         struct stat st = {};
         if (stat(configDir.c_str(), &st) == -1) {
             if (createDirectory(configDir)) {
-                std::cout << "Created config directory: " << configDir << std::endl;
+                std::cout << "Created config directory: " << configDir << "\n";
             } else {
-                std::cerr << "Failed to create config directory: " << configDir << std::endl;
+                std::cerr << "Failed to create config directory: " << configDir << "\n";
             }
         }
         
@@ -3332,9 +3871,9 @@ private:
         std::string themesDir = configDir + pathSep + "themes";
         if (stat(themesDir.c_str(), &st) == -1) {
             if (createDirectory(themesDir)) {
-                std::cout << "Created themes directory: " << themesDir << std::endl;
+                std::cout << "Created themes directory: " << themesDir << "\n";
             } else {
-                std::cerr << "Failed to create themes directory: " << themesDir << std::endl;
+                std::cerr << "Failed to create themes directory: " << themesDir << "\n";
             }
         }
         
@@ -3342,9 +3881,9 @@ private:
         bookmarksDir = configDir + pathSep + "bookmarks";
         if (stat(bookmarksDir.c_str(), &st) == -1) {
             if (createDirectory(bookmarksDir)) {
-                std::cout << "Created bookmarks directory: " << bookmarksDir << std::endl;
+                std::cout << "Created bookmarks directory: " << bookmarksDir << "\n";
             } else {
-                std::cerr << "Failed to create bookmarks directory: " << bookmarksDir << std::endl;
+                std::cerr << "Failed to create bookmarks directory: " << bookmarksDir << "\n";
             }
         }
         
@@ -3376,7 +3915,7 @@ private:
             if (outFile.is_open()) {
                 outFile << "default|0\n";
                 outFile.close();
-                std::cout << "Created bookmarks file: " << bookmarksFile << std::endl;
+                std::cout << "Created bookmarks file: " << bookmarksFile << "\n";
             }
         }
         
@@ -3385,7 +3924,7 @@ private:
             std::ofstream outFile(dataFile);
             if (outFile.is_open()) {
                 outFile.close();
-                std::cout << "Created clips file: " << dataFile << std::endl;
+                std::cout << "Created clips file: " << dataFile << "\n";
             }
         }
         // Check and create pinned.txt if needed
@@ -3393,7 +3932,7 @@ private:
             std::ofstream outFile(pinnedFile);
             if (outFile.is_open()) {
                 outFile.close();
-                std::cout << "Created pinned clips file: " << pinnedFile << std::endl;
+                std::cout << "Created pinned clips file: " << pinnedFile << "\n";
             }
         }
     }
@@ -3462,7 +4001,7 @@ private:
         // Install X11 error handler to catch grab failures
         auto oldHandler = XSetErrorHandler([](Display* /*d*/, XErrorEvent* e) -> int {
             if (e->error_code == BadAccess) {
-                std::cerr << "X11 Error: BadAccess when trying to grab key" << std::endl;
+                std::cerr << "X11 Error: BadAccess when trying to grab key\n";
                 return 0;
             }
             return 0;
@@ -3474,7 +4013,7 @@ private:
         
         for (int retry = 0; retry < MAX_RETRIES && !success; retry++) {
             if (retry > 0) {
-                std::cerr << "Retry " << retry << " of " << MAX_RETRIES << "..." << std::endl;
+                std::cerr << "Retry " << retry << " of " << MAX_RETRIES << "...\n";
                 std::this_thread::sleep_for(std::chrono::milliseconds(500 * retry));
             }
             
@@ -3512,7 +4051,7 @@ private:
             if (!grabFailed) {
                 success = true;
                 hotkeyGrabbed = true;
-                std::cout << "Successfully grabbed Ctrl+Alt+C hotkey" << std::endl;
+                std::cout << "Successfully grabbed Ctrl+Alt+C hotkey\n";
             }
         }
         
@@ -3534,7 +4073,7 @@ private:
 
     
     void showWindow() {
-        std::cout << "Visible: " << visible << std::endl;
+        std::cout << "Visible: " << visible << "\n";
 
         if (!visible) {
 #ifdef __linux__
@@ -3544,7 +4083,7 @@ private:
             ShowWindow(hwnd, SW_SHOW);
 #endif
             visible = true;
-            std::cout << "Window shown" << std::endl;
+            std::cout << "Window shown\n";
         }
     }
     
@@ -3555,14 +4094,14 @@ private:
 #endif
 #ifdef _WIN32
             if (hwnd) {
-                std::cout << "Calling ShowWindow(SW_HIDE)" << std::endl;
+                std::cout << "Calling ShowWindow(SW_HIDE)\n";
                 ShowWindow(hwnd, SW_HIDE);
             } else {
-                std::cout << "hwnd is null!" << std::endl;
+                std::cout << "hwnd is null!\n";
             }
 #endif
             visible = false;
-            std::cout << "Window hidden" << std::endl;
+            std::cout << "Window hidden\n";
         }
     }
     
@@ -3622,7 +4161,9 @@ private:
         y += lineHeight;
         drawHelpTopic(hdc, topicLeft, y, contentTop, contentBottom, "p              - Pin clip");
         y += lineHeight;
-        drawHelpTopic(hdc, topicLeft, y, contentTop, contentBottom, "'              - view pinned clips");
+        drawHelpTopic(hdc, topicLeft, y, contentTop, contentBottom, "'              - View pinned clips");
+        y += lineHeight;
+        drawHelpTopic(hdc, topicLeft, y, contentTop, contentBottom, "i              - Edit current clip");
         y += lineHeight;
         drawHelpTopic(hdc, topicLeft, y, contentTop, contentBottom, "?              - This help");
         y += lineHeight;
@@ -3716,7 +4257,11 @@ private:
         y += lineHeight;
         drawHelpTopic(hdc, topicLeft, y, contentTop, contentBottom, "theme          - Select theme to apply");
         y += lineHeight;
-        drawHelpTopic(hdc, topicLeft, y, contentTop, contentBottom, "Enter          - Apply command");
+        drawHelpTopic(hdc, topicLeft, y, contentTop, contentBottom, "config         - Select config option or modify with: config key value");
+        y += lineHeight;
+        drawHelpTopic(hdc, topicLeft, y, contentTop, contentBottom, "Enter          - Select config or apply change");
+        y += lineHeight;
+        drawHelpTopic(hdc, topicLeft, y, contentTop, contentBottom, "Example: config max_clips 1000");
         y += lineHeight;
         drawHelpTopic(hdc, topicLeft, y, contentTop, contentBottom, "Escape         - Cancel command");
         y += lineHeight + gap + 5;
@@ -3794,6 +4339,32 @@ public:
                 }
                 
                 // Don't draw clipboard items in theme selection mode
+                return;
+            }
+            else if (cmd_configSelectMode) {
+                // Draw config selection header
+                std::string header = "Select config option (" + std::to_string(availableConfigs.size()) + " total):";
+                XDrawString(display, window, gc, 10, startY, header.c_str(), header.length());
+                startY += LINE_HEIGHT;
+                
+                // Draw config list
+                const int VISIBLE_CONFIGS = 10;
+                size_t startIdx = configSelectScrollOffset;
+                size_t endIdx = std::min(startIdx + VISIBLE_CONFIGS, availableConfigs.size());
+                
+                for (size_t i = startIdx; i < endIdx; ++i) {
+                    std::string configDisplay = (i == selectedConfig ? "> " : "  ") + availableConfigs[i];
+                    XDrawString(display, window, gc, 10, startY, configDisplay.c_str(), configDisplay.length());
+                    startY += LINE_HEIGHT;
+                }
+                
+                // Show scroll indicator if there are more configs
+                if (availableConfigs.size() > VISIBLE_CONFIGS) {
+                    std::string scrollInfo = "Showing " + std::to_string(startIdx + 1) + "-" + std::to_string(endIdx) + " of " + std::to_string(availableConfigs.size());
+                    XDrawString(display, window, gc, 10, startY, scrollInfo.c_str(), scrollInfo.length());
+                }
+                
+                // Don't draw clipboard items in config selection mode
                 return;
             }
             
@@ -3927,6 +4498,7 @@ public:
             drawViewBookmarksDialog();
             drawPinnedDialog();
             drawHelpDialog();
+            drawEditDialog();
         }
 
         void drawBookmarkDialog() {
@@ -4298,6 +4870,58 @@ public:
 
             drawAllHelpTopics(nullptr, titleLeft, topicLeft, lineHeight, gap, y, contentTop, contentBottom);
         }
+
+        void drawEditDialog() {
+            if (!editDialogVisible) return;
+            
+            // Get dynamic dialog dimensions
+            DialogDimensions dims = getEditDialogDimensions();
+            
+            // Draw dialog background
+            XSetForeground(display, gc, backgroundColor);
+            XFillRectangle(display, window, gc, dims.x, dims.y, dims.width, dims.height);
+            XSetForeground(display, gc, borderColor);
+            XDrawRectangle(display, window, gc, dims.x, dims.y, dims.width, dims.height);
+            
+            // Draw title
+            std::string title = "Edit Clip (CTRL+ENTER to save, ESC to cancel)";
+            int titleWidth = XTextWidth(font, title.c_str(), title.length());
+            XDrawString(display, window, gc, dims.x + (dims.width - titleWidth) / 2, dims.y + 25, title.c_str(), title.length());
+            
+            // Draw input box
+            XSetForeground(display, gc, backgroundColor);
+            XFillRectangle(display, window, gc, dims.x + 20, dims.y + 50, dims.width - 40, dims.height - 70);
+            XSetForeground(display, gc, textColor);
+            XDrawRectangle(display, window, gc, dims.x + 20, dims.y + 50, dims.width - 40, dims.height - 70);
+            
+            // Draw input text (multi-line)
+            std::string currentText = editDialogInput;
+            std::string line;
+            std::istringstream iss(currentText);
+            int y = dims.y + 65;
+            int lineHeight = 15; // Assuming fixed font line height
+            
+            int maxVisibleLines = (dims.height - 70) / lineHeight;
+            int startLine = editDialogScrollOffset;
+            int endLine = startLine + maxVisibleLines;
+            
+            int currentLine = 0;
+            while (std::getline(iss, line)) {
+                if (currentLine >= startLine && currentLine < endLine) {
+                    std::string displayText = line;
+                    if (currentLine == (int)editDialogCursorLine) {
+                        if (editDialogCursorPos <= displayText.length()) {
+                            displayText.insert(editDialogCursorPos, "_");
+                        } else {
+                            displayText += "_";
+                        }
+                    }
+                    XDrawString(display, window, gc, dims.x + 25, y, displayText.c_str(), displayText.length());
+                    y += lineHeight;
+                }
+                currentLine++;
+            }
+        }
 #endif
     // End Linux UI Methods
 
@@ -4376,6 +5000,51 @@ public:
                 // Show scroll indicator if there are more themes
                 if (availableThemes.size() > VISIBLE_THEMES) {
                     std::string scrollInfo = "Showing " + std::to_string(startIdx + 1) + "-" + std::to_string(endIdx) + " of " + std::to_string(availableThemes.size());
+                    TextOut(hdc, 10, startY, scrollInfo.c_str(), scrollInfo.length());
+                }
+                
+                // Cleanup and return
+                SelectObject(hdc, hOldFont);
+                DeleteObject(hFont);
+                ReleaseDC(hwnd, hdc);
+                return;
+            }
+            else if (cmd_configSelectMode) {
+                // Create font for drawing
+                HFONT hFont = CreateFont(FONT_SIZE, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE, 
+                                       DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, 
+                                       CLEARTYPE_QUALITY, DEFAULT_PITCH | FF_DONTCARE, FONT_NAME.c_str());
+                HFONT hOldFont = (HFONT)SelectObject(hdc, hFont);
+                
+                // Draw config selection header
+                std::string header = "Select config option (" + std::to_string(availableConfigs.size()) + " total):";
+                TextOut(hdc, 10, startY, header.c_str(), header.length());
+                startY += LINE_HEIGHT;
+                
+                // Draw config list
+                const int VISIBLE_CONFIGS = 10;
+                size_t startIdx = configSelectScrollOffset;
+                size_t endIdx = std::min(startIdx + VISIBLE_CONFIGS, availableConfigs.size());
+                
+                for (size_t i = startIdx; i < endIdx; ++i) {
+                    std::string configDisplay = (i == selectedConfig ? "> " : "  ") + availableConfigs[i];
+                    // Highlight selected config
+                    if (i == selectedConfig) {
+                        RECT highlightRect = {5, startY - WIN_SEL_RECT_OFFSET_Y, getClipListWidth(), startY - WIN_SEL_RECT_OFFSET_Y + WIN_SEL_RECT_HEIGHT};
+                        HBRUSH hHighlightBrush = CreateSolidBrush(selectionColor);
+                        FillRect(hdc, &highlightRect, hHighlightBrush);
+                        DeleteObject(hHighlightBrush);
+                    }
+                    
+                    // Ensure text color is set before drawing
+                    SetTextColor(hdc, textColor);
+                    TextOut(hdc, 10, startY, configDisplay.c_str(), configDisplay.length());
+                    startY += LINE_HEIGHT;
+                }
+                
+                // Show scroll indicator if there are more configs
+                if (availableConfigs.size() > VISIBLE_CONFIGS) {
+                    std::string scrollInfo = "Showing " + std::to_string(startIdx + 1) + "-" + std::to_string(endIdx) + " of " + std::to_string(availableConfigs.size());
                     TextOut(hdc, 10, startY, scrollInfo.c_str(), scrollInfo.length());
                 }
                 
@@ -4518,6 +5187,7 @@ public:
             drawViewBookmarksDialog(hdc);
             drawPinnedDialog(hdc);
             drawHelpDialog(hdc);
+            drawEditDialog(hdc);
             
             // Cleanup
             SelectObject(hdc, hOldFont);
@@ -5047,6 +5717,94 @@ public:
             // Restore clipping region (VERY important)
             SelectClipRgn(hdc, oldClip == NULLREGION ? nullptr : reinterpret_cast<HRGN>(oldClip));
         }
+
+        void drawEditDialog(HDC hdc) {
+            if (!editDialogVisible) return;
+            
+            // Create and select font
+            HFONT hFont = CreateFont(14, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
+                                   DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
+                                   CLEARTYPE_QUALITY, DEFAULT_PITCH | FF_DONTCARE, "Consolas");
+            HFONT hOldFont = (HFONT)SelectObject(hdc, hFont);
+            SetBkMode(hdc, TRANSPARENT);
+            
+            // Get dynamic dialog dimensions
+            DialogDimensions dims = getEditDialogDimensions();
+            
+            // Draw dialog background
+            HBRUSH hBgBrush = CreateSolidBrush(backgroundColor);
+            RECT bgRect = {dims.x, dims.y, dims.x + dims.width, dims.y + dims.height};
+            FillRect(hdc, &bgRect, hBgBrush);
+            DeleteObject(hBgBrush);
+            
+            // --- Draw border safely (manually, to avoid Win32 Rectangle() quirks) ---
+            HPEN hBorderPen = CreatePen(PS_SOLID, 1, borderColor);
+            HPEN hOldPen = (HPEN)SelectObject(hdc, hBorderPen);
+            HBRUSH hOldBrush = (HBRUSH)SelectObject(hdc, GetStockObject(NULL_BRUSH));
+
+            MoveToEx(hdc, dims.x,               dims.y,                NULL);
+            LineTo(hdc,   dims.x + dims.width,  dims.y);
+            LineTo(hdc,   dims.x + dims.width,  dims.y + dims.height);
+            LineTo(hdc,   dims.x,               dims.y + dims.height);
+            LineTo(hdc,   dims.x,               dims.y);
+
+            SelectObject(hdc, hOldBrush);
+            SelectObject(hdc, hOldPen);
+            DeleteObject(hBorderPen);
+            
+            // Draw title
+            std::string title = "Edit Clip (CTRL+ENTER to save, ESC to cancel)";
+            SetTextColor(hdc, textColor);
+            TextOut(hdc, dims.x + 20, dims.y + 25, title.c_str(), title.length());
+            
+            // Draw input box
+            HBRUSH hInputBrush = CreateSolidBrush(backgroundColor);
+            RECT inputRect = {dims.x + 20, dims.y + 50, dims.x + dims.width - 20, dims.y + dims.height - 20};
+            FillRect(hdc, &inputRect, hInputBrush);
+            DeleteObject(hInputBrush);
+            
+            // Draw input box border
+            HPEN hInputPen = CreatePen(PS_SOLID, 1, textColor);
+            hOldBrush = (HBRUSH)SelectObject(hdc, GetStockObject(NULL_BRUSH));
+            hOldPen = (HPEN)SelectObject(hdc, hInputPen);
+            Rectangle(hdc, dims.x + 20, dims.y + 50, dims.x + dims.width - 20, dims.y + dims.height - 20);
+            SelectObject(hdc, hOldPen);
+            SelectObject(hdc, hOldBrush);
+            DeleteObject(hInputPen);
+            
+            // Draw input text (multi-line)
+            std::string currentText = editDialogInput;
+            std::string line;
+            std::istringstream iss(currentText);
+            int y = dims.y + 55; // Starting Y for text content
+            int lineHeight = 15; // Assuming fixed font line height
+            
+            int maxVisibleLines = (dims.height - 70) / lineHeight;
+            int startLine = editDialogScrollOffset;
+            int endLine = startLine + maxVisibleLines;
+            
+            int currentLineNum = 0;
+            while (std::getline(iss, line)) {
+                if (currentLineNum >= startLine && currentLineNum < endLine) {
+                    std::string displayText = line;
+                    if (currentLineNum == (int)editDialogCursorLine) {
+                        if (editDialogCursorPos <= displayText.length()) {
+                            displayText.insert(editDialogCursorPos, "_");
+                        } else {
+                            displayText += "_";
+                        }
+                    }
+                    SetTextColor(hdc, textColor);
+                    TextOut(hdc, dims.x + 25, y, displayText.c_str(), displayText.length());
+                    y += lineHeight;
+                }
+                currentLineNum++;
+            }
+            
+            // Cleanup
+            SelectObject(hdc, hOldFont);
+            DeleteObject(hFont);
+        }
 #endif
     // End Windows UI Methods
 
@@ -5142,7 +5900,7 @@ public:
 
             saveToFile();
 
-            std::cout << "Existing clip moved to top" << std::endl;
+            std::cout << "Existing clip moved to top\n";
 
             // Refresh display if window is visible
             if (visible) {
@@ -5153,7 +5911,7 @@ public:
         }
 
         items.emplace(items.begin(), trimmed_content);
-        if (items.size() > maxClips) {
+        while (items.size() > maxClips) {
             items.pop_back();
         }
         
@@ -5167,7 +5925,7 @@ public:
         
         saveToFile();
         
-        std::cout << "New clipboard item added" << std::endl;
+        std::cout << "New clipboard item added\n";
         
         // Refresh display if window is visible
         if (visible) {
@@ -5241,17 +5999,138 @@ public:
     
     void saveConfig() {
         std::string configFile = configDir + "/config.json";
-        std::ofstream outFile(configFile);
+        std::cout << "DEBUG: Saving to " << configFile << "\n";
+        std::cout << "DEBUG: maxClips before save = " << maxClips << "\n";
+        
+        std::ofstream outFile(configFile, std::ios::trunc);
+        
+        if (!outFile.is_open()) {
+            std::cout << "DEBUG: Failed to open file for writing\n";
+            return;
+        }
+        
+        std::cout << "DEBUG: File opened successfully\n";
+        
+        // Use a map to store all config values dynamically
+        std::map<std::string, std::string> configValues;
+        configValues["verbose"] = verboseMode ? "true" : "false";
+        configValues["debugging"] = m_debugging ? "true" : "false";
+        configValues["max_clips"] = std::to_string(maxClips);
+        configValues["encrypted"] = encrypted ? "true" : "false";
+        configValues["encryption_key"] = encryptionKey;
+        configValues["autostart"] = autoStart ? "true" : "false";
+        configValues["theme"] = theme;
+        
+        std::cout << "DEBUG: About to write max_clips = " << configValues["max_clips"] << "\n";
+        
         outFile << "{\n";
-        outFile << "    \"verbose\": " << (verboseMode ? "true" : "false") << ",\n";
-        outFile << "    \"debugging\": " << (m_debugging ? "true" : "false") << ",\n";
-        outFile << "    \"max_clips\": " << maxClips << ",\n";
-        outFile << "    \"encrypted\": " << (encrypted ? "true" : "false") << ",\n";
-        outFile << "    \"encryption_key\": \"" << encryptionKey << "\",\n";
-        outFile << "    \"autostart\": " << (autoStart ? "true" : "false") << ",\n";
-        outFile << "    \"theme\": \"" << theme << "\"\n";
-        outFile << "}\n";
+        bool first = true;
+        int writeCount = 0;
+        for (const auto& pair : configValues) {
+            if (!first) {
+                outFile << ",\n";
+            }
+            first = false;
+            
+            // Check if value should be quoted (string) or not (boolean/number)
+            if (pair.second == "true" || pair.second == "false") {
+                // Boolean - don't quote
+                outFile << "    \"" << pair.first << "\": " << pair.second;
+            } else if (pair.second.find_first_not_of("0123456789") == std::string::npos) {
+                // Number - don't quote
+                outFile << "    \"" << pair.first << "\": " << pair.second;
+            } else {
+                // String - quote it
+                outFile << "    \"" << pair.first << "\": \"" << pair.second << "\"";
+            }
+            writeCount++;
+            std::cout << "DEBUG: Wrote config entry " << writeCount << ": " << pair.first << " = " << pair.second << "\n";
+        }
+        outFile << "\n}\n";
+        outFile.flush();
         outFile.close();
+        
+        std::cout << "DEBUG: Save completed, wrote " << writeCount << " entries\n";
+    }
+    
+    // Config value helper functions
+    std::string getConfigValue(const std::string& configKey) {
+        if (configKey == "verbose") return verboseMode ? "true" : "false";
+        if (configKey == "debugging") return m_debugging ? "true" : "false";
+        if (configKey == "max_clips") return std::to_string(maxClips);
+        if (configKey == "encrypted") return encrypted ? "true" : "false";
+        if (configKey == "encryption_key") return encryptionKey;
+        if (configKey == "autostart") return autoStart ? "true" : "false";
+        if (configKey == "theme") return theme;
+        return "";
+    }
+    
+    std::string getConfigType(const std::string& configKey) {
+        if (configKey == "verbose" || configKey == "debugging" || 
+            configKey == "encrypted" || configKey == "autostart") {
+            return "boolean (true/false)";
+        }
+        if (configKey == "max_clips") {
+            return "number (positive integer)";
+        }
+        if (configKey == "encryption_key" || configKey == "theme") {
+            return "string";
+        }
+        return "unknown";
+    }
+    
+    bool updateConfigValue(const std::string& configKey, const std::string& newValue) {
+        try {
+            // Get current value to determine type
+            std::string currentValue = getConfigValue(configKey);
+            
+            // Boolean values
+            if (currentValue == "true" || currentValue == "false") {
+                if (newValue == "true" || newValue == "false") {
+                    // Update the specific boolean variable
+                    if (configKey == "verbose") verboseMode = newValue == "true";
+                    else if (configKey == "debugging") m_debugging = newValue == "true";
+                    else if (configKey == "encrypted") encrypted = newValue == "true";
+                    else if (configKey == "autostart") autoStart = newValue == "true";
+                    return true;
+                }
+                return false;
+            }
+            
+            // Try to parse as number first
+            try {
+                std::stoull(currentValue); // Just to check if it's a number
+                // If current value is a number, expect new value to be a number
+                size_t newNumValue = std::stoull(newValue);
+                if (newNumValue > 0) {
+                    // Update the specific numeric variable
+                    if (configKey == "max_clips") {
+                        std::cout << "DEBUG: Updating maxClips from " << maxClips << " to " << newNumValue << "\n";
+                        maxClips = newNumValue;
+                        std::cout << "DEBUG: maxClips is now " << maxClips << "\n";
+                    }
+                    return true;
+                }
+                return false;
+            }
+            catch (...) {
+                // Not a number, treat as string
+                if (configKey == "encryption_key") {
+                    encryptionKey = newValue;
+                    return true;
+                }
+                else if (configKey == "theme") {
+                    theme = newValue;
+                    loadTheme(); // Apply theme immediately
+                    return true;
+                }
+                // For any other string values
+                return true;
+            }
+        }
+        catch (const std::exception& e) {
+            return false;
+        }
     }
     
     void createDefaultConfig() {
@@ -5268,7 +6147,7 @@ public:
         outFile << "}\n";
         outFile.close();
         
-        std::cout << "Created default config at: " << configFile << std::endl;
+        std::cout << "Created default config at: " << configFile << "\n";
     }
     
     int countLines(const std::string& content) {
@@ -5379,9 +6258,9 @@ public:
             std::ofstream outFile(dataFile);
             if (outFile.is_open()) {
                 outFile.close();
-                std::cout << "Created empty clips file: " << dataFile << std::endl;
+                std::cout << "Created empty clips file: " << dataFile << "\n";
             } else {
-                std::cerr << "Failed to create clips file: " << dataFile << std::endl;
+                std::cerr << "Failed to create clips file: " << dataFile << "\n";
             }
         }
     }
@@ -5393,7 +6272,7 @@ ClipboardManager* g_manager = nullptr;
 
 #include <signal.h>
 void signal_handler(int signal) {
-    std::cout << "\nReceived signal " << signal << ", cleaning up..." << std::endl;
+    std::cout << "\nReceived signal " << signal << ", cleaning up...\n";
     if (g_manager) {
         // Just set running to false, don't join in signal handler
         g_manager->setRunning(false);
@@ -5486,7 +6365,7 @@ int main() {
 
     SingleInstance guard("Mmry");
     if (guard.isAnotherInstanceRunning()) {
-        std::cerr << "Another instance is already running. Exiting." << std::endl;
+        std::cerr << "Another instance is already running. Exiting.\n";
         return 1;
     }
     
@@ -5504,7 +6383,7 @@ int main() {
     // Check for another instance using a named mutex
     HANDLE hMutex = CreateMutexA(NULL, TRUE, "Global\\MmryClipboardManager");
     if (GetLastError() == ERROR_ALREADY_EXISTS) {
-        std::cerr << "Another instance is already running. Exiting." << std::endl;
+        std::cerr << "Another instance is already running. Exiting.\n";
         if (hMutex) {
             CloseHandle(hMutex);
         }
