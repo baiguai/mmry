@@ -1686,7 +1686,7 @@ public:
         bool key_config_select() {
             if (selectedConfig < availableConfigs.size()) {
                 cmd_configSelectMode = false;
-                commandText = availableConfigs[selectedConfig] + " ";
+                commandText = "config " + availableConfigs[selectedConfig] + " ";
                 commandMode = true;
                 availableConfigs.clear();
                 drawConsole();
@@ -2491,6 +2491,8 @@ private:
     std::vector<std::string> availableConfigs;
     size_t selectedConfig = 0;
     size_t configSelectScrollOffset = 0;
+    
+
     
     // Bookmark dialog
     bool bookmarkDialogVisible = false;
@@ -3623,6 +3625,46 @@ private:
             return;
         }
         
+        if (cmd == "config") {
+            if (!args.empty()) {
+                std::cout << "DEBUG: Processing config command with args: '" << args << "'\n";
+                // Parse "config key value" format
+                std::istringstream configIss(args);
+                std::string configKey, configValue;
+                
+                if (configIss >> configKey) {
+                    std::string remaining;
+                    std::getline(configIss, remaining);
+                    // Trim leading whitespace from config value
+                    if (!remaining.empty() && remaining[0] == ' ') {
+                        remaining = remaining.substr(1);
+                    }
+                    configValue = remaining;
+                    
+                    std::cout << "DEBUG: Parsed configKey='" << configKey << "', configValue='" << configValue << "'\n";
+                    
+                        // Validate and update config based on type
+                    if (updateConfigValue(configKey, configValue)) {
+                        std::cout << "DEBUG: updateConfigValue returned true, calling saveConfig()\n";
+                        saveConfig();
+                        std::cout << "Updated " << configKey << " = " << configValue << "\n";
+                    } else {
+                        std::cout << "DEBUG: updateConfigValue returned false\n";
+                        std::cout << "Invalid value for " << configKey << ". Expected type: " << getConfigType(configKey) << "\n";
+                    }
+                } else {
+                    std::cout << "DEBUG: Failed to parse config key from args\n";
+                }
+            } else {
+                // Enter config selection mode: "config"
+                commandMode = false;
+                cmd_configSelectMode = true;
+                discoverConfigs();
+                drawConsole();
+            }
+            return;
+        }
+        
         // Handle other commands (for future implementation)
         std::cout << "Command executed: " << command << "\n";
         
@@ -4215,9 +4257,11 @@ private:
         y += lineHeight;
         drawHelpTopic(hdc, topicLeft, y, contentTop, contentBottom, "theme          - Select theme to apply");
         y += lineHeight;
-        drawHelpTopic(hdc, topicLeft, y, contentTop, contentBottom, "config         - Select config option to modify");
+        drawHelpTopic(hdc, topicLeft, y, contentTop, contentBottom, "config         - Select config option or modify with: config key value");
         y += lineHeight;
-        drawHelpTopic(hdc, topicLeft, y, contentTop, contentBottom, "Enter          - Apply command");
+        drawHelpTopic(hdc, topicLeft, y, contentTop, contentBottom, "Enter          - Select config or apply change");
+        y += lineHeight;
+        drawHelpTopic(hdc, topicLeft, y, contentTop, contentBottom, "Example: config max_clips 1000");
         y += lineHeight;
         drawHelpTopic(hdc, topicLeft, y, contentTop, contentBottom, "Escape         - Cancel command");
         y += lineHeight + gap + 5;
@@ -5955,17 +5999,138 @@ public:
     
     void saveConfig() {
         std::string configFile = configDir + "/config.json";
-        std::ofstream outFile(configFile);
+        std::cout << "DEBUG: Saving to " << configFile << "\n";
+        std::cout << "DEBUG: maxClips before save = " << maxClips << "\n";
+        
+        std::ofstream outFile(configFile, std::ios::trunc);
+        
+        if (!outFile.is_open()) {
+            std::cout << "DEBUG: Failed to open file for writing\n";
+            return;
+        }
+        
+        std::cout << "DEBUG: File opened successfully\n";
+        
+        // Use a map to store all config values dynamically
+        std::map<std::string, std::string> configValues;
+        configValues["verbose"] = verboseMode ? "true" : "false";
+        configValues["debugging"] = m_debugging ? "true" : "false";
+        configValues["max_clips"] = std::to_string(maxClips);
+        configValues["encrypted"] = encrypted ? "true" : "false";
+        configValues["encryption_key"] = encryptionKey;
+        configValues["autostart"] = autoStart ? "true" : "false";
+        configValues["theme"] = theme;
+        
+        std::cout << "DEBUG: About to write max_clips = " << configValues["max_clips"] << "\n";
+        
         outFile << "{\n";
-        outFile << "    \"verbose\": " << (verboseMode ? "true" : "false") << ",\n";
-        outFile << "    \"debugging\": " << (m_debugging ? "true" : "false") << ",\n";
-        outFile << "    \"max_clips\": " << maxClips << ",\n";
-        outFile << "    \"encrypted\": " << (encrypted ? "true" : "false") << ",\n";
-        outFile << "    \"encryption_key\": \"" << encryptionKey << "\",\n";
-        outFile << "    \"autostart\": " << (autoStart ? "true" : "false") << ",\n";
-        outFile << "    \"theme\": \"" << theme << "\"\n";
-        outFile << "}\n";
+        bool first = true;
+        int writeCount = 0;
+        for (const auto& pair : configValues) {
+            if (!first) {
+                outFile << ",\n";
+            }
+            first = false;
+            
+            // Check if value should be quoted (string) or not (boolean/number)
+            if (pair.second == "true" || pair.second == "false") {
+                // Boolean - don't quote
+                outFile << "    \"" << pair.first << "\": " << pair.second;
+            } else if (pair.second.find_first_not_of("0123456789") == std::string::npos) {
+                // Number - don't quote
+                outFile << "    \"" << pair.first << "\": " << pair.second;
+            } else {
+                // String - quote it
+                outFile << "    \"" << pair.first << "\": \"" << pair.second << "\"";
+            }
+            writeCount++;
+            std::cout << "DEBUG: Wrote config entry " << writeCount << ": " << pair.first << " = " << pair.second << "\n";
+        }
+        outFile << "\n}\n";
+        outFile.flush();
         outFile.close();
+        
+        std::cout << "DEBUG: Save completed, wrote " << writeCount << " entries\n";
+    }
+    
+    // Config value helper functions
+    std::string getConfigValue(const std::string& configKey) {
+        if (configKey == "verbose") return verboseMode ? "true" : "false";
+        if (configKey == "debugging") return m_debugging ? "true" : "false";
+        if (configKey == "max_clips") return std::to_string(maxClips);
+        if (configKey == "encrypted") return encrypted ? "true" : "false";
+        if (configKey == "encryption_key") return encryptionKey;
+        if (configKey == "autostart") return autoStart ? "true" : "false";
+        if (configKey == "theme") return theme;
+        return "";
+    }
+    
+    std::string getConfigType(const std::string& configKey) {
+        if (configKey == "verbose" || configKey == "debugging" || 
+            configKey == "encrypted" || configKey == "autostart") {
+            return "boolean (true/false)";
+        }
+        if (configKey == "max_clips") {
+            return "number (positive integer)";
+        }
+        if (configKey == "encryption_key" || configKey == "theme") {
+            return "string";
+        }
+        return "unknown";
+    }
+    
+    bool updateConfigValue(const std::string& configKey, const std::string& newValue) {
+        try {
+            // Get current value to determine type
+            std::string currentValue = getConfigValue(configKey);
+            
+            // Boolean values
+            if (currentValue == "true" || currentValue == "false") {
+                if (newValue == "true" || newValue == "false") {
+                    // Update the specific boolean variable
+                    if (configKey == "verbose") verboseMode = newValue == "true";
+                    else if (configKey == "debugging") m_debugging = newValue == "true";
+                    else if (configKey == "encrypted") encrypted = newValue == "true";
+                    else if (configKey == "autostart") autoStart = newValue == "true";
+                    return true;
+                }
+                return false;
+            }
+            
+            // Try to parse as number first
+            try {
+                std::stoull(currentValue); // Just to check if it's a number
+                // If current value is a number, expect new value to be a number
+                size_t newNumValue = std::stoull(newValue);
+                if (newNumValue > 0) {
+                    // Update the specific numeric variable
+                    if (configKey == "max_clips") {
+                        std::cout << "DEBUG: Updating maxClips from " << maxClips << " to " << newNumValue << "\n";
+                        maxClips = newNumValue;
+                        std::cout << "DEBUG: maxClips is now " << maxClips << "\n";
+                    }
+                    return true;
+                }
+                return false;
+            }
+            catch (...) {
+                // Not a number, treat as string
+                if (configKey == "encryption_key") {
+                    encryptionKey = newValue;
+                    return true;
+                }
+                else if (configKey == "theme") {
+                    theme = newValue;
+                    loadTheme(); // Apply theme immediately
+                    return true;
+                }
+                // For any other string values
+                return true;
+            }
+        }
+        catch (const std::exception& e) {
+            return false;
+        }
     }
     
     void createDefaultConfig() {
