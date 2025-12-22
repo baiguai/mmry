@@ -1548,6 +1548,13 @@ public:
                 drawConsole();
                 return true;
             }
+            if (commandText == "config") {
+                // Enter config selection mode
+                cmd_configSelectMode = true;
+                discoverConfigs();
+
+                // AI: Show the list of config items we found in discoverConfigs() -- This should be similar to what we do in switchTheme - as far as showing the list is concerned, that's it, just the list render. See loadTheme for where that list is drawn.
+            }
 
             // Add space to command text for other commands
             commandText += " ";
@@ -2383,6 +2390,12 @@ private:
     std::vector<std::string> availableThemes;
     size_t selectedTheme = 0;
     size_t themeSelectScrollOffset = 0;
+
+    // Config selection mode
+    bool cmd_configSelectMode = false;
+    std::vector<std::string> availableConfigs;
+    size_t selectedConfig = 0;
+    size_t configSelectScrollOffset = 0;
     
     // Bookmark dialog
     bool bookmarkDialogVisible = false;
@@ -3020,7 +3033,7 @@ private:
         const int SCROLL_INDICATOR_HEIGHT = 15; // Height reserved for scroll indicator
         
         // Calculate starting Y position (accounting for filter, command, or theme selection mode)
-        int startY = (filterMode || commandMode || cmd_themeSelectMode) ? 45 : 20;
+        int startY = (filterMode || commandMode || cmd_themeSelectMode || cmd_configSelectMode) ? 45 : 20;
         
         // Calculate available height for items
         int availableHeight = windowHeight - startY - 10; // 10px bottom margin
@@ -3554,7 +3567,36 @@ private:
         selectedTheme = 0;
         themeSelectScrollOffset = 0;
     }
-    
+
+    void discoverConfigs() {
+        availableConfigs.clear();
+
+        std::string configFile = configDir + "/config.json";
+       
+        std::ifstream file(configFile);
+        if (file.is_open()) {
+            std::string line;
+            while (std::getline(file, line)) {
+                // Look for lines containing config keys (in quotes)
+                size_t start = line.find('"');
+                if (start != std::string::npos && start != line.rfind('"')) {
+                    size_t end = line.find('"', start + 1);
+                    if (end != std::string::npos) {
+                        std::string configKey = line.substr(start + 1, end - start - 1);
+                        if (!configKey.empty()) {
+                            availableConfigs.push_back(configKey);
+                        }
+                    }
+                }
+            }
+            file.close();
+        }
+        
+        // Reset selection
+        selectedTheme = 0;
+        themeSelectScrollOffset = 0;
+    }
+
     void switchTheme(const std::string& themeName) {
         theme = themeName;
         loadTheme();
