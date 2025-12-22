@@ -637,6 +637,36 @@ public:
             return;
         }
 
+        // Config selection mode
+        //
+        if (cmd_configSelectMode) {
+            if (key_value == "ESCAPE") {
+                if (key_config_cancel()) return;
+            }
+
+            if (key_value == "RETURN") {
+                if (key_config_select()) return;
+            }
+
+            if (key_value == "j" || key_value == "DOWN") {
+                if (key_config_down()) return;
+            }
+
+            if (key_value == "k" || key_value == "UP") {
+                if (key_config_up()) return;
+            }
+
+            if (key_value == "g") {
+                if (key_config_top()) return;
+            }
+
+            if (key_value == "G") {
+                if (key_config_bottom()) return;
+            }
+
+            return;
+        }
+
 
         // General keys - main clips list
         //
@@ -760,6 +790,14 @@ public:
                 cmd_themeSelectMode = false;
                 availableThemes.clear();
                 originalTheme.clear();
+                selectedItem = 0;
+                drawConsole();
+            } else if (cmd_configSelectMode) {
+                // Exit config selection mode and return to command mode
+                cmd_configSelectMode = false;
+                commandMode = true;
+                commandText = "";
+                availableConfigs.clear();
                 selectedItem = 0;
                 drawConsole();
             } else {
@@ -1550,20 +1588,11 @@ public:
             }
             if (commandText == "config") {
                 // Enter config selection mode
+                commandMode = false;
                 cmd_configSelectMode = true;
                 discoverConfigs();
-
-                // BEGIN AI
-                // Show the list of config items we found in discoverConfigs() -- This should be similar to what we do in switchTheme - as far as showing the list is concerned, that's it, just the list render. See loadTheme for where that list is drawn.
-                // I have a set of variables that kind of mirror what we did for the theme switcher:
-                //      bool cmd_configSelectMode = false;
-                //      std::vector<std::string> availableConfigs;
-                //      size_t selectedConfig = 0;
-                //      size_t configSelectScrollOffset = 0;
-                //
-                // ALL this should do when I select a config option, is add that option's name to the input field, followed by a space - so that I can then enter the new value I want.
-                // ESCAPE should function JUST like what we do for the theme picker. - same with the BACKSPACE etc.
-                // END AI
+                drawConsole();
+                return true;
             }
 
             // Add space to command text for other commands
@@ -1638,6 +1667,62 @@ public:
             if (!availableThemes.empty()) {
                 selectedTheme = availableThemes.size() - 1;
                 updateThemeSelectScrollOffset();
+                drawConsole();
+            }
+            return true;
+        }
+
+        // Config Command
+        bool key_config_cancel() {
+            cmd_configSelectMode = false;
+            commandMode = true;
+            commandText = "";
+            availableConfigs.clear();
+            selectedItem = 0;
+            drawConsole();
+            return true;
+        }
+
+        bool key_config_select() {
+            if (selectedConfig < availableConfigs.size()) {
+                cmd_configSelectMode = false;
+                commandText = availableConfigs[selectedConfig] + " ";
+                commandMode = true;
+                availableConfigs.clear();
+                drawConsole();
+            }
+            return true;
+        }
+
+        bool key_config_down() {
+            if (selectedConfig < availableConfigs.size() - 1) {
+                selectedConfig++;
+                updateConfigSelectScrollOffset();
+                drawConsole();
+            }
+            return true;
+        }
+
+        bool key_config_up() {
+            if (selectedConfig > 0) {
+                selectedConfig--;
+                updateConfigSelectScrollOffset();
+                drawConsole();
+            }
+            return true;
+        }
+
+        bool key_config_top() {
+            selectedConfig = 0;
+            configSelectScrollOffset = 0;
+            drawConsole();
+            return true;
+        }
+
+        bool key_config_bottom() {
+            if (!availableConfigs.empty()) {
+                selectedConfig = availableConfigs.size() - 1;
+                updateConfigSelectScrollOffset();
                 drawConsole();
             }
             return true;
@@ -3122,6 +3207,16 @@ private:
         }
     }
     
+    void updateConfigSelectScrollOffset() {
+        const int VISIBLE_ITEMS = 10; // Number of configs visible in config selection
+        
+        if (selectedConfig < configSelectScrollOffset) {
+            configSelectScrollOffset = selectedConfig;
+        } else if (selectedConfig >= configSelectScrollOffset + VISIBLE_ITEMS) {
+            configSelectScrollOffset = selectedConfig - VISIBLE_ITEMS + 1;
+        }
+    }
+    
     void updateHelpDialogScrollOffset(int adjustment) {
         const int STEP = 10;
        
@@ -3603,8 +3698,8 @@ private:
         }
         
         // Reset selection
-        selectedTheme = 0;
-        themeSelectScrollOffset = 0;
+        selectedConfig = 0;
+        configSelectScrollOffset = 0;
     }
 
     void switchTheme(const std::string& themeName) {
@@ -4120,6 +4215,8 @@ private:
         y += lineHeight;
         drawHelpTopic(hdc, topicLeft, y, contentTop, contentBottom, "theme          - Select theme to apply");
         y += lineHeight;
+        drawHelpTopic(hdc, topicLeft, y, contentTop, contentBottom, "config         - Select config option to modify");
+        y += lineHeight;
         drawHelpTopic(hdc, topicLeft, y, contentTop, contentBottom, "Enter          - Apply command");
         y += lineHeight;
         drawHelpTopic(hdc, topicLeft, y, contentTop, contentBottom, "Escape         - Cancel command");
@@ -4198,6 +4295,32 @@ public:
                 }
                 
                 // Don't draw clipboard items in theme selection mode
+                return;
+            }
+            else if (cmd_configSelectMode) {
+                // Draw config selection header
+                std::string header = "Select config option (" + std::to_string(availableConfigs.size()) + " total):";
+                XDrawString(display, window, gc, 10, startY, header.c_str(), header.length());
+                startY += LINE_HEIGHT;
+                
+                // Draw config list
+                const int VISIBLE_CONFIGS = 10;
+                size_t startIdx = configSelectScrollOffset;
+                size_t endIdx = std::min(startIdx + VISIBLE_CONFIGS, availableConfigs.size());
+                
+                for (size_t i = startIdx; i < endIdx; ++i) {
+                    std::string configDisplay = (i == selectedConfig ? "> " : "  ") + availableConfigs[i];
+                    XDrawString(display, window, gc, 10, startY, configDisplay.c_str(), configDisplay.length());
+                    startY += LINE_HEIGHT;
+                }
+                
+                // Show scroll indicator if there are more configs
+                if (availableConfigs.size() > VISIBLE_CONFIGS) {
+                    std::string scrollInfo = "Showing " + std::to_string(startIdx + 1) + "-" + std::to_string(endIdx) + " of " + std::to_string(availableConfigs.size());
+                    XDrawString(display, window, gc, 10, startY, scrollInfo.c_str(), scrollInfo.length());
+                }
+                
+                // Don't draw clipboard items in config selection mode
                 return;
             }
             
@@ -4833,6 +4956,51 @@ public:
                 // Show scroll indicator if there are more themes
                 if (availableThemes.size() > VISIBLE_THEMES) {
                     std::string scrollInfo = "Showing " + std::to_string(startIdx + 1) + "-" + std::to_string(endIdx) + " of " + std::to_string(availableThemes.size());
+                    TextOut(hdc, 10, startY, scrollInfo.c_str(), scrollInfo.length());
+                }
+                
+                // Cleanup and return
+                SelectObject(hdc, hOldFont);
+                DeleteObject(hFont);
+                ReleaseDC(hwnd, hdc);
+                return;
+            }
+            else if (cmd_configSelectMode) {
+                // Create font for drawing
+                HFONT hFont = CreateFont(FONT_SIZE, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE, 
+                                       DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, 
+                                       CLEARTYPE_QUALITY, DEFAULT_PITCH | FF_DONTCARE, FONT_NAME.c_str());
+                HFONT hOldFont = (HFONT)SelectObject(hdc, hFont);
+                
+                // Draw config selection header
+                std::string header = "Select config option (" + std::to_string(availableConfigs.size()) + " total):";
+                TextOut(hdc, 10, startY, header.c_str(), header.length());
+                startY += LINE_HEIGHT;
+                
+                // Draw config list
+                const int VISIBLE_CONFIGS = 10;
+                size_t startIdx = configSelectScrollOffset;
+                size_t endIdx = std::min(startIdx + VISIBLE_CONFIGS, availableConfigs.size());
+                
+                for (size_t i = startIdx; i < endIdx; ++i) {
+                    std::string configDisplay = (i == selectedConfig ? "> " : "  ") + availableConfigs[i];
+                    // Highlight selected config
+                    if (i == selectedConfig) {
+                        RECT highlightRect = {5, startY - WIN_SEL_RECT_OFFSET_Y, getClipListWidth(), startY - WIN_SEL_RECT_OFFSET_Y + WIN_SEL_RECT_HEIGHT};
+                        HBRUSH hHighlightBrush = CreateSolidBrush(selectionColor);
+                        FillRect(hdc, &highlightRect, hHighlightBrush);
+                        DeleteObject(hHighlightBrush);
+                    }
+                    
+                    // Ensure text color is set before drawing
+                    SetTextColor(hdc, textColor);
+                    TextOut(hdc, 10, startY, configDisplay.c_str(), configDisplay.length());
+                    startY += LINE_HEIGHT;
+                }
+                
+                // Show scroll indicator if there are more configs
+                if (availableConfigs.size() > VISIBLE_CONFIGS) {
+                    std::string scrollInfo = "Showing " + std::to_string(startIdx + 1) + "-" + std::to_string(endIdx) + " of " + std::to_string(availableConfigs.size());
                     TextOut(hdc, 10, startY, scrollInfo.c_str(), scrollInfo.length());
                 }
                 
