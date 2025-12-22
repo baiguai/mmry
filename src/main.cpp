@@ -941,16 +941,33 @@ public:
 
         bool key_edit_scroll_down() {
             // Need to calculate max scroll offset based on content and dialog height
-            // For now, allow scrolling down as long as there's content below
-            size_t totalLines = 1;
-            for (char c : editDialogInput) {
-                if (c == '\n') totalLines++;
-            }
-            
             DialogDimensions dims = getEditDialogDimensions();
-            int maxVisibleLines = (dims.height - 70) / 15; // 15 is LINE_HEIGHT for the dialog
+            const int lineHeight = 15;
+            const int charWidth = 8;
+            int maxCharsPerLine = (dims.width - 50) / charWidth;
+            if (maxCharsPerLine < 1) maxCharsPerLine = 1;
+
+            int totalVisualLines = 0;
+            if (editDialogInput.empty()) {
+                totalVisualLines = 1;
+            } else {
+                std::istringstream iss(editDialogInput);
+                std::string logicalLine;
+                while (std::getline(iss, logicalLine)) {
+                    if (logicalLine.empty()) {
+                        totalVisualLines++;
+                    } else {
+                        totalVisualLines += (logicalLine.length() + maxCharsPerLine - 1) / maxCharsPerLine;
+                    }
+                }
+                if (editDialogInput.back() == '\n') {
+                    totalVisualLines++;
+                }
+            }
+
+            int maxVisibleLines = (dims.height - 70) / lineHeight;
             
-            if (editDialogScrollOffset < (int)totalLines - maxVisibleLines) {
+            if (editDialogScrollOffset < totalVisualLines - maxVisibleLines) {
                 editDialogScrollOffset++;
                 drawConsole();
             }
@@ -4896,32 +4913,69 @@ public:
             XSetForeground(display, gc, textColor);
             XDrawRectangle(display, window, gc, dims.x + 20, dims.y + 50, dims.width - 40, dims.height - 70);
             
-            // Draw input text (multi-line)
-            std::string currentText = editDialogInput;
-            std::string line;
-            std::istringstream iss(currentText);
+            // Draw input text (multi-line with wrapping)
+            const int lineHeight = 15;
+            const int charWidth = 8; // Estimate for monospace font
+            int maxCharsPerLine = (dims.width - 50) / charWidth; // 25px margin on each side
+            if (maxCharsPerLine < 1) maxCharsPerLine = 1;
+
+            std::istringstream iss(editDialogInput);
+            std::string logicalLine;
+            
+            int logicalLineIndex = 0;
             int y = dims.y + 65;
-            int lineHeight = 15; // Assuming fixed font line height
-            
-            int maxVisibleLines = (dims.height - 70) / lineHeight;
-            int startLine = editDialogScrollOffset;
-            int endLine = startLine + maxVisibleLines;
-            
-            int currentLine = 0;
-            while (std::getline(iss, line)) {
-                if (currentLine >= startLine && currentLine < endLine) {
-                    std::string displayText = line;
-                    if (currentLine == (int)editDialogCursorLine) {
-                        if (editDialogCursorPos <= displayText.length()) {
-                            displayText.insert(editDialogCursorPos, "_");
-                        } else {
-                            displayText += "_";
+
+            std::vector<std::string> visualLines;
+            std::vector<std::pair<int, int>> visualToLogicalMap;
+
+            // First, break the text into visual lines
+            while (std::getline(iss, logicalLine)) {
+                if (logicalLine.empty()) {
+                    visualLines.push_back("");
+                    visualToLogicalMap.push_back({logicalLineIndex, 0});
+                } else {
+                    size_t offset = 0;
+                    while (offset < logicalLine.length()) {
+                        visualLines.push_back(logicalLine.substr(offset, maxCharsPerLine));
+                        visualToLogicalMap.push_back({logicalLineIndex, (int)offset});
+                        offset += maxCharsPerLine;
+                    }
+                }
+                logicalLineIndex++;
+            }
+            if (editDialogInput.empty()) {
+                 visualLines.push_back("");
+                 visualToLogicalMap.push_back({0, 0});
+            } else if (editDialogInput.back() == '\n') {
+                 visualLines.push_back("");
+                 visualToLogicalMap.push_back({logicalLineIndex, 0});
+            }
+
+
+            // Draw the visual lines
+            for (size_t i = 0; i < visualLines.size(); ++i) {
+                if ((int)i >= editDialogScrollOffset && y < dims.y + dims.height - 20) {
+                    std::string displayText = visualLines[i];
+                    
+                    // Check if cursor is on this line
+                    auto logicalPos = visualToLogicalMap[i];
+                    if (logicalPos.first == (int)editDialogCursorLine) {
+                        size_t cursorInLine = editDialogCursorPos;
+                        size_t lineStartOffset = logicalPos.second;
+                        size_t lineEndOffset = lineStartOffset + visualLines[i].length();
+
+                        if(cursorInLine >= lineStartOffset && cursorInLine <= lineEndOffset) {
+                            size_t cursorInSub = cursorInLine - lineStartOffset;
+                             if (cursorInSub <= displayText.length()) {
+                                displayText.insert(cursorInSub, "_");
+                            } else {
+                                displayText += "_";
+                            }
                         }
                     }
                     XDrawString(display, window, gc, dims.x + 25, y, displayText.c_str(), displayText.length());
                     y += lineHeight;
                 }
-                currentLine++;
             }
         }
 #endif
