@@ -1553,7 +1553,17 @@ public:
                 cmd_configSelectMode = true;
                 discoverConfigs();
 
-                // AI: Show the list of config items we found in discoverConfigs() -- This should be similar to what we do in switchTheme - as far as showing the list is concerned, that's it, just the list render. See loadTheme for where that list is drawn.
+                // BEGIN AI
+                // Show the list of config items we found in discoverConfigs() -- This should be similar to what we do in switchTheme - as far as showing the list is concerned, that's it, just the list render. See loadTheme for where that list is drawn.
+                // I have a set of variables that kind of mirror what we did for the theme switcher:
+                //      bool cmd_configSelectMode = false;
+                //      std::vector<std::string> availableConfigs;
+                //      size_t selectedConfig = 0;
+                //      size_t configSelectScrollOffset = 0;
+                //
+                // ALL this should do when I select a config option, is add that option's name to the input field, followed by a space - so that I can then enter the new value I want.
+                // ESCAPE should function JUST like what we do for the theme picker. - same with the BACKSPACE etc.
+                // END AI
             }
 
             // Add space to command text for other commands
