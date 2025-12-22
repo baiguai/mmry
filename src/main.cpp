@@ -637,6 +637,36 @@ public:
             return;
         }
 
+        // Config selection mode
+        //
+        if (cmd_configSelectMode) {
+            if (key_value == "ESCAPE") {
+                if (key_config_cancel()) return;
+            }
+
+            if (key_value == "RETURN") {
+                if (key_config_select()) return;
+            }
+
+            if (key_value == "j" || key_value == "DOWN") {
+                if (key_config_down()) return;
+            }
+
+            if (key_value == "k" || key_value == "UP") {
+                if (key_config_up()) return;
+            }
+
+            if (key_value == "g") {
+                if (key_config_top()) return;
+            }
+
+            if (key_value == "G") {
+                if (key_config_bottom()) return;
+            }
+
+            return;
+        }
+
 
         // General keys - main clips list
         //
@@ -760,6 +790,14 @@ public:
                 cmd_themeSelectMode = false;
                 availableThemes.clear();
                 originalTheme.clear();
+                selectedItem = 0;
+                drawConsole();
+            } else if (cmd_configSelectMode) {
+                // Exit config selection mode and return to command mode
+                cmd_configSelectMode = false;
+                commandMode = true;
+                commandText = "";
+                availableConfigs.clear();
                 selectedItem = 0;
                 drawConsole();
             } else {
@@ -1548,6 +1586,14 @@ public:
                 drawConsole();
                 return true;
             }
+            if (commandText == "config") {
+                // Enter config selection mode
+                commandMode = false;
+                cmd_configSelectMode = true;
+                discoverConfigs();
+                drawConsole();
+                return true;
+            }
 
             // Add space to command text for other commands
             commandText += " ";
@@ -1621,6 +1667,62 @@ public:
             if (!availableThemes.empty()) {
                 selectedTheme = availableThemes.size() - 1;
                 updateThemeSelectScrollOffset();
+                drawConsole();
+            }
+            return true;
+        }
+
+        // Config Command
+        bool key_config_cancel() {
+            cmd_configSelectMode = false;
+            commandMode = true;
+            commandText = "";
+            availableConfigs.clear();
+            selectedItem = 0;
+            drawConsole();
+            return true;
+        }
+
+        bool key_config_select() {
+            if (selectedConfig < availableConfigs.size()) {
+                cmd_configSelectMode = false;
+                commandText = "config " + availableConfigs[selectedConfig] + " ";
+                commandMode = true;
+                availableConfigs.clear();
+                drawConsole();
+            }
+            return true;
+        }
+
+        bool key_config_down() {
+            if (selectedConfig < availableConfigs.size() - 1) {
+                selectedConfig++;
+                updateConfigSelectScrollOffset();
+                drawConsole();
+            }
+            return true;
+        }
+
+        bool key_config_up() {
+            if (selectedConfig > 0) {
+                selectedConfig--;
+                updateConfigSelectScrollOffset();
+                drawConsole();
+            }
+            return true;
+        }
+
+        bool key_config_top() {
+            selectedConfig = 0;
+            configSelectScrollOffset = 0;
+            drawConsole();
+            return true;
+        }
+
+        bool key_config_bottom() {
+            if (!availableConfigs.empty()) {
+                selectedConfig = availableConfigs.size() - 1;
+                updateConfigSelectScrollOffset();
                 drawConsole();
             }
             return true;
@@ -2383,6 +2485,14 @@ private:
     std::vector<std::string> availableThemes;
     size_t selectedTheme = 0;
     size_t themeSelectScrollOffset = 0;
+
+    // Config selection mode
+    bool cmd_configSelectMode = false;
+    std::vector<std::string> availableConfigs;
+    size_t selectedConfig = 0;
+    size_t configSelectScrollOffset = 0;
+    
+
     
     // Bookmark dialog
     bool bookmarkDialogVisible = false;
@@ -3020,7 +3130,7 @@ private:
         const int SCROLL_INDICATOR_HEIGHT = 15; // Height reserved for scroll indicator
         
         // Calculate starting Y position (accounting for filter, command, or theme selection mode)
-        int startY = (filterMode || commandMode || cmd_themeSelectMode) ? 45 : 20;
+        int startY = (filterMode || commandMode || cmd_themeSelectMode || cmd_configSelectMode) ? 45 : 20;
         
         // Calculate available height for items
         int availableHeight = windowHeight - startY - 10; // 10px bottom margin
@@ -3096,6 +3206,16 @@ private:
             themeSelectScrollOffset = selectedTheme;
         } else if (selectedTheme >= themeSelectScrollOffset + VISIBLE_ITEMS) {
             themeSelectScrollOffset = selectedTheme - VISIBLE_ITEMS + 1;
+        }
+    }
+    
+    void updateConfigSelectScrollOffset() {
+        const int VISIBLE_ITEMS = 10; // Number of configs visible in config selection
+        
+        if (selectedConfig < configSelectScrollOffset) {
+            configSelectScrollOffset = selectedConfig;
+        } else if (selectedConfig >= configSelectScrollOffset + VISIBLE_ITEMS) {
+            configSelectScrollOffset = selectedConfig - VISIBLE_ITEMS + 1;
         }
     }
     
@@ -3505,6 +3625,46 @@ private:
             return;
         }
         
+        if (cmd == "config") {
+            if (!args.empty()) {
+                std::cout << "DEBUG: Processing config command with args: '" << args << "'\n";
+                // Parse "config key value" format
+                std::istringstream configIss(args);
+                std::string configKey, configValue;
+                
+                if (configIss >> configKey) {
+                    std::string remaining;
+                    std::getline(configIss, remaining);
+                    // Trim leading whitespace from config value
+                    if (!remaining.empty() && remaining[0] == ' ') {
+                        remaining = remaining.substr(1);
+                    }
+                    configValue = remaining;
+                    
+                    std::cout << "DEBUG: Parsed configKey='" << configKey << "', configValue='" << configValue << "'\n";
+                    
+                        // Validate and update config based on type
+                    if (updateConfigValue(configKey, configValue)) {
+                        std::cout << "DEBUG: updateConfigValue returned true, calling saveConfig()\n";
+                        saveConfig();
+                        std::cout << "Updated " << configKey << " = " << configValue << "\n";
+                    } else {
+                        std::cout << "DEBUG: updateConfigValue returned false\n";
+                        std::cout << "Invalid value for " << configKey << ". Expected type: " << getConfigType(configKey) << "\n";
+                    }
+                } else {
+                    std::cout << "DEBUG: Failed to parse config key from args\n";
+                }
+            } else {
+                // Enter config selection mode: "config"
+                commandMode = false;
+                cmd_configSelectMode = true;
+                discoverConfigs();
+                drawConsole();
+            }
+            return;
+        }
+        
         // Handle other commands (for future implementation)
         std::cout << "Command executed: " << command << "\n";
         
@@ -3554,7 +3714,36 @@ private:
         selectedTheme = 0;
         themeSelectScrollOffset = 0;
     }
-    
+
+    void discoverConfigs() {
+        availableConfigs.clear();
+
+        std::string configFile = configDir + "/config.json";
+       
+        std::ifstream file(configFile);
+        if (file.is_open()) {
+            std::string line;
+            while (std::getline(file, line)) {
+                // Look for lines containing config keys (in quotes)
+                size_t start = line.find('"');
+                if (start != std::string::npos && start != line.rfind('"')) {
+                    size_t end = line.find('"', start + 1);
+                    if (end != std::string::npos) {
+                        std::string configKey = line.substr(start + 1, end - start - 1);
+                        if (!configKey.empty()) {
+                            availableConfigs.push_back(configKey);
+                        }
+                    }
+                }
+            }
+            file.close();
+        }
+        
+        // Reset selection
+        selectedConfig = 0;
+        configSelectScrollOffset = 0;
+    }
+
     void switchTheme(const std::string& themeName) {
         theme = themeName;
         loadTheme();
@@ -4068,7 +4257,11 @@ private:
         y += lineHeight;
         drawHelpTopic(hdc, topicLeft, y, contentTop, contentBottom, "theme          - Select theme to apply");
         y += lineHeight;
-        drawHelpTopic(hdc, topicLeft, y, contentTop, contentBottom, "Enter          - Apply command");
+        drawHelpTopic(hdc, topicLeft, y, contentTop, contentBottom, "config         - Select config option or modify with: config key value");
+        y += lineHeight;
+        drawHelpTopic(hdc, topicLeft, y, contentTop, contentBottom, "Enter          - Select config or apply change");
+        y += lineHeight;
+        drawHelpTopic(hdc, topicLeft, y, contentTop, contentBottom, "Example: config max_clips 1000");
         y += lineHeight;
         drawHelpTopic(hdc, topicLeft, y, contentTop, contentBottom, "Escape         - Cancel command");
         y += lineHeight + gap + 5;
@@ -4146,6 +4339,32 @@ public:
                 }
                 
                 // Don't draw clipboard items in theme selection mode
+                return;
+            }
+            else if (cmd_configSelectMode) {
+                // Draw config selection header
+                std::string header = "Select config option (" + std::to_string(availableConfigs.size()) + " total):";
+                XDrawString(display, window, gc, 10, startY, header.c_str(), header.length());
+                startY += LINE_HEIGHT;
+                
+                // Draw config list
+                const int VISIBLE_CONFIGS = 10;
+                size_t startIdx = configSelectScrollOffset;
+                size_t endIdx = std::min(startIdx + VISIBLE_CONFIGS, availableConfigs.size());
+                
+                for (size_t i = startIdx; i < endIdx; ++i) {
+                    std::string configDisplay = (i == selectedConfig ? "> " : "  ") + availableConfigs[i];
+                    XDrawString(display, window, gc, 10, startY, configDisplay.c_str(), configDisplay.length());
+                    startY += LINE_HEIGHT;
+                }
+                
+                // Show scroll indicator if there are more configs
+                if (availableConfigs.size() > VISIBLE_CONFIGS) {
+                    std::string scrollInfo = "Showing " + std::to_string(startIdx + 1) + "-" + std::to_string(endIdx) + " of " + std::to_string(availableConfigs.size());
+                    XDrawString(display, window, gc, 10, startY, scrollInfo.c_str(), scrollInfo.length());
+                }
+                
+                // Don't draw clipboard items in config selection mode
                 return;
             }
             
@@ -4781,6 +5000,51 @@ public:
                 // Show scroll indicator if there are more themes
                 if (availableThemes.size() > VISIBLE_THEMES) {
                     std::string scrollInfo = "Showing " + std::to_string(startIdx + 1) + "-" + std::to_string(endIdx) + " of " + std::to_string(availableThemes.size());
+                    TextOut(hdc, 10, startY, scrollInfo.c_str(), scrollInfo.length());
+                }
+                
+                // Cleanup and return
+                SelectObject(hdc, hOldFont);
+                DeleteObject(hFont);
+                ReleaseDC(hwnd, hdc);
+                return;
+            }
+            else if (cmd_configSelectMode) {
+                // Create font for drawing
+                HFONT hFont = CreateFont(FONT_SIZE, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE, 
+                                       DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, 
+                                       CLEARTYPE_QUALITY, DEFAULT_PITCH | FF_DONTCARE, FONT_NAME.c_str());
+                HFONT hOldFont = (HFONT)SelectObject(hdc, hFont);
+                
+                // Draw config selection header
+                std::string header = "Select config option (" + std::to_string(availableConfigs.size()) + " total):";
+                TextOut(hdc, 10, startY, header.c_str(), header.length());
+                startY += LINE_HEIGHT;
+                
+                // Draw config list
+                const int VISIBLE_CONFIGS = 10;
+                size_t startIdx = configSelectScrollOffset;
+                size_t endIdx = std::min(startIdx + VISIBLE_CONFIGS, availableConfigs.size());
+                
+                for (size_t i = startIdx; i < endIdx; ++i) {
+                    std::string configDisplay = (i == selectedConfig ? "> " : "  ") + availableConfigs[i];
+                    // Highlight selected config
+                    if (i == selectedConfig) {
+                        RECT highlightRect = {5, startY - WIN_SEL_RECT_OFFSET_Y, getClipListWidth(), startY - WIN_SEL_RECT_OFFSET_Y + WIN_SEL_RECT_HEIGHT};
+                        HBRUSH hHighlightBrush = CreateSolidBrush(selectionColor);
+                        FillRect(hdc, &highlightRect, hHighlightBrush);
+                        DeleteObject(hHighlightBrush);
+                    }
+                    
+                    // Ensure text color is set before drawing
+                    SetTextColor(hdc, textColor);
+                    TextOut(hdc, 10, startY, configDisplay.c_str(), configDisplay.length());
+                    startY += LINE_HEIGHT;
+                }
+                
+                // Show scroll indicator if there are more configs
+                if (availableConfigs.size() > VISIBLE_CONFIGS) {
+                    std::string scrollInfo = "Showing " + std::to_string(startIdx + 1) + "-" + std::to_string(endIdx) + " of " + std::to_string(availableConfigs.size());
                     TextOut(hdc, 10, startY, scrollInfo.c_str(), scrollInfo.length());
                 }
                 
@@ -5735,17 +5999,138 @@ public:
     
     void saveConfig() {
         std::string configFile = configDir + "/config.json";
-        std::ofstream outFile(configFile);
+        std::cout << "DEBUG: Saving to " << configFile << "\n";
+        std::cout << "DEBUG: maxClips before save = " << maxClips << "\n";
+        
+        std::ofstream outFile(configFile, std::ios::trunc);
+        
+        if (!outFile.is_open()) {
+            std::cout << "DEBUG: Failed to open file for writing\n";
+            return;
+        }
+        
+        std::cout << "DEBUG: File opened successfully\n";
+        
+        // Use a map to store all config values dynamically
+        std::map<std::string, std::string> configValues;
+        configValues["verbose"] = verboseMode ? "true" : "false";
+        configValues["debugging"] = m_debugging ? "true" : "false";
+        configValues["max_clips"] = std::to_string(maxClips);
+        configValues["encrypted"] = encrypted ? "true" : "false";
+        configValues["encryption_key"] = encryptionKey;
+        configValues["autostart"] = autoStart ? "true" : "false";
+        configValues["theme"] = theme;
+        
+        std::cout << "DEBUG: About to write max_clips = " << configValues["max_clips"] << "\n";
+        
         outFile << "{\n";
-        outFile << "    \"verbose\": " << (verboseMode ? "true" : "false") << ",\n";
-        outFile << "    \"debugging\": " << (m_debugging ? "true" : "false") << ",\n";
-        outFile << "    \"max_clips\": " << maxClips << ",\n";
-        outFile << "    \"encrypted\": " << (encrypted ? "true" : "false") << ",\n";
-        outFile << "    \"encryption_key\": \"" << encryptionKey << "\",\n";
-        outFile << "    \"autostart\": " << (autoStart ? "true" : "false") << ",\n";
-        outFile << "    \"theme\": \"" << theme << "\"\n";
-        outFile << "}\n";
+        bool first = true;
+        int writeCount = 0;
+        for (const auto& pair : configValues) {
+            if (!first) {
+                outFile << ",\n";
+            }
+            first = false;
+            
+            // Check if value should be quoted (string) or not (boolean/number)
+            if (pair.second == "true" || pair.second == "false") {
+                // Boolean - don't quote
+                outFile << "    \"" << pair.first << "\": " << pair.second;
+            } else if (pair.second.find_first_not_of("0123456789") == std::string::npos) {
+                // Number - don't quote
+                outFile << "    \"" << pair.first << "\": " << pair.second;
+            } else {
+                // String - quote it
+                outFile << "    \"" << pair.first << "\": \"" << pair.second << "\"";
+            }
+            writeCount++;
+            std::cout << "DEBUG: Wrote config entry " << writeCount << ": " << pair.first << " = " << pair.second << "\n";
+        }
+        outFile << "\n}\n";
+        outFile.flush();
         outFile.close();
+        
+        std::cout << "DEBUG: Save completed, wrote " << writeCount << " entries\n";
+    }
+    
+    // Config value helper functions
+    std::string getConfigValue(const std::string& configKey) {
+        if (configKey == "verbose") return verboseMode ? "true" : "false";
+        if (configKey == "debugging") return m_debugging ? "true" : "false";
+        if (configKey == "max_clips") return std::to_string(maxClips);
+        if (configKey == "encrypted") return encrypted ? "true" : "false";
+        if (configKey == "encryption_key") return encryptionKey;
+        if (configKey == "autostart") return autoStart ? "true" : "false";
+        if (configKey == "theme") return theme;
+        return "";
+    }
+    
+    std::string getConfigType(const std::string& configKey) {
+        if (configKey == "verbose" || configKey == "debugging" || 
+            configKey == "encrypted" || configKey == "autostart") {
+            return "boolean (true/false)";
+        }
+        if (configKey == "max_clips") {
+            return "number (positive integer)";
+        }
+        if (configKey == "encryption_key" || configKey == "theme") {
+            return "string";
+        }
+        return "unknown";
+    }
+    
+    bool updateConfigValue(const std::string& configKey, const std::string& newValue) {
+        try {
+            // Get current value to determine type
+            std::string currentValue = getConfigValue(configKey);
+            
+            // Boolean values
+            if (currentValue == "true" || currentValue == "false") {
+                if (newValue == "true" || newValue == "false") {
+                    // Update the specific boolean variable
+                    if (configKey == "verbose") verboseMode = newValue == "true";
+                    else if (configKey == "debugging") m_debugging = newValue == "true";
+                    else if (configKey == "encrypted") encrypted = newValue == "true";
+                    else if (configKey == "autostart") autoStart = newValue == "true";
+                    return true;
+                }
+                return false;
+            }
+            
+            // Try to parse as number first
+            try {
+                std::stoull(currentValue); // Just to check if it's a number
+                // If current value is a number, expect new value to be a number
+                size_t newNumValue = std::stoull(newValue);
+                if (newNumValue > 0) {
+                    // Update the specific numeric variable
+                    if (configKey == "max_clips") {
+                        std::cout << "DEBUG: Updating maxClips from " << maxClips << " to " << newNumValue << "\n";
+                        maxClips = newNumValue;
+                        std::cout << "DEBUG: maxClips is now " << maxClips << "\n";
+                    }
+                    return true;
+                }
+                return false;
+            }
+            catch (...) {
+                // Not a number, treat as string
+                if (configKey == "encryption_key") {
+                    encryptionKey = newValue;
+                    return true;
+                }
+                else if (configKey == "theme") {
+                    theme = newValue;
+                    loadTheme(); // Apply theme immediately
+                    return true;
+                }
+                // For any other string values
+                return true;
+            }
+        }
+        catch (const std::exception& e) {
+            return false;
+        }
     }
     
     void createDefaultConfig() {
