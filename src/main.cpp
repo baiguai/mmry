@@ -2440,6 +2440,8 @@ private:
         const int LINE_HEIGHT = 25;
         const int WIN_SEL_RECT_HEIGHT = 26;
         const int WIN_SEL_RECT_OFFSET_Y = 4;
+        const int FONT_SIZE = 16;
+        const std::string FONT_NAME = "Consolas";
         
         // Minimum window size constraints
         const int MIN_WINDOW_WIDTH = 425;
