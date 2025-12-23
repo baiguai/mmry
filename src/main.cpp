@@ -5942,7 +5942,7 @@ public:
 
             // Draw the visual lines
             for (size_t i = 0; i < visualLines.size(); ++i) {
-                if ((int)i >= editDialogScrollOffset && y < dims.y + dims.height - 20) {
+                if ((int)i >= editDialogScrollOffset && y < dims.y + dims.height - 20 - lineHeight) {
                     std::string displayText = visualLines[i];
                     
                     // Check if cursor is on this line
