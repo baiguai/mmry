@@ -872,6 +872,7 @@ public:
                 char_pos = prev_line_len;
             }
 
+            updateEditDialogScrollOffset();
             drawConsole();
             return true;
         }
@@ -896,6 +897,7 @@ public:
             deletion_pos += char_pos;
             if (deletion_pos < text.length()) {
                 text.erase(deletion_pos, 1);
+                updateEditDialogScrollOffset();
                 drawConsole();
             }
             return true;
@@ -921,6 +923,7 @@ public:
             insertion_pos += char_pos;
             text.insert(insertion_pos, 1, c);
             char_pos++;
+            updateEditDialogScrollOffset();
             drawConsole();
         }
 
@@ -928,6 +931,7 @@ public:
             key_edit_add_char('\n');
             editDialogCursorLine++;
             editDialogCursorPos = 0; // Ensure cursor is at the beginning of the new line
+            updateEditDialogScrollOffset();
             return true;
         }
 
@@ -1964,6 +1968,7 @@ public:
                 }
                 editDialogCursorPos = lastLine.length();
 
+                updateEditDialogScrollOffset();
                 drawConsole();
             }
             return true;
@@ -2002,6 +2007,7 @@ public:
                 if (editDialogCursorPos > currentLine.length()) {
                     editDialogCursorPos = currentLine.length();
                 }
+                updateEditDialogScrollOffset();
                 drawConsole();
             }
             return true;
@@ -2022,6 +2028,7 @@ public:
                 if (editDialogCursorPos > currentLine.length()) {
                     editDialogCursorPos = currentLine.length();
                 }
+                updateEditDialogScrollOffset();
                 drawConsole();
             }
             return true;
@@ -2029,6 +2036,7 @@ public:
 
         bool key_edit_home() {
             editDialogCursorPos = 0;
+            updateEditDialogScrollOffset();
             drawConsole();
             return true;
         }
@@ -2040,6 +2048,7 @@ public:
                 std::getline(iss, currentLine);
             }
             editDialogCursorPos = currentLine.length();
+            updateEditDialogScrollOffset();
             drawConsole();
             return true;
         }
@@ -3142,6 +3151,45 @@ private:
             } else if (selectedViewBookmarkItem >= viewBookmarksScrollOffset + dynamicVisibleItems) {
                 viewBookmarksScrollOffset = selectedViewBookmarkItem - dynamicVisibleItems + 1;
             }
+        }
+    }
+    
+    void updateEditDialogScrollOffset() {
+        DialogDimensions dims = getEditDialogDimensions();
+        const int lineHeight = 15;
+        const int charWidth = 8;
+        int maxCharsPerLine = (dims.width - 50) / charWidth;
+        if (maxCharsPerLine < 1) maxCharsPerLine = 1;
+
+        // Calculate the visual line number of the cursor
+        int cursorVisualLine = 0;
+        std::istringstream iss(editDialogInput);
+        std::string logicalLine;
+        for (int i = 0; i < (int)editDialogCursorLine; ++i) {
+            if (!std::getline(iss, logicalLine)) break;
+            if (logicalLine.empty()) {
+                cursorVisualLine++;
+            } else {
+                cursorVisualLine += (logicalLine.length() + maxCharsPerLine - 1) / maxCharsPerLine;
+            }
+        }
+        // Add visual lines from the current logical line, up to the cursor
+        cursorVisualLine += editDialogCursorPos / maxCharsPerLine;
+
+        // Calculate max visible lines
+        int maxVisibleLines = (dims.height - 70 - 15) / lineHeight; // 70 for header/footer, 15 for some padding
+        if (maxVisibleLines < 1) maxVisibleLines = 1;
+
+        // Adjust scroll offset
+        if (cursorVisualLine < editDialogScrollOffset) {
+            editDialogScrollOffset = cursorVisualLine;
+        } else if (cursorVisualLine >= editDialogScrollOffset + maxVisibleLines) {
+            editDialogScrollOffset = cursorVisualLine - maxVisibleLines + 1;
+        }
+
+        // Clamp scroll offset
+        if (editDialogScrollOffset < 0) {
+            editDialogScrollOffset = 0;
         }
     }
     
@@ -4954,27 +5002,32 @@ public:
 
             // Draw the visual lines
             for (size_t i = 0; i < visualLines.size(); ++i) {
-                if ((int)i >= editDialogScrollOffset && y < dims.y + dims.height - 20) {
-                    std::string displayText = visualLines[i];
+                if ((int)i >= editDialogScrollOffset) {
+                    // Calculate Y position accounting for scroll offset
+                    int adjustedY = dims.y + 65 + ((int)i - editDialogScrollOffset) * lineHeight;
                     
-                    // Check if cursor is on this line
-                    auto logicalPos = visualToLogicalMap[i];
-                    if (logicalPos.first == (int)editDialogCursorLine) {
-                        size_t cursorInLine = editDialogCursorPos;
-                        size_t lineStartOffset = logicalPos.second;
-                        size_t lineEndOffset = lineStartOffset + visualLines[i].length();
+                    // Only draw if within visible area
+                    if (adjustedY < dims.y + dims.height - 20) {
+                        std::string displayText = visualLines[i];
+                        
+                        // Check if cursor is on this line
+                        auto logicalPos = visualToLogicalMap[i];
+                        if (logicalPos.first == (int)editDialogCursorLine) {
+                            size_t cursorInLine = editDialogCursorPos;
+                            size_t lineStartOffset = logicalPos.second;
+                            size_t lineEndOffset = lineStartOffset + visualLines[i].length();
 
-                        if(cursorInLine >= lineStartOffset && cursorInLine <= lineEndOffset) {
-                            size_t cursorInSub = cursorInLine - lineStartOffset;
-                             if (cursorInSub <= displayText.length()) {
-                                displayText.insert(cursorInSub, "_");
-                            } else {
-                                displayText += "_";
+                            if(cursorInLine >= lineStartOffset && cursorInLine <= lineEndOffset) {
+                                size_t cursorInSub = cursorInLine - lineStartOffset;
+                                 if (cursorInSub <= displayText.length()) {
+                                    displayText.insert(cursorInSub, "_");
+                                } else {
+                                    displayText += "_";
+                                }
                             }
                         }
+                        XDrawString(display, window, gc, dims.x + 25, adjustedY, displayText.c_str(), displayText.length());
                     }
-                    XDrawString(display, window, gc, dims.x + 25, y, displayText.c_str(), displayText.length());
-                    y += lineHeight;
                 }
             }
         }
