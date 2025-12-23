@@ -872,6 +872,7 @@ public:
                 char_pos = prev_line_len;
             }
 
+            updateEditDialogScrollOffset();
             drawConsole();
             return true;
         }
@@ -896,6 +897,7 @@ public:
             deletion_pos += char_pos;
             if (deletion_pos < text.length()) {
                 text.erase(deletion_pos, 1);
+                updateEditDialogScrollOffset();
                 drawConsole();
             }
             return true;
@@ -921,6 +923,7 @@ public:
             insertion_pos += char_pos;
             text.insert(insertion_pos, 1, c);
             char_pos++;
+            updateEditDialogScrollOffset();
             drawConsole();
         }
 
@@ -928,6 +931,7 @@ public:
             key_edit_add_char('\n');
             editDialogCursorLine++;
             editDialogCursorPos = 0; // Ensure cursor is at the beginning of the new line
+            updateEditDialogScrollOffset();
             return true;
         }
 
@@ -941,16 +945,33 @@ public:
 
         bool key_edit_scroll_down() {
             // Need to calculate max scroll offset based on content and dialog height
-            // For now, allow scrolling down as long as there's content below
-            size_t totalLines = 1;
-            for (char c : editDialogInput) {
-                if (c == '\n') totalLines++;
-            }
-            
             DialogDimensions dims = getEditDialogDimensions();
-            int maxVisibleLines = (dims.height - 70) / 15; // 15 is LINE_HEIGHT for the dialog
+            const int lineHeight = 15;
+            const int charWidth = 8;
+            int maxCharsPerLine = (dims.width - 50) / charWidth;
+            if (maxCharsPerLine < 1) maxCharsPerLine = 1;
+
+            int totalVisualLines = 0;
+            if (editDialogInput.empty()) {
+                totalVisualLines = 1;
+            } else {
+                std::istringstream iss(editDialogInput);
+                std::string logicalLine;
+                while (std::getline(iss, logicalLine)) {
+                    if (logicalLine.empty()) {
+                        totalVisualLines++;
+                    } else {
+                        totalVisualLines += (logicalLine.length() + maxCharsPerLine - 1) / maxCharsPerLine;
+                    }
+                }
+                if (editDialogInput.back() == '\n') {
+                    totalVisualLines++;
+                }
+            }
+
+            int maxVisibleLines = (dims.height - 70) / lineHeight;
             
-            if (editDialogScrollOffset < (int)totalLines - maxVisibleLines) {
+            if (editDialogScrollOffset < totalVisualLines - maxVisibleLines) {
                 editDialogScrollOffset++;
                 drawConsole();
             }
@@ -1947,6 +1968,7 @@ public:
                 }
                 editDialogCursorPos = lastLine.length();
 
+                updateEditDialogScrollOffset();
                 drawConsole();
             }
             return true;
@@ -1985,6 +2007,7 @@ public:
                 if (editDialogCursorPos > currentLine.length()) {
                     editDialogCursorPos = currentLine.length();
                 }
+                updateEditDialogScrollOffset();
                 drawConsole();
             }
             return true;
@@ -2005,6 +2028,7 @@ public:
                 if (editDialogCursorPos > currentLine.length()) {
                     editDialogCursorPos = currentLine.length();
                 }
+                updateEditDialogScrollOffset();
                 drawConsole();
             }
             return true;
@@ -2012,6 +2036,7 @@ public:
 
         bool key_edit_home() {
             editDialogCursorPos = 0;
+            updateEditDialogScrollOffset();
             drawConsole();
             return true;
         }
@@ -2023,6 +2048,7 @@ public:
                 std::getline(iss, currentLine);
             }
             editDialogCursorPos = currentLine.length();
+            updateEditDialogScrollOffset();
             drawConsole();
             return true;
         }
@@ -3125,6 +3151,45 @@ private:
             } else if (selectedViewBookmarkItem >= viewBookmarksScrollOffset + dynamicVisibleItems) {
                 viewBookmarksScrollOffset = selectedViewBookmarkItem - dynamicVisibleItems + 1;
             }
+        }
+    }
+    
+    void updateEditDialogScrollOffset() {
+        DialogDimensions dims = getEditDialogDimensions();
+        const int lineHeight = 15;
+        const int charWidth = 8;
+        int maxCharsPerLine = (dims.width - 50) / charWidth;
+        if (maxCharsPerLine < 1) maxCharsPerLine = 1;
+
+        // Calculate the visual line number of the cursor
+        int cursorVisualLine = 0;
+        std::istringstream iss(editDialogInput);
+        std::string logicalLine;
+        for (int i = 0; i < (int)editDialogCursorLine; ++i) {
+            if (!std::getline(iss, logicalLine)) break;
+            if (logicalLine.empty()) {
+                cursorVisualLine++;
+            } else {
+                cursorVisualLine += (logicalLine.length() + maxCharsPerLine - 1) / maxCharsPerLine;
+            }
+        }
+        // Add visual lines from the current logical line, up to the cursor
+        cursorVisualLine += editDialogCursorPos / maxCharsPerLine;
+
+        // Calculate max visible lines
+        int maxVisibleLines = (dims.height - 70 - 15) / lineHeight; // 70 for header/footer, 15 for some padding
+        if (maxVisibleLines < 1) maxVisibleLines = 1;
+
+        // Adjust scroll offset
+        if (cursorVisualLine < editDialogScrollOffset) {
+            editDialogScrollOffset = cursorVisualLine;
+        } else if (cursorVisualLine >= editDialogScrollOffset + maxVisibleLines) {
+            editDialogScrollOffset = cursorVisualLine - maxVisibleLines + 1;
+        }
+
+        // Clamp scroll offset
+        if (editDialogScrollOffset < 0) {
+            editDialogScrollOffset = 0;
         }
     }
     
@@ -4896,32 +4961,74 @@ public:
             XSetForeground(display, gc, textColor);
             XDrawRectangle(display, window, gc, dims.x + 20, dims.y + 50, dims.width - 40, dims.height - 70);
             
-            // Draw input text (multi-line)
-            std::string currentText = editDialogInput;
-            std::string line;
-            std::istringstream iss(currentText);
+            // Draw input text (multi-line with wrapping)
+            const int lineHeight = 15;
+            const int charWidth = 8; // Estimate for monospace font
+            int maxCharsPerLine = (dims.width - 50) / charWidth; // 25px margin on each side
+            if (maxCharsPerLine < 1) maxCharsPerLine = 1;
+
+            std::istringstream iss(editDialogInput);
+            std::string logicalLine;
+            
+            int logicalLineIndex = 0;
             int y = dims.y + 65;
-            int lineHeight = 15; // Assuming fixed font line height
-            
-            int maxVisibleLines = (dims.height - 70) / lineHeight;
-            int startLine = editDialogScrollOffset;
-            int endLine = startLine + maxVisibleLines;
-            
-            int currentLine = 0;
-            while (std::getline(iss, line)) {
-                if (currentLine >= startLine && currentLine < endLine) {
-                    std::string displayText = line;
-                    if (currentLine == (int)editDialogCursorLine) {
-                        if (editDialogCursorPos <= displayText.length()) {
-                            displayText.insert(editDialogCursorPos, "_");
-                        } else {
-                            displayText += "_";
-                        }
+
+            std::vector<std::string> visualLines;
+            std::vector<std::pair<int, int>> visualToLogicalMap;
+
+            // First, break the text into visual lines
+            while (std::getline(iss, logicalLine)) {
+                if (logicalLine.empty()) {
+                    visualLines.push_back("");
+                    visualToLogicalMap.push_back({logicalLineIndex, 0});
+                } else {
+                    size_t offset = 0;
+                    while (offset < logicalLine.length()) {
+                        visualLines.push_back(logicalLine.substr(offset, maxCharsPerLine));
+                        visualToLogicalMap.push_back({logicalLineIndex, (int)offset});
+                        offset += maxCharsPerLine;
                     }
-                    XDrawString(display, window, gc, dims.x + 25, y, displayText.c_str(), displayText.length());
-                    y += lineHeight;
                 }
-                currentLine++;
+                logicalLineIndex++;
+            }
+            if (editDialogInput.empty()) {
+                 visualLines.push_back("");
+                 visualToLogicalMap.push_back({0, 0});
+            } else if (editDialogInput.back() == '\n') {
+                 visualLines.push_back("");
+                 visualToLogicalMap.push_back({logicalLineIndex, 0});
+            }
+
+
+            // Draw the visual lines
+            for (size_t i = 0; i < visualLines.size(); ++i) {
+                if ((int)i >= editDialogScrollOffset) {
+                    // Calculate Y position accounting for scroll offset
+                    int adjustedY = dims.y + 65 + ((int)i - editDialogScrollOffset) * lineHeight;
+                    
+                    // Only draw if within visible area
+                    if (adjustedY < dims.y + dims.height - 20) {
+                        std::string displayText = visualLines[i];
+                        
+                        // Check if cursor is on this line
+                        auto logicalPos = visualToLogicalMap[i];
+                        if (logicalPos.first == (int)editDialogCursorLine) {
+                            size_t cursorInLine = editDialogCursorPos;
+                            size_t lineStartOffset = logicalPos.second;
+                            size_t lineEndOffset = lineStartOffset + visualLines[i].length();
+
+                            if(cursorInLine >= lineStartOffset && cursorInLine <= lineEndOffset) {
+                                size_t cursorInSub = cursorInLine - lineStartOffset;
+                                 if (cursorInSub <= displayText.length()) {
+                                    displayText.insert(cursorInSub, "_");
+                                } else {
+                                    displayText += "_";
+                                }
+                            }
+                        }
+                        XDrawString(display, window, gc, dims.x + 25, adjustedY, displayText.c_str(), displayText.length());
+                    }
+                }
             }
         }
 #endif
@@ -5741,7 +5848,7 @@ public:
             
             // --- Draw border safely (manually, to avoid Win32 Rectangle() quirks) ---
             HPEN hBorderPen = CreatePen(PS_SOLID, 1, borderColor);
-            HPEN hOldPen = (HPEN)SelectObject(hdc, hBorderPen);
+            HPEN hOldPen_border = (HPEN)SelectObject(hdc, hBorderPen);
             HBRUSH hOldBrush = (HBRUSH)SelectObject(hdc, GetStockObject(NULL_BRUSH));
 
             MoveToEx(hdc, dims.x,               dims.y,                NULL);
@@ -5751,7 +5858,7 @@ public:
             LineTo(hdc,   dims.x,               dims.y);
 
             SelectObject(hdc, hOldBrush);
-            SelectObject(hdc, hOldPen);
+            SelectObject(hdc, hOldPen_border);
             DeleteObject(hBorderPen);
             
             // Draw title
@@ -5768,39 +5875,75 @@ public:
             // Draw input box border
             HPEN hInputPen = CreatePen(PS_SOLID, 1, textColor);
             hOldBrush = (HBRUSH)SelectObject(hdc, GetStockObject(NULL_BRUSH));
-            hOldPen = (HPEN)SelectObject(hdc, hInputPen);
+            HPEN hOldPen_input = (HPEN)SelectObject(hdc, hInputPen);
             Rectangle(hdc, dims.x + 20, dims.y + 50, dims.x + dims.width - 20, dims.y + dims.height - 20);
-            SelectObject(hdc, hOldPen);
+            SelectObject(hdc, hOldPen_input);
             SelectObject(hdc, hOldBrush);
             DeleteObject(hInputPen);
             
-            // Draw input text (multi-line)
-            std::string currentText = editDialogInput;
-            std::string line;
-            std::istringstream iss(currentText);
-            int y = dims.y + 55; // Starting Y for text content
-            int lineHeight = 15; // Assuming fixed font line height
+            // Draw input text (multi-line with wrapping)
+            const int lineHeight = 15;
+            const int charWidth = 8; // Estimate for monospace font
+            int maxCharsPerLine = (dims.width - 50) / charWidth;
+            if (maxCharsPerLine < 1) maxCharsPerLine = 1;
+
+            std::istringstream iss(editDialogInput);
+            std::string logicalLine;
             
-            int maxVisibleLines = (dims.height - 70) / lineHeight;
-            int startLine = editDialogScrollOffset;
-            int endLine = startLine + maxVisibleLines;
-            
-            int currentLineNum = 0;
-            while (std::getline(iss, line)) {
-                if (currentLineNum >= startLine && currentLineNum < endLine) {
-                    std::string displayText = line;
-                    if (currentLineNum == (int)editDialogCursorLine) {
-                        if (editDialogCursorPos <= displayText.length()) {
-                            displayText.insert(editDialogCursorPos, "_");
-                        } else {
-                            displayText += "_";
+            int logicalLineIndex = 0;
+            int y = dims.y + 55;
+
+            std::vector<std::string> visualLines;
+            std::vector<std::pair<int, int>> visualToLogicalMap;
+
+            // First, break the text into visual lines
+            while (std::getline(iss, logicalLine)) {
+                if (logicalLine.empty()) {
+                    visualLines.push_back("");
+                    visualToLogicalMap.push_back({logicalLineIndex, 0});
+                } else {
+                    size_t offset = 0;
+                    while (offset < logicalLine.length()) {
+                        visualLines.push_back(logicalLine.substr(offset, maxCharsPerLine));
+                        visualToLogicalMap.push_back({logicalLineIndex, (int)offset});
+                        offset += maxCharsPerLine;
+                    }
+                }
+                logicalLineIndex++;
+            }
+            if (editDialogInput.empty()) {
+                 visualLines.push_back("");
+                 visualToLogicalMap.push_back({0, 0});
+            } else if (editDialogInput.back() == '\n') {
+                 visualLines.push_back("");
+                 visualToLogicalMap.push_back({logicalLineIndex, 0});
+            }
+
+            // Draw the visual lines
+            for (size_t i = 0; i < visualLines.size(); ++i) {
+                if ((int)i >= editDialogScrollOffset && y < dims.y + dims.height - 20) {
+                    std::string displayText = visualLines[i];
+                    
+                    // Check if cursor is on this line
+                    auto logicalPos = visualToLogicalMap[i];
+                    if (logicalPos.first == (int)editDialogCursorLine) {
+                        size_t cursorInLine = editDialogCursorPos;
+                        size_t lineStartOffset = logicalPos.second;
+                        size_t lineEndOffset = lineStartOffset + visualLines[i].length();
+
+                        if(cursorInLine >= lineStartOffset && cursorInLine <= lineEndOffset) {
+                            size_t cursorInSub = cursorInLine - lineStartOffset;
+                             if (cursorInSub <= displayText.length()) {
+                                displayText.insert(cursorInSub, "_");
+                            } else {
+                                displayText += "_";
+                            }
                         }
                     }
                     SetTextColor(hdc, textColor);
                     TextOut(hdc, dims.x + 25, y, displayText.c_str(), displayText.length());
                     y += lineHeight;
                 }
-                currentLineNum++;
             }
             
             // Cleanup
