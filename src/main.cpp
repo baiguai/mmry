@@ -1,4 +1,5 @@
 #include "main.h"
+#include <regex>
 
 class ClipboardManager {
 public:
@@ -3090,6 +3091,27 @@ private:
         return displayIndex;
     }
     
+    std::string wildcardToRegex(const std::string& wildcard_pattern) {
+        std::string regex_pattern;
+        regex_pattern.reserve(wildcard_pattern.size() * 2);
+        for (char c : wildcard_pattern) {
+            switch (c) {
+                case '*':
+                    regex_pattern += ".*";
+                    break;
+                // Escape other special regex characters
+                case '.': case '+': case '?': case '^': case '$': case '(': case ')':
+                case '[': case ']': case '{': case '}': case '|': case '\\':
+                    regex_pattern += '\\';
+                    regex_pattern += c;
+                    break;
+                default:
+                    regex_pattern += c;
+            }
+        }
+        return regex_pattern;
+    }
+    
     void updateFilteredItems() {
         filteredItems.clear();
         
@@ -3098,20 +3120,19 @@ private:
                 filteredItems.push_back(i);
             }
         } else {
-            std::string lowerFilter = filterText;
-            for (char& c : lowerFilter) {
-                c = tolower(c);
-            }
-            
-            for (size_t i = 0; i < items.size(); ++i) {
-                std::string lowerContent = items[i].content;
-                for (char& c : lowerContent) {
-                    c = tolower(c);
-                }
+            try {
+                std::string regex_str = wildcardToRegex(filterText);
+                std::regex rgx(regex_str, std::regex_constants::icase);
                 
-                if (lowerContent.find(lowerFilter) != std::string::npos) {
-                    filteredItems.push_back(i);
+                for (size_t i = 0; i < items.size(); ++i) {
+                    if (std::regex_search(items[i].content, rgx)) {
+                        filteredItems.push_back(i);
+                    }
                 }
+            } catch (const std::regex_error& e) {
+                // Handle invalid regex patterns gracefully
+                // For now, we can just not filter, or log an error
+                writeLog("Regex error: " + std::string(e.what()));
             }
         }
         
