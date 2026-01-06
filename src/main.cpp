@@ -1707,8 +1707,10 @@ public:
 
         bool key_config_select() {
             if (selectedConfig < availableConfigs.size()) {
+                std::string configKey = availableConfigs[selectedConfig];
+                std::string currentValue = getConfigValue(configKey);
                 cmd_configSelectMode = false;
-                commandText = "config " + availableConfigs[selectedConfig] + " ";
+                commandText = "config " + configKey + " " + currentValue;
                 commandMode = true;
                 availableConfigs.clear();
                 drawConsole();
