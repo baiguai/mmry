@@ -4994,7 +4994,6 @@ public:
             std::string logicalLine;
             
             int logicalLineIndex = 0;
-            int y = dims.y + 65;
 
             std::vector<std::string> visualLines;
             std::vector<std::pair<int, int>> visualToLogicalMap;
@@ -5043,9 +5042,9 @@ public:
                             if(cursorInLine >= lineStartOffset && cursorInLine <= lineEndOffset) {
                                 size_t cursorInSub = cursorInLine - lineStartOffset;
                                  if (cursorInSub <= displayText.length()) {
-                                    displayText.insert(cursorInSub, "▌");
+                                    displayText.insert(cursorInSub, "^");
                                 } else {
-                                    displayText += "▌";
+                                    displayText += "^";
                                 }
                             }
                         }
@@ -5957,9 +5956,9 @@ public:
                         if(cursorInLine >= lineStartOffset && cursorInLine <= lineEndOffset) {
                             size_t cursorInSub = cursorInLine - lineStartOffset;
                              if (cursorInSub <= displayText.length()) {
-                                displayText.insert(cursorInSub, "▌");
+                                displayText.insert(cursorInSub, "^");
                             } else {
-                                displayText += "▌";
+                                displayText += "^";
                             }
                         }
                     }
