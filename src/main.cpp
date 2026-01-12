@@ -34,6 +34,9 @@ private:
         }
     }
 
+    void moveCursorWordLeft();
+    void moveCursorWordRight();
+
 public:
 
 
@@ -187,6 +190,37 @@ public:
 #ifdef _WIN32
             if (msg->wParam == VK_RETURN && (GetKeyState(VK_CONTROL) & 0x8000)) {
                 if (key_edit_save()) return;
+            }
+#endif
+            // Handle CTRL+LEFT for moving one word left
+#ifdef __linux__
+            if (keysym == XK_Left && (keyEvent->state & ControlMask)) {
+                moveCursorWordLeft();
+                drawConsole();
+                return;
+            }
+#endif
+#ifdef _WIN32
+            if (msg->wParam == VK_LEFT && (GetKeyState(VK_CONTROL) & 0x8000)) {
+                moveCursorWordLeft();
+                drawConsole();
+                return;
+            }
+#endif
+
+            // Handle CTRL+RIGHT for moving one word right
+#ifdef __linux__
+            if (keysym == XK_Right && (keyEvent->state & ControlMask)) {
+                moveCursorWordRight();
+                drawConsole();
+                return;
+            }
+#endif
+#ifdef _WIN32
+            if (msg->wParam == VK_RIGHT && (GetKeyState(VK_CONTROL) & 0x8000)) {
+                moveCursorWordRight();
+                drawConsole();
+                return;
             }
 #endif
             
@@ -4994,7 +5028,6 @@ public:
             std::string logicalLine;
             
             int logicalLineIndex = 0;
-            int y = dims.y + 65;
 
             std::vector<std::string> visualLines;
             std::vector<std::pair<int, int>> visualToLogicalMap;
@@ -5043,9 +5076,9 @@ public:
                             if(cursorInLine >= lineStartOffset && cursorInLine <= lineEndOffset) {
                                 size_t cursorInSub = cursorInLine - lineStartOffset;
                                  if (cursorInSub <= displayText.length()) {
-                                    displayText.insert(cursorInSub, "_");
+                                    displayText.insert(cursorInSub, "^");
                                 } else {
-                                    displayText += "_";
+                                    displayText += "^";
                                 }
                             }
                         }
@@ -5957,9 +5990,9 @@ public:
                         if(cursorInLine >= lineStartOffset && cursorInLine <= lineEndOffset) {
                             size_t cursorInSub = cursorInLine - lineStartOffset;
                              if (cursorInSub <= displayText.length()) {
-                                displayText.insert(cursorInSub, "_");
+                                displayText.insert(cursorInSub, "^");
                             } else {
-                                displayText += "_";
+                                displayText += "^";
                             }
                         }
                     }
@@ -6434,6 +6467,43 @@ public:
     }
 };
 
+void ClipboardManager::moveCursorWordLeft() {
+    std::string currentLine = "";
+    std::istringstream iss(editDialogInput);
+    for (size_t i = 0; i <= editDialogCursorLine; ++i) {
+        std::getline(iss, currentLine);
+    }
+
+    if (editDialogCursorPos > 0) {
+        size_t pos = editDialogCursorPos;
+        while (pos > 0 && isspace(currentLine[pos - 1])) {
+            pos--;
+        }
+        while (pos > 0 && !isspace(currentLine[pos - 1])) {
+            pos--;
+        }
+        editDialogCursorPos = pos;
+    }
+}
+
+void ClipboardManager::moveCursorWordRight() {
+    std::string currentLine = "";
+    std::istringstream iss(editDialogInput);
+    for (size_t i = 0; i <= editDialogCursorLine; ++i) {
+        std::getline(iss, currentLine);
+    }
+
+    if (editDialogCursorPos < currentLine.length()) {
+        size_t pos = editDialogCursorPos;
+        while (pos < currentLine.length() && !isspace(currentLine[pos])) {
+            pos++;
+        }
+        while (pos < currentLine.length() && isspace(currentLine[pos])) {
+            pos++;
+        }
+        editDialogCursorPos = pos;
+    }
+}
 
 // Global pointer for signal handling
 ClipboardManager* g_manager = nullptr;
