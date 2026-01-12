@@ -5043,9 +5043,9 @@ public:
                             if(cursorInLine >= lineStartOffset && cursorInLine <= lineEndOffset) {
                                 size_t cursorInSub = cursorInLine - lineStartOffset;
                                  if (cursorInSub <= displayText.length()) {
-                                    displayText.insert(cursorInSub, "_");
+                                    displayText.insert(cursorInSub, "▌");
                                 } else {
-                                    displayText += "_";
+                                    displayText += "▌";
                                 }
                             }
                         }
@@ -5957,9 +5957,9 @@ public:
                         if(cursorInLine >= lineStartOffset && cursorInLine <= lineEndOffset) {
                             size_t cursorInSub = cursorInLine - lineStartOffset;
                              if (cursorInSub <= displayText.length()) {
-                                displayText.insert(cursorInSub, "_");
+                                displayText.insert(cursorInSub, "▌");
                             } else {
-                                displayText += "_";
+                                displayText += "▌";
                             }
                         }
                     }
