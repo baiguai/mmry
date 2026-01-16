@@ -3162,31 +3162,13 @@ private:
                 filterText.find('.') == std::string::npos &&
                 filterText.find('+') == std::string::npos) {
                 
-                // Optimized case-insensitive substring search without repeated transformations
-                const std::string& filter = filterText;
-                
+                std::string lower_filter = filterText;
+                std::transform(lower_filter.begin(), lower_filter.end(), lower_filter.begin(),
+                               [](unsigned char c){ return std::tolower(c); });
+
                 for (size_t i = 0; i < items.size(); ++i) {
-                    const std::string& content = items[i].content;
-                    
-                    // Fast case-insensitive search using character-by-character comparison
-                    if (content.length() >= filter.length()) {
-                        bool found = false;
-                        for (size_t pos = 0; pos <= content.length() - filter.length(); ++pos) {
-                            bool match = true;
-                            for (size_t j = 0; j < filter.length(); ++j) {
-                                if (tolower(content[pos + j]) != tolower(filter[j])) {
-                                    match = false;
-                                    break;
-                                }
-                            }
-                            if (match) {
-                                found = true;
-                                break;
-                            }
-                        }
-                        if (found) {
-                            filteredItems.push_back(i);
-                        }
+                    if (items[i].lowercase_content.find(lower_filter) != std::string::npos) {
+                        filteredItems.push_back(i);
                     }
                 }
             } else {
