@@ -51,10 +51,15 @@ typedef void* HDC;
 
 struct ClipboardItem {
     std::string content;
+    std::string lowercase_content;
     std::chrono::system_clock::time_point timestamp;
     
     ClipboardItem(const std::string& content) 
-        : content(content), timestamp(std::chrono::system_clock::now()) {}
+        : content(content), timestamp(std::chrono::system_clock::now()) {
+        lowercase_content.reserve(content.length());
+        std::transform(content.begin(), content.end(), std::back_inserter(lowercase_content),
+                       [](unsigned char c){ return std::tolower(c); });
+    }
 };
 
 
