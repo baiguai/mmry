@@ -3149,9 +3149,9 @@ private:
     }
     
     void updateFilteredItems() {
-        filteredItems.clear();
-        
-        if (filterText.empty()) {
+        selectedItem = 0;
+        consoleScrollOffset = 0;
+        filteredItems.clear();        if (filterText.empty()) {
             for (size_t i = 0; i < items.size(); ++i) {
                 filteredItems.push_back(i);
             }
