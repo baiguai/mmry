@@ -3156,19 +3156,36 @@ private:
                 filteredItems.push_back(i);
             }
         } else {
-            try {
-                std::string regex_str = wildcardToRegex(filterText);
-                std::regex rgx(regex_str, std::regex_constants::icase);
+            // Fast path: simple substring search (most common case)
+            if (filterText.find('*') == std::string::npos && 
+                filterText.find('?') == std::string::npos &&
+                filterText.find('.') == std::string::npos &&
+                filterText.find('+') == std::string::npos) {
                 
+                std::string lower_filter = filterText;
+                std::transform(lower_filter.begin(), lower_filter.end(), lower_filter.begin(),
+                               [](unsigned char c){ return std::tolower(c); });
+
                 for (size_t i = 0; i < items.size(); ++i) {
-                    if (std::regex_search(items[i].content, rgx)) {
+                    if (items[i].lowercase_content.find(lower_filter) != std::string::npos) {
                         filteredItems.push_back(i);
                     }
                 }
-            } catch (const std::regex_error& e) {
-                // Handle invalid regex patterns gracefully
-                // For now, we can just not filter, or log an error
-                writeLog("Regex error: " + std::string(e.what()));
+            } else {
+                // Slow path: regex search for wildcard patterns
+                try {
+                    std::string regex_str = wildcardToRegex(filterText);
+                    std::regex rgx(regex_str, std::regex_constants::icase);
+                    
+                    for (size_t i = 0; i < items.size(); ++i) {
+                        if (std::regex_search(items[i].content, rgx)) {
+                            filteredItems.push_back(i);
+                        }
+                    }
+                } catch (const std::regex_error& e) {
+                    // Handle invalid regex patterns gracefully
+                    writeLog("Regex error: " + std::string(e.what()));
+                }
             }
         }
         
@@ -6199,6 +6216,10 @@ public:
     }
     
     void saveConfig() {
+        if (maxClips > 1000) {
+            maxClips = 1000;
+        }
+
         std::string configFile = configDir + "/config.json";
         std::cout << "DEBUG: Saving to " << configFile << "\n";
         std::cout << "DEBUG: maxClips before save = " << maxClips << "\n";
