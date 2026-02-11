@@ -1,0 +1,10 @@
+{
+  "name": "Terminal",
+  "description": "Darkness.",
+  "colors": {
+    "background": "#000000",
+    "text": "#ffffff",
+    "selection": "#222222",
+    "border": "#222222"
+  }
+}
