@@ -1390,6 +1390,9 @@ public:
                     viewBookmarksDialogVisible = false;
                     hideWindow();
                 }
+                // Clear filter if active
+                filterBookmarkClipsMode = false;
+                filterBookmarkClipsText.clear();
                 return true;
             } else {
                 if (selectedViewBookmarkGroup < bookmarkGroups.size()) {
