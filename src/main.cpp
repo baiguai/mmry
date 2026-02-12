@@ -1228,8 +1228,9 @@ public:
         bool key_marks_groups_clips() {
             std::vector<std::string> displayedGroups;
             if (filterBookmarksMode) {
+                std::string lowerFilterBookmarksText = stringToLower(filterBookmarksText);
                 for (const auto& group : bookmarkGroups) {
-                    if (group.find(filterBookmarksText) != std::string::npos) {
+                    if (stringToLower(group).find(lowerFilterBookmarksText) != std::string::npos) {
                         displayedGroups.push_back(group);
                     }
                 }
@@ -4853,8 +4854,9 @@ public:
             // Filter groups if in filter mode
             std::vector<std::string> displayedGroups;
             if (filterAddBookmarksMode) {
+                std::string lowerFilterAddBookmarksText = stringToLower(filterAddBookmarksText);
                 for (const auto& group : bookmarkGroups) {
-                    if (group.find(filterAddBookmarksText) != std::string::npos) {
+                    if (stringToLower(group).find(lowerFilterAddBookmarksText) != std::string::npos) {
                         displayedGroups.push_back(group);
                     }
                 }
@@ -4914,8 +4916,9 @@ public:
                             // Filter groups if in filter mode
                             std::vector<std::string> displayedGroups;
                             if (filterBookmarksMode) {
+                                std::string lowerFilterBookmarksText = stringToLower(filterBookmarksText);
                                 for (const auto& group : bookmarkGroups) {
-                                    if (group.find(filterBookmarksText) != std::string::npos) {
+                                    if (stringToLower(group).find(lowerFilterBookmarksText) != std::string::npos) {
                                         displayedGroups.push_back(group);
                                     }
                                 }
@@ -5647,8 +5650,9 @@ public:
             // Filter and display groups
             std::vector<std::string> displayedGroups;
             if (filterAddBookmarksMode) {
+                std::string lowerFilterAddBookmarksText = stringToLower(filterAddBookmarksText);
                 for (const auto& group : bookmarkGroups) {
-                    if (group.find(filterAddBookmarksText) != std::string::npos) {
+                    if (stringToLower(group).find(lowerFilterAddBookmarksText) != std::string::npos) {
                         displayedGroups.push_back(group);
                     }
                 }
@@ -5729,8 +5733,9 @@ public:
                 // Filter groups if in filter mode
                 std::vector<std::string> displayedGroups;
                 if (filterBookmarksMode) {
+                    std::string lowerFilterBookmarksText = stringToLower(filterBookmarksText);
                     for (const auto& group : bookmarkGroups) {
-                        if (group.find(filterBookmarksText) != std::string::npos) {
+                        if (stringToLower(group).find(lowerFilterBookmarksText) != std::string::npos) {
                             displayedGroups.push_back(group);
                         }
                     }
@@ -6792,57 +6797,143 @@ size_t ClipboardManager::getBookmarkItemCount() {
 
         
 
-        size_t itemCount = 0;
+            size_t itemCount = 0;
 
-        if (file.is_open()) {
+        
 
-            std::string line;
+                if (file.is_open()) {
 
-            while (std::getline(file, line)) {
+        
 
-                size_t pos = line.find('|');
+                    std::string line;
 
-                if (pos != std::string::npos && pos > 0) {
+        
 
-                    itemCount++;
+                    while (std::getline(file, line)) {
+
+        
+
+                        size_t pos = line.find('|');
+
+        
+
+                        if (pos != std::string::npos && pos > 0) {
+
+        
+
+                            itemCount++;
+
+        
+
+                        }
+
+        
+
+                    }
+
+        
+
+                    file.close();
+
+        
 
                 }
 
+        
+
+                return itemCount;
+
+        
+
             }
 
-            file.close();
+        
+
+        
+
+        
+
+        std::string stringToLower(const std::string& str) {
+
+        
+
+            std::string lower_str;
+
+        
+
+            lower_str.reserve(str.length());
+
+        
+
+            std::transform(str.begin(), str.end(), std::back_inserter(lower_str),
+
+        
+
+                           [](unsigned char c){ return std::tolower(c); });
+
+        
+
+            return lower_str;
+
+        
 
         }
 
-        return itemCount;
+        
 
-    }
+        
 
+        
 
+        // Global pointer for signal handling
 
-// Global pointer for signal handling
+        
 
-ClipboardManager* g_manager = nullptr;
+        
 
+        
 
+        ClipboardManager* g_manager = nullptr;
 
-#include <signal.h>
+        
 
-void signal_handler(int signal) {
+        
 
-    std::cout << "\nReceived signal " << signal << ", cleaning up...\n";
+        
 
-    if (g_manager) {
+        #include <signal.h>
 
-        // Just set running to false, don't join in signal handler
+        
 
-        g_manager->setRunning(false);
+        void signal_handler(int signal) {
 
-    }
+        
 
-    exit(0);
+            std::cout << "\nReceived signal " << signal << ", cleaning up...\n";
 
-}
+        
+
+            if (g_manager) {
+
+        
+
+                // Just set running to false, don't join in signal handler
+
+        
+
+                g_manager->setRunning(false);
+
+        
+
+            }
+
+        
+
+            exit(0);
+
+        
+
+        }
 
 
 

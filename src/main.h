@@ -125,6 +125,7 @@ public:
     }
 };
 
+std::string stringToLower(const std::string& str);
 
 // Temporary error handler to swallow BadAccess errors
 #ifdef __linux__
