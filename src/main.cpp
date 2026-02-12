@@ -336,6 +336,15 @@ public:
                         drawConsole();
                         return;
                     }
+                    // ADDED: UP/DOWN arrow key handling for filtered bookmark groups
+                    if (key_value == "j" || key_value == "DOWN") {
+                        if (key_marks_groups_down()) return;
+                    }
+
+                    if (key_value == "k" || key_value == "UP") {
+                        if (key_marks_groups_up()) return;
+                    }
+                    // End ADDED
                     if (key_value == "BACKSPACE") {
                         if (!filterBookmarksText.empty()) {
                             filterBookmarksText.pop_back();
@@ -413,6 +422,15 @@ public:
                         }
                         return;
                     }
+                    // ADDED: UP/DOWN arrow key handling for filtered bookmark clips
+                    if (key_value == "j" || key_value == "DOWN") {
+                        if (key_marks_clips_down()) return;
+                    }
+
+                    if (key_value == "k" || key_value == "UP") {
+                        if (key_marks_clips_up()) return;
+                    }
+                    // End ADDED
                     // Text input for filter
 #ifdef _WIN32
                     char typedChar = getCharFromMsg(msg);
