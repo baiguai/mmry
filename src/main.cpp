@@ -1,5 +1,8 @@
 #include "main.h"
 #include <regex>
+#include <cstdlib>
+#include <thread>
+#include <chrono>
 
 class ClipboardManager {
 public:
@@ -23,7 +26,11 @@ public:
 private:
     std::atomic<bool> hotkeyGrabbed{false};
     bool m_debugging = true; // Debugging flag, controlled via config
+    bool m_isWayland = false;
+    std::thread clipboardThread;
     mutable std::ofstream logfile;
+
+    void checkClipboardWayland();
 
     // Helper method for logging
     void writeLog(const std::string& message) const {
@@ -38,6 +45,10 @@ private:
     void moveCursorWordRight();
 
 public:
+    void setRunning(bool state) {
+        running = state;
+    }
+
 
 
 
@@ -2262,9 +2273,21 @@ public:
         running = true;
         visible = false;
         
-        // Initialize X11
 #ifdef __linux__
-        display = XOpenDisplay(nullptr);
+        // Wayland detection
+        if (getenv("WAYLAND_DISPLAY") != nullptr) {
+            m_isWayland = true;
+            writeLog("Detected Wayland environment.");
+            // Hotkey handling on Wayland is complex and generally not supported
+            // in a general way. Rely on external tools or user's compositor
+            // configuration for now.
+
+            // Start Wayland clipboard polling thread
+            clipboardThread = std::thread(&ClipboardManager::checkClipboardWayland, this);
+        } else {
+            writeLog("Detected X11 environment.");
+            // Initialize X11
+            display = XOpenDisplay(nullptr);
         if (!display) {
             std::cerr << "Cannot open display" << std::endl;
             return;
@@ -2286,13 +2309,13 @@ public:
         // Create window
         createWindow();
         
-        // Setup hotkey
-        setupHotkeys();
-#endif
-        
-        // Initialize configuration and theme
-        setupConfigDir();
-        loadConfig();
+                    // Setup hotkey
+                    setupHotkeys();
+                } // End of X11 specific initialization else block
+        #endif
+                
+                // Initialize configuration and theme
+                setupConfigDir();        loadConfig();
         loadTheme();
         loadFromFile();
         loadBookmarkGroups();
@@ -2550,9 +2573,7 @@ Comment=Autostart for )" << appLabel << R"(
 #endif
     }
     
-    void setRunning(bool state) {
-        running = state;
-    }
+
     
     void stop() {
         running = false;
@@ -6243,6 +6264,8 @@ public:
     }
 #endif
 
+
+
     void processClipboardContent(const std::string& content) {
         // Trim trailing newlines
         std::string trimmed_content = content;
@@ -6552,8 +6575,8 @@ public:
     
     void copyToClipboard(const std::string& content) {
 #ifdef __linux__
-        // Use xclip to copy to clipboard
-        FILE* pipe = popen("xclip -selection clipboard", "w");
+        const char* command = m_isWayland ? "wl-copy" : "xclip -selection clipboard";
+        FILE* pipe = popen(command, "w");
         if (pipe) {
             fwrite(content.c_str(), 1, content.length(), pipe);
             pclose(pipe);
@@ -6656,6 +6679,26 @@ public:
         }
     }
 };
+
+void ClipboardManager::checkClipboardWayland() {
+        while (running) {
+            FILE* pipe = popen("wl-paste --no-newline", "r");
+            if (!pipe) {
+                std::this_thread::sleep_for(std::chrono::seconds(1));
+                continue;
+            }
+            std::string content;
+            char buffer[128];
+            while (fgets(buffer, sizeof(buffer), pipe) != nullptr) {
+                content += buffer;
+            }
+            pclose(pipe);
+            if (running) {
+                processClipboardContent(content);
+            }
+            std::this_thread::sleep_for(std::chrono::milliseconds(500));
+        }
+    }
 
 void ClipboardManager::moveCursorWordLeft() {
     std::string currentLine = "";
