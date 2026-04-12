@@ -170,8 +170,19 @@ public:
                 if (key_value == "BACKSPACE") {
                     if (!helpFilterText.empty()) {
                         helpFilterText.pop_back();
+                        helpDialogScrollOffset = 0;
                         drawConsole();
                     }
+                    return;
+                }
+                if (key_value == "DOWN") {
+                    helpDialogScrollOffset++;
+                    drawConsole();
+                    return;
+                }
+                if (key_value == "UP") {
+                    if (helpDialogScrollOffset > 0) helpDialogScrollOffset--;
+                    drawConsole();
                     return;
                 }
                 if (key_value == "LEFT" || key_value == "RIGHT" || key_value == "HOME" || key_value == "END") {
@@ -925,10 +936,12 @@ public:
                 if (helpFilterMode) {
                     helpFilterMode = false;
                     helpFilterText.clear();
+                    helpDialogScrollOffset = 0;
                     drawConsole();
                     return true;
                 }
                 helpDialogVisible = false;
+                helpDialogScrollOffset = 0;
                 drawConsole();
             } else if (viewBookmarksDialogVisible) {
                 // Escape hides view bookmarks dialog but not window
@@ -1154,6 +1167,77 @@ public:
             updateHelpDialogScrollOffset(-1);
             drawConsole();
             return true;
+        }
+
+        void buildHelpTopicsCache() {
+            helpTopicsCache.clear();
+
+            helpTopicsCache.push_back({"Main Window:", "", true});
+            helpTopicsCache.push_back({"j/k", "Navigate items", false});
+            helpTopicsCache.push_back({"g/G", "Top/bottom", false});
+            helpTopicsCache.push_back({"/", "Filter mode", false});
+            helpTopicsCache.push_back({"Shift+m", "Manage bookmark groups", false});
+            helpTopicsCache.push_back({"m", "Add clip to group", false});
+            helpTopicsCache.push_back({"`", "View bookmarks", false});
+            helpTopicsCache.push_back({"p", "Pin clip", false});
+            helpTopicsCache.push_back({"'", "View pinned clips", false});
+            helpTopicsCache.push_back({"i", "Edit current clip", false});
+            helpTopicsCache.push_back({"?", "This help", false});
+            helpTopicsCache.push_back({"Shift+d", "Delete item", false});
+            helpTopicsCache.push_back({"Shift+q", "Quit", false});
+            helpTopicsCache.push_back({"Enter", "Copy item", false});
+            helpTopicsCache.push_back({"Escape", "Hide window", false});
+
+            helpTopicsCache.push_back({"Filter Mode:", "", true});
+            helpTopicsCache.push_back({"Type text", "Filter items", false});
+            helpTopicsCache.push_back({"Backspace", "Delete char", false});
+            helpTopicsCache.push_back({"Up/down arrow", "Navigate items", false});
+            helpTopicsCache.push_back({"Delete", "Delete item", false});
+            helpTopicsCache.push_back({"Enter", "Copy item", false});
+            helpTopicsCache.push_back({"Escape", "Exit filter", false});
+
+            helpTopicsCache.push_back({"Pinned Clips:", "", true});
+            helpTopicsCache.push_back({"j/k", "Navigate items", false});
+            helpTopicsCache.push_back({"g/G", "Top/bottom", false});
+            helpTopicsCache.push_back({"Shift+d", "Delete item", false});
+            helpTopicsCache.push_back({"Enter", "Copy item", false});
+            helpTopicsCache.push_back({"Escape", "Exit pinned clips", false});
+
+            helpTopicsCache.push_back({"Add Bookmark Group Dialog:", "", true});
+            helpTopicsCache.push_back({"Type text", "Define Group Name / Filter Existing", false});
+            helpTopicsCache.push_back({"Backspace", "Delete char", false});
+            helpTopicsCache.push_back({"Enter", "Create group", false});
+            helpTopicsCache.push_back({"Escape", "Exit dialog", false});
+
+            helpTopicsCache.push_back({"Add Clip to Group Dialog:", "", true});
+            helpTopicsCache.push_back({"j/k", "Navigate group", false});
+            helpTopicsCache.push_back({"g/G", "Top/bottom", false});
+            helpTopicsCache.push_back({"/", "Begin filtering groups", false});
+            helpTopicsCache.push_back({"Enter", "Add clip to group", false});
+            helpTopicsCache.push_back({"Escape", "Exit filtering / Exit dialog", false});
+
+            helpTopicsCache.push_back({"View/Delete/Use Bookmarks Dialog", "", true});
+            helpTopicsCache.push_back({"j/k", "Navigate groups/clips", false});
+            helpTopicsCache.push_back({"g/G", "Top/bottom", false});
+            helpTopicsCache.push_back({"h", "Back to groups list", false});
+            helpTopicsCache.push_back({"Shift+d", "Delete item", false});
+            helpTopicsCache.push_back({"/", "Begin filtering groups", false});
+            helpTopicsCache.push_back({"Enter", "View group clips/copy clip", false});
+            helpTopicsCache.push_back({"Escape", "Exit filtering / Exit dialog", false});
+
+            helpTopicsCache.push_back({"Commands:", "", true});
+            helpTopicsCache.push_back({":", "Activate commands", false});
+            helpTopicsCache.push_back({"theme", "Select theme to apply", false});
+            helpTopicsCache.push_back({"config", "Select config option or modify with: config key value", false});
+            helpTopicsCache.push_back({"Enter", "Select config or apply change", false});
+            helpTopicsCache.push_back({"Example: config max_clips 1000", "", false});
+            helpTopicsCache.push_back({"Escape", "Cancel command", false});
+
+            helpTopicsCache.push_back({"Help Window:", "", true});
+            helpTopicsCache.push_back({"/", "Filter help topics (prefix ':' to search keys only)", false});
+            helpTopicsCache.push_back({"j/k or arrows", "Scroll down/up", false});
+            helpTopicsCache.push_back({"g/G", "Go to top/bottom", false});
+            helpTopicsCache.push_back({"Escape", "Close help", false});
         }
 
         bool key_help_scroll_up() {
@@ -2758,6 +2842,9 @@ private:
     size_t helpDialogScrollOffset = 0;
     bool helpFilterMode = false;
     std::string helpFilterText;
+    struct HelpTopic { std::string key; std::string description; bool isHeader; };
+    std::vector<HelpTopic> helpTopicsCache;
+    size_t helpFilterScrollOffset = 0;
 
     // Edit dialog state
     bool editDialogVisible = false;
@@ -4481,137 +4568,53 @@ private:
     }
 
     void drawAllHelpTopics(HDC hdc, int titleLeft, int topicLeft, int lineHeight, int gap, int y, int contentTop, int contentBottom) {
-        // Main Window shortcuts
-        drawHelpTopic(hdc, titleLeft, y, contentTop, contentBottom, "Main Window:");
-        y += lineHeight;
-        drawHelpTopic(hdc, topicLeft, y, contentTop, contentBottom, "j/k            - Navigate items");
-        y += lineHeight;
-        drawHelpTopic(hdc, topicLeft, y, contentTop, contentBottom, "g/G            - Top/bottom");
-        y += lineHeight;
-        drawHelpTopic(hdc, topicLeft, y, contentTop, contentBottom, "/              - Filter mode");
-        y += lineHeight;
-        drawHelpTopic(hdc, topicLeft, y, contentTop, contentBottom, "Shift+m        - Manage bookmark groups");
-        y += lineHeight;
-        drawHelpTopic(hdc, topicLeft, y, contentTop, contentBottom, "m              - Add clip to group");
-        y += lineHeight;
-        drawHelpTopic(hdc, topicLeft, y, contentTop, contentBottom, "`              - View bookmarks");
-        y += lineHeight;
-        drawHelpTopic(hdc, topicLeft, y, contentTop, contentBottom, "p              - Pin clip");
-        y += lineHeight;
-        drawHelpTopic(hdc, topicLeft, y, contentTop, contentBottom, "'              - View pinned clips");
-        y += lineHeight;
-        drawHelpTopic(hdc, topicLeft, y, contentTop, contentBottom, "i              - Edit current clip");
-        y += lineHeight;
-        drawHelpTopic(hdc, topicLeft, y, contentTop, contentBottom, "?              - This help");
-        y += lineHeight;
-        drawHelpTopic(hdc, topicLeft, y, contentTop, contentBottom, "Shift+d        - Delete item");
-        y += lineHeight;
-        drawHelpTopic(hdc, topicLeft, y, contentTop, contentBottom, "Shift+q        - Quit");
-        y += lineHeight;
-        drawHelpTopic(hdc, topicLeft, y, contentTop, contentBottom, "Enter          - Copy item");
-        y += lineHeight;
-        drawHelpTopic(hdc, topicLeft, y, contentTop, contentBottom, "Escape         - Hide window");
-        y += lineHeight + gap;
-        
-        // Filter Mode shortcuts
-        drawHelpTopic(hdc, titleLeft, y, contentTop, contentBottom, "Filter Mode:");
-        y += lineHeight;
-        drawHelpTopic(hdc, topicLeft, y, contentTop, contentBottom, "Type text      - Filter items");
-        y += lineHeight;
-        drawHelpTopic(hdc, topicLeft, y, contentTop, contentBottom, "Backspace      - Delete char");
-        y += lineHeight;
-        drawHelpTopic(hdc, topicLeft, y, contentTop, contentBottom, "Up/down arrow  - Navigate items");
-        y += lineHeight;
-        drawHelpTopic(hdc, topicLeft, y, contentTop, contentBottom, "Delete         - Delete item");
-        y += lineHeight;
-        drawHelpTopic(hdc, topicLeft, y, contentTop, contentBottom, "Enter          - Copy item");
-        y += lineHeight;
-        drawHelpTopic(hdc, topicLeft, y, contentTop, contentBottom, "Escape         - Exit filter");
-        y += lineHeight + gap;
+        if (helpTopicsCache.empty()) {
+            buildHelpTopicsCache();
+        }
 
-        // Pinned clips shortcuts
-        drawHelpTopic(hdc, titleLeft, y, contentTop, contentBottom, "Pinned Clips:");
-        y += lineHeight;
-        drawHelpTopic(hdc, topicLeft, y, contentTop, contentBottom, "j/k            - Navigate items");
-        y += lineHeight;
-        drawHelpTopic(hdc, topicLeft, y, contentTop, contentBottom, "g/G            - Top/bottom");
-        y += lineHeight;
-        drawHelpTopic(hdc, topicLeft, y, contentTop, contentBottom, "Shift+d        - Delete item");
-        y += lineHeight;
-        drawHelpTopic(hdc, topicLeft, y, contentTop, contentBottom, "Enter          - Copy item");
-        y += lineHeight;
-        drawHelpTopic(hdc, topicLeft, y, contentTop, contentBottom, "Escape         - Exit pinned clips");
-        y += lineHeight + gap;
-        
-        // Add bookmark group shortcuts
-        drawHelpTopic(hdc, titleLeft, y, contentTop, contentBottom, "Add Bookmark Group Dialog:");
-        y += lineHeight;
-        drawHelpTopic(hdc, topicLeft, y, contentTop, contentBottom, "Type text      - Define Group Name / Filter Existing");
-        y += lineHeight;
-        drawHelpTopic(hdc, topicLeft, y, contentTop, contentBottom, "Backspace      - Delete char");
-        y += lineHeight;
-        drawHelpTopic(hdc, topicLeft, y, contentTop, contentBottom, "Enter          - Create group");
-        y += lineHeight;
-        drawHelpTopic(hdc, topicLeft, y, contentTop, contentBottom, "Escape         - Exit dialog");
-        y += lineHeight + gap;
+        std::string filterQuery = helpFilterText;
+        bool keysOnly = false;
+        if (!filterQuery.empty() && filterQuery[0] == ':') {
+            keysOnly = true;
+            filterQuery = filterQuery.substr(1);
+        }
+        std::string lowerQuery = stringToLower(filterQuery);
 
-        // Add clip to group shortcuts
-        drawHelpTopic(hdc, titleLeft, y, contentTop, contentBottom, "Add Clip to Group Dialog:");
-        y += lineHeight;
-        drawHelpTopic(hdc, topicLeft, y, contentTop, contentBottom, "j/k            - Navigate group");
-        y += lineHeight;
-        drawHelpTopic(hdc, topicLeft, y, contentTop, contentBottom, "g/G            - Top/bottom");
-        y += lineHeight;
-        drawHelpTopic(hdc, topicLeft, y, contentTop, contentBottom, "/              - Begin filtering groups");
-        y += lineHeight;
-        drawHelpTopic(hdc, topicLeft, y, contentTop, contentBottom, "Enter          - Add clip to group");
-        y += lineHeight;
-        drawHelpTopic(hdc, topicLeft, y, contentTop, contentBottom, "Escape         - Exit filtering / Exit dialog");
-        y += lineHeight + gap;
+        std::vector<HelpTopic> filtered;
+        for (const auto& topic : helpTopicsCache) {
+            if (topic.isHeader) {
+                filtered.push_back(topic);
+            } else {
+                std::string keyLower = stringToLower(topic.key);
+                std::string descLower = stringToLower(topic.description);
+                if (keysOnly) {
+                    if (keyLower.find(lowerQuery) != std::string::npos) {
+                        filtered.push_back(topic);
+                    }
+                } else {
+                    if (keyLower.find(lowerQuery) != std::string::npos || descLower.find(lowerQuery) != std::string::npos) {
+                        filtered.push_back(topic);
+                    }
+                }
+            }
+        }
 
-        // View/Edit/Use bookmarks
-        drawHelpTopic(hdc, titleLeft, y, contentTop, contentBottom, "View/Delete/Use Bookmarks Dialog");
-        y += lineHeight;
-        drawHelpTopic(hdc, topicLeft, y, contentTop, contentBottom, "j/k            - Navigate groups/clips");
-        y += lineHeight;
-        drawHelpTopic(hdc, topicLeft, y, contentTop, contentBottom, "g/G            - Top/bottom");
-        y += lineHeight;
-        drawHelpTopic(hdc, topicLeft, y, contentTop, contentBottom, "h              - Back to groups list");
-        y += lineHeight;
-        drawHelpTopic(hdc, topicLeft, y, contentTop, contentBottom, "Shift+d        - Delete item");
-        y += lineHeight;
-        drawHelpTopic(hdc, topicLeft, y, contentTop, contentBottom, "/              - Begin filtering groups");
-        y += lineHeight;
-        drawHelpTopic(hdc, topicLeft, y, contentTop, contentBottom, "Enter          - View group clips/copy clip");
-        y += lineHeight;
-        drawHelpTopic(hdc, topicLeft, y, contentTop, contentBottom, "Escape         - Exit filtering / Exit dialog");
-        y += lineHeight + gap + 5;
+for (const auto& topic : filtered) {
+            std::string displayText;
+            if (topic.isHeader) {
+                displayText = topic.key;
+                drawHelpTopic(hdc, titleLeft, y, contentTop, contentBottom, displayText);
+            } else {
+                displayText = topic.key + "  -  " + topic.description;
+                drawHelpTopic(hdc, topicLeft, y, contentTop, contentBottom, displayText);
+            }
+            y += lineHeight;
+            if (topic.isHeader) {
+                y += gap;
+            }
+        }
 
-        // Commands
-        drawHelpTopic(hdc, titleLeft, y, contentTop, contentBottom, "Commands");
         y += lineHeight;
-        drawHelpTopic(hdc, topicLeft, y, contentTop, contentBottom, ":              - Activate commands");
-        y += lineHeight;
-        drawHelpTopic(hdc, topicLeft, y, contentTop, contentBottom, "theme          - Select theme to apply");
-        y += lineHeight;
-        drawHelpTopic(hdc, topicLeft, y, contentTop, contentBottom, "config         - Select config option or modify with: config key value");
-        y += lineHeight;
-        drawHelpTopic(hdc, topicLeft, y, contentTop, contentBottom, "Enter          - Select config or apply change");
-        y += lineHeight;
-        drawHelpTopic(hdc, topicLeft, y, contentTop, contentBottom, "Example: config max_clips 1000");
-        y += lineHeight;
-        drawHelpTopic(hdc, topicLeft, y, contentTop, contentBottom, "Escape         - Cancel command");
-        y += lineHeight + gap + 5;
-
-        // Help
-        drawHelpTopic(hdc, titleLeft, y, contentTop, contentBottom, "Help Window:");
-        y += lineHeight;
-        drawHelpTopic(hdc, topicLeft, y, contentTop, contentBottom, "j/k            - Navigate topics");
-        y += lineHeight;
-        drawHelpTopic(hdc, topicLeft, y, contentTop, contentBottom, "g              - Top");
-        y += lineHeight + gap;
-
-        // Global hotkey
         drawHelpTopic(hdc, titleLeft, y, contentTop, contentBottom, "Global Hotkey:");
         y += lineHeight;
         drawHelpTopic(hdc, topicLeft, y, contentTop, contentBottom, "Ctrl+Alt+C     - Show/hide window");
