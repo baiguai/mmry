@@ -156,6 +156,51 @@ public:
 
         //---- Help Dialog -----------------------------------------------------
         if (helpDialogVisible) {
+            if (key_value == "ESCAPE") {
+                if (helpFilterMode) {
+                    helpFilterMode = false;
+                    helpFilterText.clear();
+                    drawConsole();
+                    return;
+                }
+                if (key_help_hide()) return;
+            }
+
+            if (helpFilterMode) {
+                if (key_value == "BACKSPACE") {
+                    if (!helpFilterText.empty()) {
+                        helpFilterText.pop_back();
+                        drawConsole();
+                    }
+                    return;
+                }
+                if (key_value == "LEFT" || key_value == "RIGHT" || key_value == "HOME" || key_value == "END") {
+                    return;
+                }
+#ifdef _WIN32
+                char typedChar = getCharFromMsg(msg);
+                if (typedChar != 0) {
+                    helpFilterText += typedChar;
+                    drawConsole();
+                }
+#else
+                char buffer[10];
+                int count = XLookupString(keyEvent, buffer, sizeof(buffer), nullptr, nullptr);
+                if (count > 0) {
+                    helpFilterText += std::string(buffer, count);
+                    drawConsole();
+                }
+#endif
+                return;
+            }
+
+            if (key_value == "/") {
+                helpFilterMode = true;
+                helpFilterText.clear();
+                drawConsole();
+                return;
+            }
+
             if (key_value == "?") {
                 if (key_help_hide()) return;
             }
@@ -877,6 +922,12 @@ public:
                 drawConsole();
             } else if (helpDialogVisible) {
                 // Escape hides help dialog but not window
+                if (helpFilterMode) {
+                    helpFilterMode = false;
+                    helpFilterText.clear();
+                    drawConsole();
+                    return true;
+                }
                 helpDialogVisible = false;
                 drawConsole();
             } else if (viewBookmarksDialogVisible) {
@@ -2051,7 +2102,9 @@ public:
 
         bool key_main_help_start() {
             helpDialogVisible = true;
-            helpDialogScrollOffset = 0; // Reset scroll offset when opening help dialog
+            helpDialogScrollOffset = 0;
+            helpFilterMode = true;
+            helpFilterText.clear();
             drawConsole();
 
             return true;
@@ -2703,6 +2756,8 @@ private:
     // Help dialog state
     bool helpDialogVisible = false;
     size_t helpDialogScrollOffset = 0;
+    bool helpFilterMode = false;
+    std::string helpFilterText;
 
     // Edit dialog state
     bool editDialogVisible = false;
@@ -5155,13 +5210,27 @@ public:
             
             // Draw help content
             XSetForeground(display, gc, textColor);
-            int y = dims.y + 20;
-            const int contentTop = y;
-            const int contentBottom = dims.y + dims.height;
             const int titleLeft = dims.x + 20;
             const int topicLeft = dims.x + 30;
             const int lineHeight = 15;
             const int gap = 10;
+
+            // Pre-input field at top
+            int inputY = dims.y + 20;
+
+            // Draw input field box
+            XSetForeground(display, gc, helpFilterMode ? textColor : borderColor);
+            XDrawRectangle(display, window, gc, dims.x + 20, inputY, dims.width - 40, 20);
+            
+            // Draw "/" prompt
+            std::string filterDisplay = "/" + helpFilterText;
+            XSetForeground(display, gc, textColor);
+            XDrawString(display, window, gc, dims.x + 25, inputY + 14, filterDisplay.c_str(), filterDisplay.length());
+
+            // Shift help topics down to make room for input field
+            int y = dims.y + 20 + 25 + gap;
+            const int contentTop = y;
+            const int contentBottom = dims.y + dims.height;
 
             y = y + helpDialogScrollOffset;
 
@@ -6041,15 +6110,34 @@ public:
             SetTextColor(hdc, textColor);
             SetBkMode(hdc, TRANSPARENT);
 
-            const int contentTop = dims.y + 20;
-            const int contentBottom = dims.y + dims.height;
             const int titleLeft = dims.x + 20;
             const int topicLeft = dims.x + 30;
             const int lineHeight = 15;
             const int gap = 10;
 
+            // Pre-input field at top
+            int inputY = dims.y + 20;
+
+            // Draw input field box
+            HPEN hInputPen = CreatePen(PS_SOLID, 1, helpFilterMode ? textColor : borderColor);
+            HPEN hOldPen_input = (HPEN)SelectObject(hdc, hInputPen);
+            HBRUSH hOldBrush_input = (HBRUSH)SelectObject(hdc, GetStockObject(NULL_BRUSH));
+            Rectangle(hdc, dims.x + 20, inputY, dims.x + dims.width - 20, inputY + 20);
+            SelectObject(hdc, hOldBrush_input);
+            SelectObject(hdc, hOldPen_input);
+            DeleteObject(hInputPen);
+
+            // Draw "/" prompt
+            std::string filterDisplay = "/" + helpFilterText;
+            TextOut(hdc, dims.x + 25, inputY + 4, filterDisplay.c_str(), filterDisplay.length());
+
+            // Shift help topics down to make room for input field
+            int y = dims.y + 20 + 25 + gap;
+            const int contentTop = y;
+            const int contentBottom = dims.y + dims.height;
+
             // Scroll offset clamping (optional, but recommended)
-            int y = contentTop + helpDialogScrollOffset;
+            y = y + helpDialogScrollOffset;
 
             // --- Draw help topics ---
             drawAllHelpTopics(
