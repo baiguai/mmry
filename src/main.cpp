@@ -176,14 +176,10 @@ public:
                     return;
                 }
                 if (key_value == "DOWN") {
-                    helpDialogScrollOffset++;
-                    drawConsole();
-                    return;
+                    if (key_help_scroll_down()) return;
                 }
                 if (key_value == "UP") {
-                    if (helpDialogScrollOffset > 0) helpDialogScrollOffset--;
-                    drawConsole();
-                    return;
+                    if (key_help_scroll_up()) return;
                 }
                 if (key_value == "LEFT" || key_value == "RIGHT" || key_value == "HOME" || key_value == "END") {
                     return;
@@ -4599,10 +4595,11 @@ private:
             }
         }
 
-for (const auto& topic : filtered) {
+        for (const auto& topic : filtered) {
             std::string displayText;
             if (topic.isHeader) {
                 displayText = topic.key;
+                y += gap;
                 drawHelpTopic(hdc, titleLeft, y, contentTop, contentBottom, displayText);
             } else {
                 displayText = topic.key + "  -  " + topic.description;
@@ -5216,7 +5213,7 @@ public:
             const int titleLeft = dims.x + 20;
             const int topicLeft = dims.x + 30;
             const int lineHeight = 15;
-            const int gap = 10;
+            const int gap = 12;
 
             // Pre-input field at top
             int inputY = dims.y + 20;
