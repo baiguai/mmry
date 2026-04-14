@@ -3432,17 +3432,20 @@ private:
             }
         } else if (filterText[0] == '!') {
             // Explicit regex search (after '!' prefix)
-            try {
-                std::string regex_pattern = filterText.substr(1);
-                std::regex rgx(regex_pattern, std::regex_constants::icase);
+            std::string regex_pattern = filterText.substr(1);
+            if (!regex_pattern.empty()) {
+                try {
+                    std::regex rgx(regex_pattern, std::regex_constants::icase);
 
-                for (size_t i = 0; i < items.size(); ++i) {
-                    if (std::regex_search(items[i].lowercase_content, rgx)) {
-                        filteredItems.push_back(i);
+                    for (size_t i = 0; i < items.size(); ++i) {
+                        if (!items[i].lowercase_content.empty() && 
+                            std::regex_search(items[i].lowercase_content, rgx)) {
+                            filteredItems.push_back(i);
+                        }
                     }
+                } catch (const std::regex_error& e) {
+                    writeLog(std::string(__FUNCTION__) + std::string(e.what()));
                 }
-            } catch (const std::regex_error& e) {
-                writeLog(std::string(__FUNCTION__) + std::string() + e.what());
             }
         } else {
             // Fast path: simple substring search (most common case)
@@ -4615,7 +4618,7 @@ private:
             }
         }
 
-for (const auto& topic : filtered) {
+        for (const auto& topic : filtered) {
             std::string displayText;
             if (topic.isHeader) {
                 displayText = topic.key;
