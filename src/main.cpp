@@ -176,10 +176,14 @@ public:
                     return;
                 }
                 if (key_value == "DOWN") {
-                    if (key_help_scroll_down()) return;
+                    helpDialogScrollOffset++;
+                    drawConsole();
+                    return;
                 }
                 if (key_value == "UP") {
-                    if (key_help_scroll_up()) return;
+                    if (helpDialogScrollOffset > 0) helpDialogScrollOffset--;
+                    drawConsole();
+                    return;
                 }
                 if (key_value == "LEFT" || key_value == "RIGHT" || key_value == "HOME" || key_value == "END") {
                     return;
@@ -1171,7 +1175,7 @@ public:
             helpTopicsCache.push_back({"Main Window:", "", true});
             helpTopicsCache.push_back({"j/k", "Navigate items", false});
             helpTopicsCache.push_back({"g/G", "Top/bottom", false});
-            helpTopicsCache.push_back({"/", "Filter mode", false});
+            helpTopicsCache.push_back({"/", "Filter mode (! for REGEX)", false});
             helpTopicsCache.push_back({"Shift+m", "Manage bookmark groups", false});
             helpTopicsCache.push_back({"m", "Add clip to group", false});
             helpTopicsCache.push_back({"`", "View bookmarks", false});
@@ -3420,9 +3424,28 @@ private:
     void updateFilteredItems() {
         selectedItem = 0;
         consoleScrollOffset = 0;
-        filteredItems.clear();        if (filterText.empty()) {
+        filteredItems.clear();
+
+        if (filterText.empty()) {
             for (size_t i = 0; i < items.size(); ++i) {
                 filteredItems.push_back(i);
+            }
+        } else if (filterText[0] == '!') {
+            // Explicit regex search (after '!' prefix)
+            std::string regex_pattern = filterText.substr(1);
+            if (!regex_pattern.empty()) {
+                try {
+                    std::regex rgx(regex_pattern, std::regex_constants::icase);
+
+                    for (size_t i = 0; i < items.size(); ++i) {
+                        if (!items[i].lowercase_content.empty() && 
+                            std::regex_search(items[i].lowercase_content, rgx)) {
+                            filteredItems.push_back(i);
+                        }
+                    }
+                } catch (const std::regex_error& e) {
+                    writeLog(std::string(__FUNCTION__) + std::string(e.what()));
+                }
             }
         } else {
             // Fast path: simple substring search (most common case)
@@ -4599,7 +4622,6 @@ private:
             std::string displayText;
             if (topic.isHeader) {
                 displayText = topic.key;
-                y += gap;
                 drawHelpTopic(hdc, titleLeft, y, contentTop, contentBottom, displayText);
             } else {
                 displayText = topic.key + "  -  " + topic.description;
@@ -5213,7 +5235,7 @@ public:
             const int titleLeft = dims.x + 20;
             const int topicLeft = dims.x + 30;
             const int lineHeight = 15;
-            const int gap = 12;
+            const int gap = 10;
 
             // Pre-input field at top
             int inputY = dims.y + 20;
