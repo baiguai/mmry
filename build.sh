@@ -3,6 +3,8 @@
 # MMRY Clipboard Manager Build Script
 # This script builds the C++ version of MMRY
 
+sudo apt-get install libxfixes-dev
+
 set -e  # Exit on any error
 
 echo "Building MMRY Clipboard Manager..."

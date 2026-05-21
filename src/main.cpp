@@ -1169,6 +1169,7 @@ public:
             return true;
         }
 
+        // !@!
         void buildHelpTopicsCache() {
             helpTopicsCache.clear();
 
