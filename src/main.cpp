@@ -1169,6 +1169,7 @@ public:
             return true;
         }
 
+        // !@!
         void buildHelpTopicsCache() {
             helpTopicsCache.clear();
 
@@ -3435,7 +3436,7 @@ private:
             std::string regex_pattern = filterText.substr(1);
             if (!regex_pattern.empty()) {
                 try {
-                    std::regex rgx(regex_pattern, std::regex_constants::icase);
+                    std::regex rgx(regex_pattern, std::regex_constants::icase | std::regex_constants::multiline);
 
                     for (size_t i = 0; i < items.size(); ++i) {
                         if (!items[i].lowercase_content.empty() && 
