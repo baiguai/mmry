@@ -49,13 +49,15 @@
 typedef void* HDC;
 #endif
 
-struct ClipboardItem {
+struct ClipboardItem
+{
     std::string content;
     std::string lowercase_content;
     std::chrono::system_clock::time_point timestamp;
     
     ClipboardItem(const std::string& content) 
-        : content(content), timestamp(std::chrono::system_clock::now()) {
+        : content(content), timestamp(std::chrono::system_clock::now())
+    {
         lowercase_content.reserve(content.length());
         std::transform(content.begin(), content.end(), std::back_inserter(lowercase_content),
                        [](unsigned char c){ return std::tolower(c); });
@@ -64,7 +66,8 @@ struct ClipboardItem {
 
 
 
-class SingleInstance {
+class SingleInstance
+{
 private:
 #ifdef _WIN32
     HANDLE mutex;
@@ -74,13 +77,15 @@ private:
 #endif
 
 public:
-    SingleInstance(const std::string& appName) {
+    SingleInstance(const std::string& appName)
+    {
 #ifdef _WIN32
         // Windows: Use a named mutex
         std::string mutexName = "Global\\" + appName + "_SingleInstance";
         mutex = CreateMutexA(NULL, FALSE, mutexName.c_str());
         
-        if (GetLastError() == ERROR_ALREADY_EXISTS) {
+        if (GetLastError() == ERROR_ALREADY_EXISTS)
+        {
             CloseHandle(mutex);
             mutex = NULL;
         }
@@ -89,26 +94,31 @@ public:
         lockPath = "/tmp/" + appName + ".lock";
         lockFile = open(lockPath.c_str(), O_CREAT | O_RDWR, 0666);
         
-        if (lockFile == -1) {
+        if (lockFile == -1)
+        {
             lockFile = -1;
             return;
         }
         
         // Try to acquire exclusive lock
-        if (flock(lockFile, LOCK_EX | LOCK_NB) == -1) {
+        if (flock(lockFile, LOCK_EX | LOCK_NB) == -1)
+        {
             close(lockFile);
             lockFile = -1;
         }
 #endif
     }
 
-    ~SingleInstance() {
+    ~SingleInstance()
+    {
 #ifdef _WIN32
-        if (mutex) {
+        if (mutex)
+        {
             CloseHandle(mutex);
         }
 #else
-        if (lockFile != -1) {
+        if (lockFile != -1)
+        {
             flock(lockFile, LOCK_UN);
             close(lockFile);
             unlink(lockPath.c_str());
@@ -116,7 +126,8 @@ public:
 #endif
     }
 
-    bool isAnotherInstanceRunning() const {
+    bool isAnotherInstanceRunning() const
+    {
 #ifdef _WIN32
         return (mutex == NULL);
 #else
@@ -129,10 +140,12 @@ std::string stringToLower(const std::string& str);
 
 // Temporary error handler to swallow BadAccess errors
 #ifdef __linux__
-int ignore_x11_errors(Display* d, XErrorEvent* e) {
+int ignore_x11_errors(Display* d, XErrorEvent* e)
+{
     (void)d; // Suppress unused parameter warning
     // 10 = BadAccess
-    if (e->error_code == BadAccess) {
+    if (e->error_code == BadAccess)
+    {
         return 0; // ignore the error
     }
     return 0; // ignore all other errors too

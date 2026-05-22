@@ -1,16 +1,21 @@
 #include "main.h"
+#include "key_translation.h"
 #include <regex>
 
-class ClipboardManager {
+class ClipboardManager
+{
+
 public:
-    ClipboardManager() {
+    ClipboardManager()
+    {
         logfile.open("mmry_debug.log");
         writeLog("________ NEW MMRY SESSION ________");
         writeLog("");
         writeLog("");
     }
 
-    ~ClipboardManager() {
+    ~ClipboardManager()
+    {
         writeLog("");
         writeLog("");
         writeLog("");
@@ -26,8 +31,10 @@ private:
     mutable std::ofstream logfile;
 
     // Helper method for logging
-    void writeLog(const std::string& message) const {
-        if (m_debugging) {
+    void writeLog(const std::string& message) const
+    {
+        if (m_debugging)
+        {
             auto now = std::chrono::system_clock::now();
             auto in_time_t = std::chrono::system_clock::to_time_t(now);
             logfile << std::put_time(std::localtime(&in_time_t), "%Y-%m-%d %X") << " | " << message << std::endl;
@@ -47,117 +54,50 @@ public:
 ///
 
 #ifdef __linux__
-    void handleKeyPress(XEvent* event) {
+    void handleKeyPress(XEvent* event)
+    {
         handleKeyPressCommon(event);
     }
 #endif
 
-    void handleKeyPressCommon(void* eventPtr) {
-        std::string key_value = "";
+    void handleKeyPressCommon(void* eventPtr)
+    {
+        std::string key_value = translateKey(eventPtr);
 
-        // !@!
 #ifdef __linux__
         XEvent* event = (XEvent*)eventPtr;
-        KeySym keysym;
-        char buffer[10];
         XKeyEvent* keyEvent = (XKeyEvent*)event;
-        
-        XLookupString(keyEvent, buffer, sizeof(buffer), &keysym, nullptr);
+        KeySym keysym;
+        {
+            char buf[10];
+            XLookupString(keyEvent, buf, sizeof(buf), &keysym, nullptr);
+        }
 #endif
 #ifdef _WIN32
         MSG* msg = (MSG*)eventPtr;
-        BYTE keyboardState[256] = {0};
-        GetKeyboardState(keyboardState);
 #endif
-
-
-        //---- Set the KeyValue ------------------------------------------------
-        // Linux Keys
-#ifdef __linux__
-            if (keysym == XK_D && (keyEvent->state & ShiftMask)) key_value = "D";
-            if (keysym == XK_G && (keyEvent->state & ShiftMask)) key_value = "G";
-            if (keysym == XK_g) key_value = "g";
-            if (keysym == XK_h) key_value = "h";
-            if (keysym == XK_i) key_value = "i";
-            if (keysym == XK_j) key_value = "j";
-            if (keysym == XK_k) key_value = "k";
-            if (keysym == XK_M && (keyEvent->state & ShiftMask)) key_value = "M";
-            if (keysym == XK_m) key_value = "m";
-            if (keysym == XK_p) key_value = "p";
-            if (keysym == XK_Q && (keyEvent->state & ShiftMask)) key_value = "Q";
-            if (keysym == XK_Up) key_value = "UP";
-            if (keysym == XK_Down) key_value = "DOWN";
-            if (keysym == XK_Left) key_value = "LEFT";
-            if (keysym == XK_Right) key_value = "RIGHT";
-            if (keysym == XK_Home) key_value = "HOME";
-            if (keysym == XK_End) key_value = "END";
-            if (keysym == XK_Escape) key_value = "ESCAPE";
-            if (keysym == XK_Return) key_value = "RETURN";
-            if (keysym == XK_BackSpace) key_value = "BACKSPACE";
-            if (keysym == XK_Delete) key_value = "DELETE";
-            if (keysym == XK_space) key_value = "SPACE";
-            if (keysym == XK_grave) key_value = "`";
-            if (keysym == XK_apostrophe) key_value = "'";
-            if (keysym == XK_colon) key_value = ":";
-            if (keysym == XK_slash) key_value = "/";
-            if (keysym == XK_question) key_value = "?";
-#endif
-#ifdef _WIN32
-            // Windows Keys - Handle WM_KEYDOWN only (WM_CHAR is skipped to prevent double processing)
-            if (msg->wParam == 'D' && (GetKeyState(VK_SHIFT) & 0x8000)) key_value = "D";
-            if (msg->wParam == 'G') {
-                if (GetKeyState(VK_SHIFT) & 0x8000) key_value = "G";
-                else key_value = "g";
-            }
-            if (msg->wParam == 'H') key_value = "h";
-            if (msg->wParam == 'I') key_value = "i";
-            if (msg->wParam == 'J') key_value = "j";
-            if (msg->wParam == 'K') key_value = "k";
-            if (msg->wParam == 'M') {
-                if (GetKeyState(VK_SHIFT) & 0x8000) key_value = "M";
-                else key_value = "m";
-            }
-            if (msg->wParam == 'P') key_value = "p";
-            if (msg->wParam == 'Q' && (GetKeyState(VK_SHIFT) & 0x8000)) key_value = "Q";
-            if (msg->wParam == VK_UP) key_value = "UP";
-            if (msg->wParam == VK_DOWN) key_value = "DOWN";
-            if (msg->wParam == VK_LEFT) key_value = "LEFT";
-            if (msg->wParam == VK_RIGHT) key_value = "RIGHT";
-            if (msg->wParam == VK_HOME) key_value = "HOME";
-            if (msg->wParam == VK_END) key_value = "END";
-            if (msg->wParam == VK_ESCAPE) key_value = "ESCAPE";
-            if (msg->wParam == VK_RETURN) key_value = "RETURN";
-            if (msg->wParam == VK_BACK) key_value = "BACKSPACE";
-            if (msg->wParam == VK_DELETE) key_value = "DELETE";
-            if (msg->wParam == VK_SPACE) key_value = "SPACE";
-            if (msg->wParam == VK_OEM_3) key_value = "`";
-            if (msg->wParam == VK_OEM_7) key_value = "'";
-            if (msg->wParam == VK_OEM_1 && (GetKeyState(VK_SHIFT) & 0x8000)) key_value = ":";
-            if (msg->wParam == VK_OEM_2) key_value = "/";
-            if ((msg->wParam == VK_OEM_2 && (GetKeyState(VK_SHIFT) & 0x8000))) key_value = "?";
-#endif
-        //---- End Set the KeyValue --------------------------------------------
-
-
-
-
-        if (key_value == "Q") {
+        if (key_value == "Q")
+        {
             // Shift+Q quits application even from dialog
             std::cout << "Quitting MMRY...\n";
             running = false; // Let main loop exit naturally to avoid deadlock
         }
 
         //---- General Escape --------------------------------------------------
-        if (key_value == "ESCAPE") {
+        if (key_value == "ESCAPE")
+        {
             if (key_global_escape()) return;
         }
         //----------------------------------------------------------------------
 
 
         //---- Help Dialog -----------------------------------------------------
-        if (helpDialogVisible) {
-            if (key_value == "ESCAPE") {
-                if (helpFilterMode) {
+        if (helpDialogVisible)
+        {
+            if (key_value == "ESCAPE")
+            {
+                if (helpFilterMode)
+                {
                     helpFilterMode = false;
                     helpFilterText.clear();
                     drawConsole();
@@ -166,38 +106,46 @@ public:
                 if (key_help_hide()) return;
             }
 
-            if (helpFilterMode) {
-                if (key_value == "BACKSPACE") {
-                    if (!helpFilterText.empty()) {
+            if (helpFilterMode)
+            {
+                if (key_value == "BACKSPACE")
+                {
+                    if (!helpFilterText.empty())
+                    {
                         helpFilterText.pop_back();
                         helpDialogScrollOffset = 0;
                         drawConsole();
                     }
                     return;
                 }
-                if (key_value == "DOWN") {
+                if (key_value == "DOWN")
+                {
                     helpDialogScrollOffset++;
                     drawConsole();
                     return;
                 }
-                if (key_value == "UP") {
+                if (key_value == "UP")
+                {
                     if (helpDialogScrollOffset > 0) helpDialogScrollOffset--;
                     drawConsole();
                     return;
                 }
-                if (key_value == "LEFT" || key_value == "RIGHT" || key_value == "HOME" || key_value == "END") {
+                if (key_value == "LEFT" || key_value == "RIGHT" || key_value == "HOME" || key_value == "END")
+                {
                     return;
                 }
 #ifdef _WIN32
                 char typedChar = getCharFromMsg(msg);
-                if (typedChar != 0) {
+                if (typedChar != 0)
+                {
                     helpFilterText += typedChar;
                     drawConsole();
                 }
 #else
                 char buffer[10];
                 int count = XLookupString(keyEvent, buffer, sizeof(buffer), nullptr, nullptr);
-                if (count > 0) {
+                if (count > 0)
+                {
                     helpFilterText += std::string(buffer, count);
                     drawConsole();
                 }
@@ -205,26 +153,31 @@ public:
                 return;
             }
 
-            if (key_value == "/") {
+            if (key_value == "/")
+            {
                 helpFilterMode = true;
                 helpFilterText.clear();
                 drawConsole();
                 return;
             }
 
-            if (key_value == "?") {
+            if (key_value == "?")
+            {
                 if (key_help_hide()) return;
             }
 
-            if (key_value == "j" || key_value == "DOWN") {
+            if (key_value == "j" || key_value == "DOWN")
+            {
                 if (key_help_scroll_down()) return;
             }
 
-            if (key_value == "k" || key_value == "UP") {
+            if (key_value == "k" || key_value == "UP")
+            {
                 if (key_help_scroll_up()) return;
             }
 
-            if (key_value == "g") {
+            if (key_value == "g")
+            {
                 if (key_help_scroll_top()) return;
             }
 
@@ -232,32 +185,38 @@ public:
         }
 
         //---- Edit Dialog -----------------------------------------------------
-        if (editDialogVisible) {
-            if (key_value == "ESCAPE") {
+        if (editDialogVisible)
+        {
+            if (key_value == "ESCAPE")
+            {
                 if (key_edit_escape()) return;
             }
 
             // Handle CTRL+ENTER for saving
 #ifdef __linux__
-            if (keysym == XK_Return && (keyEvent->state & ControlMask)) {
+            if (keysym == XK_Return && (keyEvent->state & ControlMask))
+            {
                 if (key_edit_save()) return;
             }
 #endif
 #ifdef _WIN32
-            if (msg->wParam == VK_RETURN && (GetKeyState(VK_CONTROL) & 0x8000)) {
+            if (msg->wParam == VK_RETURN && (GetKeyState(VK_CONTROL) & 0x8000))
+            {
                 if (key_edit_save()) return;
             }
 #endif
             // Handle CTRL+LEFT for moving one word left
 #ifdef __linux__
-            if (keysym == XK_Left && (keyEvent->state & ControlMask)) {
+            if (keysym == XK_Left && (keyEvent->state & ControlMask))
+            {
                 moveCursorWordLeft();
                 drawConsole();
                 return;
             }
 #endif
 #ifdef _WIN32
-            if (msg->wParam == VK_LEFT && (GetKeyState(VK_CONTROL) & 0x8000)) {
+            if (msg->wParam == VK_LEFT && (GetKeyState(VK_CONTROL) & 0x8000))
+            {
                 moveCursorWordLeft();
                 drawConsole();
                 return;
@@ -266,67 +225,80 @@ public:
 
             // Handle CTRL+RIGHT for moving one word right
 #ifdef __linux__
-            if (keysym == XK_Right && (keyEvent->state & ControlMask)) {
+            if (keysym == XK_Right && (keyEvent->state & ControlMask))
+            {
                 moveCursorWordRight();
                 drawConsole();
                 return;
             }
 #endif
 #ifdef _WIN32
-            if (msg->wParam == VK_RIGHT && (GetKeyState(VK_CONTROL) & 0x8000)) {
+            if (msg->wParam == VK_RIGHT && (GetKeyState(VK_CONTROL) & 0x8000))
+            {
                 moveCursorWordRight();
                 drawConsole();
                 return;
             }
 #endif
             
-            if (key_value == "RETURN") {
+            if (key_value == "RETURN")
+            {
                 if (key_edit_add_newline()) return;
             }
 
-            if (key_value == "BACKSPACE") {
+            if (key_value == "BACKSPACE")
+            {
                 if (key_edit_backspace()) return;
             }
 
-            if (key_value == "DELETE") {
+            if (key_value == "DELETE")
+            {
                 if (key_edit_delete()) return;
             }
 
-            if (key_value == "UP") {
+            if (key_value == "UP")
+            {
                 if (key_edit_cursor_up()) return;
             }
 
-            if (key_value == "DOWN") {
+            if (key_value == "DOWN")
+            {
                 if (key_edit_cursor_down()) return;
             }
 
-            if (key_value == "LEFT") {
+            if (key_value == "LEFT")
+            {
                 if (key_edit_cursor_left()) return;
             }
 
-            if (key_value == "RIGHT") {
+            if (key_value == "RIGHT")
+            {
                 if (key_edit_cursor_right()) return;
             }
 
-            if (key_value == "HOME") {
+            if (key_value == "HOME")
+            {
                 if (key_edit_home()) return;
             }
 
-            if (key_value == "END") {
+            if (key_value == "END")
+            {
                 if (key_edit_end()) return;
             }
 
             // Text input
 #ifdef _WIN32
             char typedChar = getCharFromMsg(msg);
-            if (typedChar != 0 && typedChar != '\r' && typedChar != '\n') { // Ignore enter key here as it is handled by CTRL+ENTER
+            if (typedChar != 0 && typedChar != '\r' && typedChar != '\n') // Ignore enter key here as it is handled by CTRL+ENTER
+            {
                 key_edit_add_char(typedChar);
                 return;
             }
 #else
             char buffer[10];
             int count = XLookupString(keyEvent, buffer, sizeof(buffer), nullptr, nullptr);
-            if (count > 0 && buffer[0] != '\r' && buffer[0] != '\n') { // Ignore enter key here as it is handled by CTRL+ENTER
+            if (count > 0 && buffer[0] != '\r' && buffer[0] != '\n') // Ignore enter key here as it is handled by CTRL+ENTER
+            {
                 key_edit_add_char(buffer[0]);
                 return;
             }
@@ -339,31 +311,36 @@ public:
 
         // Adding bookmark groups
         //
-        if (bookmarkDialogVisible && !addToBookmarkDialogVisible) {
-            if (key_value == "RETURN") {
+        if (bookmarkDialogVisible && !addToBookmarkDialogVisible)
+        {
+            if (key_value == "RETURN")
+            {
                 if (key_addgroup_add()) return;
             }
 
-            if (key_value == "BACKSPACE") {
+            if (key_value == "BACKSPACE")
+            {
                 if (key_addgroup_back()) return;
             }
 
             // Text input for bookmark dialog - exclude vim navigation keys
             // Plain Text
 #ifdef _WIN32
-                // Handle character input from WM_KEYDOWN
-                char typedChar = getCharFromMsg(msg); 
-                if (typedChar != 0) {
-                    bookmarkDialogInput += typedChar;  
-                    drawConsole();
-                }
+            // Handle character input from WM_KEYDOWN
+            char typedChar = getCharFromMsg(msg); 
+            if (typedChar != 0)
+            {
+                bookmarkDialogInput += typedChar;  
+                drawConsole();
+            }
 #else
-                char buffer[10];
-                int count = XLookupString(keyEvent, buffer, sizeof(buffer), nullptr, nullptr);
-                if (count > 0) {
-                    bookmarkDialogInput += std::string(buffer, count);
-                    drawConsole();
-                }
+            char buffer[10];
+            int count = XLookupString(keyEvent, buffer, sizeof(buffer), nullptr, nullptr);
+            if (count > 0)
+            {
+                bookmarkDialogInput += std::string(buffer, count);
+                drawConsole();
+            }
 #endif
             // End Plain Text
 
@@ -373,36 +350,46 @@ public:
 
         // Accessing bookmarked clips
         //
-        if (viewBookmarksDialogVisible) {
-            if (key_value == "`") {
+        if (viewBookmarksDialogVisible)
+        {
+            if (key_value == "`")
+            {
                 if (key_marks_show()) return;
             }
 
 
             // Groups view
             //
-            if (viewBookmarksShowingGroups) {
-                if (filterBookmarksMode) {
-                    if (key_value == "RETURN") {
+            if (viewBookmarksShowingGroups)
+            {
+                if (filterBookmarksMode)
+                {
+                    if (key_value == "RETURN")
+                    {
                         if (key_marks_groups_clips()) return;
                     }
-                    if (key_value == "ESCAPE") {
+                    if (key_value == "ESCAPE")
+                    {
                         filterBookmarksMode = false;
                         filterBookmarksText.clear();
                         drawConsole();
                         return;
                     }
                     // ADDED: UP/DOWN arrow key handling for filtered bookmark groups
-                    if (key_value == "j" || key_value == "DOWN") {
+                    if (key_value == "j" || key_value == "DOWN")
+                    {
                         if (key_marks_groups_down()) return;
                     }
 
-                    if (key_value == "k" || key_value == "UP") {
+                    if (key_value == "k" || key_value == "UP")
+                    {
                         if (key_marks_groups_up()) return;
                     }
                     // End ADDED
-                    if (key_value == "BACKSPACE") {
-                        if (!filterBookmarksText.empty()) {
+                    if (key_value == "BACKSPACE")
+                    {
+                        if (!filterBookmarksText.empty())
+                        {
                             filterBookmarksText.pop_back();
                             drawConsole();
                         }
@@ -411,14 +398,16 @@ public:
                     // Text input for filter
 #ifdef _WIN32
                     char typedChar = getCharFromMsg(msg);
-                    if (typedChar != 0) {
+                    if (typedChar != 0)
+                    {
                         filterBookmarksText += typedChar;
                         drawConsole();
                     }
 #else
                     char buffer[10];
                     int count = XLookupString(keyEvent, buffer, sizeof(buffer), nullptr, nullptr);
-                    if (count > 0) {
+                    if (count > 0)
+                    {
                         filterBookmarksText += std::string(buffer, count);
                         drawConsole();
                     }
@@ -426,51 +415,63 @@ public:
                     return;
                 }
 
-                if (key_value == "/") {
+                if (key_value == "/")
+                {
                     filterBookmarksMode = true;
                     filterBookmarksText.clear();
                     drawConsole();
                     return;
                 }
-                if (key_value == "j" || key_value == "DOWN") {
+                if (key_value == "j" || key_value == "DOWN")
+                {
                     if (key_marks_groups_down()) return;
                 }
 
-                if (key_value == "k" || key_value == "UP") {
+                if (key_value == "k" || key_value == "UP")
+                {
                     if (key_marks_groups_up()) return;
                 }
 
-                if (key_value == "g") {
+                if (key_value == "g")
+                {
                     if (key_marks_groups_top()) return;
                 }
 
-                if (key_value == "G") {
+                if (key_value == "G")
+                {
                     if (key_marks_groups_bottom()) return;
                 }
 
-                if (key_value == "D") {
+                if (key_value == "D")
+                {
                     if (key_marks_groups_delete()) return;
                 }
 
-                if (key_value == "RETURN") {
+                if (key_value == "RETURN")
+                {
                     if (key_marks_groups_clips()) return;
                 }
             }
 
             // Clips are being shown
             //
-            else {
-                if (filterBookmarkClipsMode) {
-                    if (key_value == "RETURN") {
+            else
+            {
+                if (filterBookmarkClipsMode)
+                {
+                    if (key_value == "RETURN")
+                    {
                         if (key_marks_clips_copy()) return;
                     }
-                    if (key_value == "ESCAPE") {
+                    if (key_value == "ESCAPE")
+                    {
                         filterBookmarkClipsMode = false;
                         filterBookmarkClipsText.clear();
                         drawConsole();
                         return;
                     }
-                    if (key_value == "BACKSPACE") {
+                    if (key_value == "BACKSPACE")
+                    {
                         if (!filterBookmarkClipsText.empty()) {
                             filterBookmarkClipsText.pop_back();
                             updateFilteredBookmarkClips();
@@ -479,22 +480,28 @@ public:
                         return;
                     }
                     // ADDED: UP/DOWN arrow key handling for filtered bookmark clips
-                    if (key_value == "j" || key_value == "DOWN") {
+                    if (key_value == "j" || key_value == "DOWN")
+                    {
                         if (key_marks_clips_down()) return;
                     }
 
-                    if (key_value == "k" || key_value == "UP") {
+                    if (key_value == "k" || key_value == "UP")
+                    {
                         if (key_marks_clips_up()) return;
                     }
                     // End ADDED
                     // Text input for filter
 #ifdef _WIN32
                     char typedChar = getCharFromMsg(msg);
-                    if (typedChar != 0 && typedChar != '\r' && typedChar != '\n') {
+                    if (typedChar != 0 && typedChar != '\r' && typedChar != '\n')
+                    {
                         // Don't add the triggering '/' as the first character
-                        if (filterBookmarkClipsText.empty() && typedChar == '/') {
+                        if (filterBookmarkClipsText.empty() && typedChar == '/')
+                        {
                             // do nothing
-                        } else {
+                        }
+                        else
+                        {
                             filterBookmarkClipsText += typedChar;
                             updateFilteredBookmarkClips();
                             drawConsole();
@@ -503,11 +510,15 @@ public:
 #else
                     char buffer[10];
                     int count = XLookupString(keyEvent, buffer, sizeof(buffer), nullptr, nullptr);
-                    if (count > 0 && buffer[0] != '\r' && buffer[0] != '\n') {
+                    if (count > 0 && buffer[0] != '\r' && buffer[0] != '\n')
+                    {
                         // Don't add the triggering '/' as the first character
-                        if (filterBookmarkClipsText.empty() && buffer[0] == '/') {
+                        if (filterBookmarkClipsText.empty() && buffer[0] == '/')
+                        {
                             // do nothing
-                        } else {
+                        }
+                        else
+                        {
                             filterBookmarkClipsText += std::string(buffer, count);
                             updateFilteredBookmarkClips();
                             drawConsole();
@@ -517,38 +528,46 @@ public:
                     return;
                 }
 
-                if (key_value == "/") {
+                if (key_value == "/")
+                {
                     filterBookmarkClipsMode = true;
                     filterBookmarkClipsText.clear();
                     updateFilteredBookmarkClips(); // Initial filter
                     drawConsole();
                     return;
                 }
-                if (key_value == "j" || key_value == "DOWN") {
+                if (key_value == "j" || key_value == "DOWN")
+                {
                     if (key_marks_clips_down()) return;
                 }
 
-                if (key_value == "k" || key_value == "UP") {
+                if (key_value == "k" || key_value == "UP")
+                {
                     if (key_marks_clips_up()) return;
                 }
 
-                if (key_value == "g") {
+                if (key_value == "g")
+                {
                     if (key_marks_clips_top()) return;
                 }
 
-                if (key_value == "G") {
+                if (key_value == "G")
+                {
                     if (key_marks_clips_bottom()) return;
                 }
 
-                if (key_value == "D") {
+                if (key_value == "D")
+                {
                     if (key_marks_clips_delete()) return;
                 }
 
-                if (key_value == "RETURN") {
+                if (key_value == "RETURN")
+                {
                     if (key_marks_clips_copy()) return;
                 }
 
-                if (key_value == "h") {
+                if (key_value == "h")
+                {
                     if (key_marks_clips_groups()) return;
                 }
             }
@@ -558,28 +577,35 @@ public:
 
         // Accessing pinned clips
         //
-        if (pinnedDialogVisible) {
-            if (key_value == "j" || key_value == "DOWN") {
+        if (pinnedDialogVisible)
+        {
+            if (key_value == "j" || key_value == "DOWN")
+            {
                 if (key_pin_down()) return;
             }
 
-            if (key_value == "k" || key_value == "UP") {
+            if (key_value == "k" || key_value == "UP")
+            {
                 if (key_pin_up()) return;
             }
 
-            if (key_value == "g") {
+            if (key_value == "g")
+            {
                 if (key_pin_top()) return;
             }
 
-            if (key_value == "G") {
+            if (key_value == "G")
+            {
                 if (key_pin_bottom()) return;
             }
 
-            if (key_value == "D") {
+            if (key_value == "D")
+            {
                 if (key_pin_delete()) return;
             }
 
-            if (key_value == "RETURN") {
+            if (key_value == "RETURN")
+            {
                 if (key_pin_copy()) return;
             }
 
@@ -589,20 +615,26 @@ public:
 
         // Adding the current clip to a bookmark group
         //
-        if (addToBookmarkDialogVisible) {
+        if (addToBookmarkDialogVisible)
+        {
             // Add to bookmark dialog is visible - handle dialog-specific keys
-            if (filterAddBookmarksMode) {
-                if (key_value == "RETURN") {
+            if (filterAddBookmarksMode)
+            {
+                if (key_value == "RETURN")
+                {
                     if (key_addmarks_add()) return;
                 }
-                if (key_value == "ESCAPE") {
+                if (key_value == "ESCAPE")
+                {
                     filterAddBookmarksMode = false;
                     filterAddBookmarksText.clear();
                     drawConsole();
                     return;
                 }
-                if (key_value == "BACKSPACE") {
-                    if (!filterAddBookmarksText.empty()) {
+                if (key_value == "BACKSPACE")
+                {
+                    if (!filterAddBookmarksText.empty())
+                    {
                         filterAddBookmarksText.pop_back();
                         drawConsole();
                     }
@@ -611,14 +643,16 @@ public:
                 // Text input for filter
 #ifdef _WIN32
                 char typedChar = getCharFromMsg(msg);
-                if (typedChar != 0) {
+                if (typedChar != 0)
+                {
                     filterAddBookmarksText += typedChar;
                     drawConsole();
                 }
 #else
                 char buffer[10];
                 int count = XLookupString(keyEvent, buffer, sizeof(buffer), nullptr, nullptr);
-                if (count > 0) {
+                if (count > 0)
+                {
                     filterAddBookmarksText += std::string(buffer, count);
                     drawConsole();
                 }
@@ -626,30 +660,36 @@ public:
                 return;
             }
 
-            if (key_value == "/") {
+            if (key_value == "/")
+            {
                 filterAddBookmarksMode = true;
                 filterAddBookmarksText.clear();
                 drawConsole();
                 return;
             }
 
-            if (key_value == "RETURN") {
+            if (key_value == "RETURN")
+            {
                 if (key_addmarks_add()) return;
             }
 
-            if (key_value == "j" || key_value == "DOWN") {
+            if (key_value == "j" || key_value == "DOWN")
+            {
                 if (key_addmarks_down()) return;
             }
 
-            if (key_value == "k" || key_value == "UP") {
+            if (key_value == "k" || key_value == "UP")
+            {
                 if (key_addmarks_up()) return;
             }
 
-            if (key_value == "g") {
+            if (key_value == "g")
+            {
                 if (key_addmarks_top()) return;
             }
 
-            if (key_value == "G") {
+            if (key_value == "G")
+            {
                 if (key_addmarks_bottom()) return;
             }
 
@@ -659,10 +699,13 @@ public:
 
         // Filter mode
         //
-        if (filterMode) {
-            if (key_value == "BACKSPACE") {
+        if (filterMode)
+        {
+            if (key_value == "BACKSPACE")
+            {
                 // Remove last character from filter
-                if (!filterText.empty()) {
+                if (!filterText.empty())
+                {
                     filterText.pop_back();
                     updateFilteredItems();
                     selectedItem = 0;
@@ -671,19 +714,23 @@ public:
                 return;
             }
 
-            if (key_value == "DELETE") {
+            if (key_value == "DELETE")
+            {
                 if (key_filter_delete()) return;
             }
 
-            if (key_value == "RETURN") {
+            if (key_value == "RETURN")
+            {
                 if (key_filter_copy()) return;
             }
 
-            if (key_value == "DOWN") {
+            if (key_value == "DOWN")
+            {
                 if (key_filter_down()) return;
             }
 
-            if (key_value == "UP") {
+            if (key_value == "UP")
+            {
                 if (key_filter_up()) return;
             }
 
@@ -692,12 +739,16 @@ public:
 #ifdef _WIN32
                 // Handle character input from WM_KEYDOWN
                 char typedChar = getCharFromMsg(msg); 
-                if (typedChar != 0) {
+                if (typedChar != 0)
+                {
                     bookmarkDialogInput += typedChar;  
                     // Don't add the triggering '/' as the first character
-                    if (filterText.empty() && msg->wParam == '/') {
+                    if (filterText.empty() && msg->wParam == '/')
+                    {
                         // do nothing
-                    } else {
+                    }
+                    else
+                    {
                         filterText += typedChar;
                         updateFilteredItems();
                         selectedItem = 0;
@@ -720,8 +771,10 @@ public:
 
         // Command mode
         //
-        if (commandMode) {
-            if (key_value == "BACKSPACE") {
+        if (commandMode)
+        {
+            if (key_value == "BACKSPACE")
+            {
                 if (!commandText.empty()) {
                     commandText.pop_back();
                     drawConsole();
@@ -729,19 +782,23 @@ public:
                 return;
             }
 
-            if (key_value == "RETURN") {
+            if (key_value == "RETURN")
+            {
                 if (key_command_execute()) return;
             }
 
-            if (key_value == "DOWN") {
+            if (key_value == "DOWN")
+            {
                 if (key_command_down()) return;
             }
 
-            if (key_value == "UP") {
+            if (key_value == "UP")
+            {
                 if (key_command_up()) return;
             }
 
-            if (key_value == "SPACE") {
+            if (key_value == "SPACE")
+            {
                 if (key_command_detect()) return;
             }
 
@@ -749,12 +806,16 @@ public:
 #ifdef _WIN32
                 // Handle character input from WM_KEYDOWN
                 char typedChar = getCharFromMsg(msg); 
-                if (typedChar != 0) {
+                if (typedChar != 0)
+                {
                     bookmarkDialogInput += typedChar;  
                     // Don't add the triggering ':' as the first character
-                    if (commandText.empty() && msg->wParam == ':') {
+                    if (commandText.empty() && msg->wParam == ':')
+                    {
                         // do nothing
-                    } else {
+                    }
+                    else
+                    {
                         commandText += typedChar;
                         drawConsole();
                     }
@@ -773,28 +834,35 @@ public:
 
         // Theme selection mode
         //
-        if (cmd_themeSelectMode) {
-            if (key_value == "ESCAPE") {
+        if (cmd_themeSelectMode)
+        {
+            if (key_value == "ESCAPE")
+            {
                 if (key_theme_cancel()) return;
             }
 
-            if (key_value == "RETURN") {
+            if (key_value == "RETURN")
+            {
                 if (key_theme_apply()) return;
             }
 
-            if (key_value == "j" || key_value == "DOWN") {
+            if (key_value == "j" || key_value == "DOWN")
+            {
                 if (key_theme_down()) return;
             }
 
-            if (key_value == "k" || key_value == "UP") {
+            if (key_value == "k" || key_value == "UP")
+            {
                 if (key_theme_up()) return;
             }
 
-            if (key_value == "g") {
+            if (key_value == "g")
+            {
                 if (key_theme_top()) return;
             }
 
-            if (key_value == "G") {
+            if (key_value == "G")
+            {
                 if (key_theme_bottom()) return;
             }
 
@@ -803,28 +871,35 @@ public:
 
         // Config selection mode
         //
-        if (cmd_configSelectMode) {
-            if (key_value == "ESCAPE") {
+        if (cmd_configSelectMode)
+        {
+            if (key_value == "ESCAPE")
+            {
                 if (key_config_cancel()) return;
             }
 
-            if (key_value == "RETURN") {
+            if (key_value == "RETURN")
+            {
                 if (key_config_select()) return;
             }
 
-            if (key_value == "j" || key_value == "DOWN") {
+            if (key_value == "j" || key_value == "DOWN")
+            {
                 if (key_config_down()) return;
             }
 
-            if (key_value == "k" || key_value == "UP") {
+            if (key_value == "k" || key_value == "UP")
+            {
                 if (key_config_up()) return;
             }
 
-            if (key_value == "g") {
+            if (key_value == "g")
+            {
                 if (key_config_top()) return;
             }
 
-            if (key_value == "G") {
+            if (key_value == "G")
+            {
                 if (key_config_bottom()) return;
             }
 
@@ -834,106 +909,134 @@ public:
 
         // General keys - main clips list
         //
-        if (key_value == "j" || key_value == "DOWN") {
+        if (key_value == "j" || key_value == "DOWN")
+        {
             if (key_main_down()) return;
         }
 
-        if (key_value == "k" || key_value == "UP") {
+        if (key_value == "k" || key_value == "UP")
+        {
             if (key_main_up()) return;
         }
 
-        if (key_value == "g") {
+        if (key_value == "g")
+        {
             if (key_main_top()) return;
         }
 
-        if (key_value == "G") {
+        if (key_value == "G")
+        {
             if (key_main_bottom()) return;
         }
 
-        if (key_value == "D") {
+        if (key_value == "D")
+        {
             if (key_main_delete()) return;
         }
 
-        if (key_value == "/") {
+        if (key_value == "/")
+        {
             if (key_main_filter_start()) return;
         }
 
-        if (key_value == ":") {
+        if (key_value == ":")
+        {
             if (key_main_command_start()) return;
         }
 
-        if (key_value == "RETURN") {
+        if (key_value == "RETURN")
+        {
             if (key_main_copy()) return;
         }
 
-        if (key_value == "M") {
+        if (key_value == "M")
+        {
             if (key_main_addgroup_start()) return;
         }
 
-        if (key_value == "m") {
+        if (key_value == "m")
+        {
             if (key_main_addclip_start()) return;
         }
 
-        if (key_value == "?") {
+        if (key_value == "?")
+        {
             if (key_main_help_start()) return;
         }
 
-        if (key_value == "`") {
+        if (key_value == "`")
+        {
             if (key_main_accessmarks_start()) return;
         }
 
-        if (key_value == "p") {
+        if (key_value == "p")
+        {
             if (key_main_pin_clip()) return;
         }
 
-        if (key_value == "i") {
+        if (key_value == "i")
+        {
             if (key_main_edit_start()) return;
         }
 
         // Pinned clips dialog
-        if (key_value == "'") {
+        if (key_value == "'")
+        {
             if (key_main_pins_start()) return;
         }
     }
 
 
     //// Key Press Methods /////////////////////////////////////////////////////
-        bool key_global_escape() {
-            if (editDialogVisible) {
+        bool key_global_escape()
+        {
+            if (editDialogVisible)
+            {
                 if (key_edit_escape()) return true;
             }
-            if (filterBookmarksMode) {
+            if (filterBookmarksMode)
+            {
                 filterBookmarksMode = false;
                 filterBookmarksText.clear();
                 drawConsole();
                 return true;
             }
-            if (filterAddBookmarksMode) {
+            if (filterAddBookmarksMode)
+            {
                 filterAddBookmarksMode = false;
                 filterAddBookmarksText.clear();
                 drawConsole();
                 return true;
             }
-            if (filterBookmarkClipsMode) {
+            if (filterBookmarkClipsMode)
+            {
                 filterBookmarkClipsMode = false;
                 filterBookmarkClipsText.clear();
                 drawConsole();
                 return true;
             }
-            if (pinnedDialogVisible) {
+            if (pinnedDialogVisible)
+            {
                 pinnedDialogVisible = false;
                 drawConsole();
-            } else if (bookmarkDialogVisible) {
+            }
+            else if (bookmarkDialogVisible)
+            {
                 // Escape hides dialog but not window
                 bookmarkDialogVisible = false;
                 drawConsole();
-            } else if (addToBookmarkDialogVisible) {
+            }
+            else if (addToBookmarkDialogVisible)
+            {
                 // Escape hides dialog but not window
                 addToBookmarkDialogVisible = false;
                 drawConsole();
-            } else if (helpDialogVisible) {
+            }
+            else if (helpDialogVisible)
+            {
                 // Escape hides help dialog but not window
-                if (helpFilterMode) {
+                if (helpFilterMode)
+                {
                     helpFilterMode = false;
                     helpFilterText.clear();
                     helpDialogScrollOffset = 0;
@@ -943,26 +1046,35 @@ public:
                 helpDialogVisible = false;
                 helpDialogScrollOffset = 0;
                 drawConsole();
-            } else if (viewBookmarksDialogVisible) {
+            }
+            else if (viewBookmarksDialogVisible)
+            {
                 // Escape hides view bookmarks dialog but not window
                 viewBookmarksDialogVisible = false;
                 drawConsole();
-            } else if (filterMode) {
+            }
+            else if (filterMode)
+            {
                 // Escape exits filter mode but doesn't hide window
                 filterMode = false;
                 filterText = "";
                 filteredItems.clear();
                 selectedItem = 0;
                 drawConsole();
-            } else if (commandMode) {
+            }
+            else if (commandMode)
+            {
                 // Escape exits command mode but doesn't hide window
                 commandMode = false;
                 commandText = "";
                 selectedItem = 0;
                 drawConsole();
-            } else if (cmd_themeSelectMode) {
+            }
+            else if (cmd_themeSelectMode)
+            {
                 // Restore original theme and exit theme selection mode but doesn't hide window
-                if (!originalTheme.empty()) {
+                if (!originalTheme.empty())
+                {
                     switchTheme(originalTheme);
                 }
                 cmd_themeSelectMode = false;
@@ -970,7 +1082,9 @@ public:
                 originalTheme.clear();
                 selectedItem = 0;
                 drawConsole();
-            } else if (cmd_configSelectMode) {
+            }
+            else if (cmd_configSelectMode)
+            {
                 // Exit config selection mode and return to command mode
                 cmd_configSelectMode = false;
                 commandMode = true;
@@ -978,7 +1092,9 @@ public:
                 availableConfigs.clear();
                 selectedItem = 0;
                 drawConsole();
-            } else {
+            }
+            else
+            {
                 // Normal escape behavior - hide window
                 hideWindow();
             }
@@ -986,14 +1102,17 @@ public:
             return true;
         }
 
-        bool key_edit_escape() {
+        bool key_edit_escape()
+        {
             editDialogVisible = false;
             drawConsole();
             return true;
         }
 
-        bool key_edit_save() {
-            if (!editDialogInput.empty()) {
+        bool key_edit_save()
+        {
+            if (!editDialogInput.empty())
+            {
                 // Create a new ClipboardItem from the edited content
                 ClipboardItem newItem(editDialogInput);
 
@@ -1010,17 +1129,20 @@ public:
             return true;
         }
 
-        bool key_edit_backspace() {
+        bool key_edit_backspace()
+        {
             std::string& text = editDialogInput;
             size_t& line_num = editDialogCursorLine;
             size_t& char_pos = editDialogCursorPos;
 
-            if (char_pos > 0) {
+            if (char_pos > 0)
+            {
                 // Find the position of the character to delete
                 size_t deletion_pos = 0;
                 std::istringstream iss(text);
                 std::string current_line;
-                for (size_t i = 0; i < line_num; ++i) {
+                for (size_t i = 0; i < line_num; ++i)
+                {
                     std::getline(iss, current_line);
                     deletion_pos += current_line.length() + 1; // +1 for newline
                 }
@@ -1028,12 +1150,15 @@ public:
                 text.erase(deletion_pos, 1);
                 char_pos--;
 
-            } else if (line_num > 0) {
+            }
+            else if (line_num > 0)
+            {
                 // Find the end of the previous line
                 size_t prev_line_end = 0;
                 std::istringstream iss(text);
                 std::string current_line;
-                for (size_t i = 0; i < line_num -1; ++i) {
+                for (size_t i = 0; i < line_num -1; ++i)
+                {
                     std::getline(iss, current_line);
                     prev_line_end += current_line.length() + 1;
                 }
@@ -1055,7 +1180,8 @@ public:
             return true;
         }
 
-        bool key_edit_delete() {
+        bool key_edit_delete()
+        {
             std::string& text = editDialogInput;
             size_t& line_num = editDialogCursorLine;
             size_t& char_pos = editDialogCursorPos;
@@ -1065,15 +1191,18 @@ public:
             size_t current_line_index = 0;
             size_t deletion_pos = 0;
 
-            while (current_line_index <= line_num && std::getline(iss, current_line)) {
-                if (current_line_index < line_num) {
+            while (current_line_index <= line_num && std::getline(iss, current_line))
+            {
+                if (current_line_index < line_num)
+                {
                     deletion_pos += current_line.length() + 1; // +1 for newline
                 }
                 current_line_index++;
             }
 
             deletion_pos += char_pos;
-            if (deletion_pos < text.length()) {
+            if (deletion_pos < text.length())
+            {
                 text.erase(deletion_pos, 1);
                 updateEditDialogScrollOffset();
                 drawConsole();
@@ -1081,7 +1210,8 @@ public:
             return true;
         }
 
-        void key_edit_add_char(char c) {
+        void key_edit_add_char(char c)
+        {
             std::string& text = editDialogInput;
             size_t& line_num = editDialogCursorLine;
             size_t& char_pos = editDialogCursorPos;
@@ -1091,8 +1221,10 @@ public:
             size_t current_line_index = 0;
             size_t insertion_pos = 0;
 
-            while (current_line_index <= line_num && std::getline(iss, current_line)) {
-                if (current_line_index < line_num) {
+            while (current_line_index <= line_num && std::getline(iss, current_line))
+            {
+                if (current_line_index < line_num)
+                {
                     insertion_pos += current_line.length() + 1; // +1 for newline
                 }
                 current_line_index++;
@@ -1105,7 +1237,8 @@ public:
             drawConsole();
         }
 
-        bool key_edit_add_newline() {
+        bool key_edit_add_newline()
+        {
             key_edit_add_char('\n');
             editDialogCursorLine++;
             editDialogCursorPos = 0; // Ensure cursor is at the beginning of the new line
@@ -1113,15 +1246,18 @@ public:
             return true;
         }
 
-        bool key_edit_scroll_up() {
-            if (editDialogScrollOffset > 0) {
+        bool key_edit_scroll_up()
+        {
+            if (editDialogScrollOffset > 0)
+            {
                 editDialogScrollOffset--;
                 drawConsole();
             }
             return true;
         }
 
-        bool key_edit_scroll_down() {
+        bool key_edit_scroll_down()
+        {
             // Need to calculate max scroll offset based on content and dialog height
             DialogDimensions dims = getEditDialogDimensions();
             const int lineHeight = 15;
@@ -1130,26 +1266,35 @@ public:
             if (maxCharsPerLine < 1) maxCharsPerLine = 1;
 
             int totalVisualLines = 0;
-            if (editDialogInput.empty()) {
+            if (editDialogInput.empty())
+            {
                 totalVisualLines = 1;
-            } else {
+            }
+            else
+            {
                 std::istringstream iss(editDialogInput);
                 std::string logicalLine;
-                while (std::getline(iss, logicalLine)) {
-                    if (logicalLine.empty()) {
+                while (std::getline(iss, logicalLine))
+                {
+                    if (logicalLine.empty())
+                    {
                         totalVisualLines++;
-                    } else {
+                    }
+                    else
+                    {
                         totalVisualLines += (logicalLine.length() + maxCharsPerLine - 1) / maxCharsPerLine;
                     }
                 }
-                if (editDialogInput.back() == '\n') {
+                if (editDialogInput.back() == '\n')
+                {
                     totalVisualLines++;
                 }
             }
 
             int maxVisibleLines = (dims.height - 70) / lineHeight;
             
-            if (editDialogScrollOffset < totalVisualLines - maxVisibleLines) {
+            if (editDialogScrollOffset < totalVisualLines - maxVisibleLines)
+            {
                 editDialogScrollOffset++;
                 drawConsole();
             }
@@ -1157,13 +1302,15 @@ public:
         }
 
         // Help
-        bool key_help_hide() {
+        bool key_help_hide()
+        {
             helpDialogVisible = false;
             drawConsole();
             return true;
         }
 
-        bool key_help_scroll_down() {
+        bool key_help_scroll_down()
+        {
             updateHelpDialogScrollOffset(-1);
             drawConsole();
             return true;
@@ -6903,165 +7050,62 @@ void ClipboardManager::updateFilteredBookmarkClips() {
     } else if (selectedViewBookmarkItem >= filteredBookmarkClips.size()) {
 
         selectedViewBookmarkItem = filteredBookmarkClips.size() - 1;
-
     }
-
 }
 
 
 
 size_t ClipboardManager::getBookmarkItemCount() {
-
         if (selectedViewBookmarkGroup >= bookmarkGroups.size()) {
-
             return 0;
-
         }
 
         std::string selectedGroup = bookmarkGroups[selectedViewBookmarkGroup];
-
         std::string bookmarkFile = bookmarksDir + "/bookmarks_" + selectedGroup + ".txt";
-
         std::ifstream file(bookmarkFile);
-
         
-
             size_t itemCount = 0;
-
-        
-
                 if (file.is_open()) {
-
-        
-
                     std::string line;
 
-        
-
                     while (std::getline(file, line)) {
-
-        
-
                         size_t pos = line.find('|');
 
-        
-
                         if (pos != std::string::npos && pos > 0) {
-
-        
-
                             itemCount++;
-
-        
-
                         }
-
-        
-
                     }
 
-        
-
                     file.close();
-
-        
-
                 }
 
-        
-
                 return itemCount;
-
-        
-
             }
 
-        
-
-        
-
-        
-
         std::string stringToLower(const std::string& str) {
-
-        
-
             std::string lower_str;
-
-        
 
             lower_str.reserve(str.length());
 
-        
-
             std::transform(str.begin(), str.end(), std::back_inserter(lower_str),
-
-        
-
                            [](unsigned char c){ return std::tolower(c); });
 
-        
-
             return lower_str;
-
-        
-
         }
 
-        
-
-        
-
-        
-
         // Global pointer for signal handling
-
-        
-
-        
-
-        
-
         ClipboardManager* g_manager = nullptr;
-
-        
-
-        
-
-        
 
         #include <signal.h>
 
-        
-
         void signal_handler(int signal) {
-
-        
-
             std::cout << "\nReceived signal " << signal << ", cleaning up...\n";
 
-        
-
             if (g_manager) {
-
-        
-
                 // Just set running to false, don't join in signal handler
-
-        
-
                 g_manager->setRunning(false);
-
-        
-
             }
-
-        
-
             exit(0);
-
-        
-
         }
 
 
