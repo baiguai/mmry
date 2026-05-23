@@ -4634,196 +4634,119 @@ public:
             XSetWindowBackground(display, window, backgroundColor);
             XClearWindow(display, window);
             
-            // Draw filter or command textbox if in respective mode
-            int startY = 20;
-            if (filterMode) {
-                // Draw filter input
-                std::string filterDisplay = "/" + filterText;
-                XDrawString(display, window, gc, 10, startY, filterDisplay.c_str(), filterDisplay.length());
-                startY += LINE_HEIGHT;
+            // Build console draw data
+            ConsoleDrawData data;
+            data.filterMode = filterMode;
+            data.filterText = filterText;
+            data.commandMode = commandMode;
+            data.commandText = commandText;
+            data.themeSelectMode = cmd_themeSelectMode;
+            data.configSelectMode = cmd_configSelectMode;
+            
+            if (cmd_themeSelectMode) {
+                data.themeItems = availableThemes;
+                data.selectedTheme = selectedTheme;
+                data.themeScrollOffset = themeSelectScrollOffset;
             }
-            else if (commandMode) {
-                // Draw command input
-                std::string commandDisplay = ":" + commandText;
-                XDrawString(display, window, gc, 10, startY, commandDisplay.c_str(), commandDisplay.length());
-                startY += LINE_HEIGHT;
-            }
-            else if (cmd_themeSelectMode) {
-                // Draw theme selection header
-                std::string header = "Select theme (" + std::to_string(availableThemes.size()) + " total):";
-                XDrawString(display, window, gc, 10, startY, header.c_str(), header.length());
-                startY += LINE_HEIGHT;
-                
-                // Draw theme list
-                const int VISIBLE_THEMES = 10;
-                size_t startIdx = themeSelectScrollOffset;
-                size_t endIdx = std::min(startIdx + VISIBLE_THEMES, availableThemes.size());
-                
-                for (size_t i = startIdx; i < endIdx; ++i) {
-                    std::string themeDisplay = (i == selectedTheme ? "> " : "  ") + availableThemes[i];
-                    XDrawString(display, window, gc, 10, startY, themeDisplay.c_str(), themeDisplay.length());
-                    startY += LINE_HEIGHT;
-                }
-                
-                // Show scroll indicator if there are more themes
-                if (availableThemes.size() > VISIBLE_THEMES) {
-                    std::string scrollInfo = "Showing " + std::to_string(startIdx + 1) + "-" + std::to_string(endIdx) + " of " + std::to_string(availableThemes.size());
-                    XDrawString(display, window, gc, 10, startY, scrollInfo.c_str(), scrollInfo.length());
-                }
-                
-                // Don't draw clipboard items in theme selection mode
-                return;
-            }
-            else if (cmd_configSelectMode) {
-                // Draw config selection header
-                std::string header = "Select config option (" + std::to_string(availableConfigs.size()) + " total):";
-                XDrawString(display, window, gc, 10, startY, header.c_str(), header.length());
-                startY += LINE_HEIGHT;
-                
-                // Draw config list
-                const int VISIBLE_CONFIGS = 10;
-                size_t startIdx = configSelectScrollOffset;
-                size_t endIdx = std::min(startIdx + VISIBLE_CONFIGS, availableConfigs.size());
-                
-                for (size_t i = startIdx; i < endIdx; ++i) {
-                    std::string configDisplay = (i == selectedConfig ? "> " : "  ") + availableConfigs[i];
-                    XDrawString(display, window, gc, 10, startY, configDisplay.c_str(), configDisplay.length());
-                    startY += LINE_HEIGHT;
-                }
-                
-                // Show scroll indicator if there are more configs
-                if (availableConfigs.size() > VISIBLE_CONFIGS) {
-                    std::string scrollInfo = "Showing " + std::to_string(startIdx + 1) + "-" + std::to_string(endIdx) + " of " + std::to_string(availableConfigs.size());
-                    XDrawString(display, window, gc, 10, startY, scrollInfo.c_str(), scrollInfo.length());
-                }
-                
-                // Don't draw clipboard items in config selection mode
-                return;
+            if (cmd_configSelectMode) {
+                data.configItems = availableConfigs;
+                data.selectedConfig = selectedConfig;
+                data.configScrollOffset = configSelectScrollOffset;
             }
             
-            // Draw clipboard items
-            // TODO: Remove all the hardcoded values
-            int y = startY;
-            size_t displayCount = getDisplayItemCount();
-            const int SCROLL_INDICATOR_HEIGHT = 15;
-            int availableHeight = windowHeight - startY - 10;
-
-            // If we need a scroll indicator, account for its space
-            if (static_cast<int>(displayCount) > (availableHeight / LINE_HEIGHT)) {
-                availableHeight -= SCROLL_INDICATOR_HEIGHT;
-            }
-
-            int maxItems = availableHeight / LINE_HEIGHT;
-            if (maxItems > 0) maxItems += 1;
-            if (maxItems < 1) maxItems = 1;
-
-            size_t startIdx = consoleScrollOffset;
-            size_t endIdx = std::min(startIdx + maxItems, displayCount);
-
-            // Adjust for the scroll indicator
-            if (static_cast<int>(displayCount) > maxItems) {
-                std::string scrollText = "[" + std::to_string(selectedItem + 1) + "/" + std::to_string(displayCount) + "]";
-                XDrawString(display, window, gc, windowWidth - 80, 15, scrollText.c_str(), scrollText.length());
-                y = y + 15;
-                maxItems = maxItems - 1;  // Reduce max items to account for scroll indicator space
+            data.startY = 20;
+            data.windowWidth = windowWidth;
+            data.windowHeight = windowHeight;
+            data.lineHeight = LINE_HEIGHT;
+            data.clipListWidth = clipListWidth;
+            data.bgColor = backgroundColor;
+            data.textColor = textColor;
+            data.selColor = selectionColor;
+            
+            // Build clip display lines
+            if (!cmd_themeSelectMode && !cmd_configSelectMode) {
+                size_t displayCount = filterMode ? filteredItems.size() : items.size();
+                data.totalClipCount = displayCount;
+                data.selectedItem = selectedItem;
+                data.clipScrollOffset = consoleScrollOffset;
+                
+                int availableHeight = windowHeight - data.startY - 10;
+                const int SCROLL_INDICATOR_HEIGHT = 15;
+                
+                if (static_cast<int>(displayCount) > (availableHeight / LINE_HEIGHT)) {
+                    availableHeight -= SCROLL_INDICATOR_HEIGHT;
+                }
+                
+                int maxItems = availableHeight / LINE_HEIGHT;
+                if (maxItems > 0) maxItems += 1;
+                if (maxItems < 1) maxItems = 1;
+                
+                size_t endIdx = std::min(consoleScrollOffset + maxItems, displayCount);
+                
+                for (size_t i = consoleScrollOffset; i < endIdx; ++i) {
+                    size_t actualIndex = filterMode ? filteredItems[i] : i;
+                    const auto& item = items[actualIndex];
+                    
+                    std::string line;
+                    if (i == selectedItem) {
+                        line = "> ";
+                    } else {
+                        line = "  ";
+                    }
+                    
+                    if (verboseMode) {
+                        auto time_t = std::chrono::system_clock::to_time_t(item.timestamp);
+                        auto tm = *std::localtime(&time_t);
+                        
+                        std::ostringstream timeStream;
+                        timeStream << std::put_time(&tm, "%H:%M:%S");
+                        
+                        size_t lineCount = 1;
+                        for (char c : item.content) {
+                            if (c == '\n') lineCount++;
+                        }
+                        
+                        line += timeStream.str() + " | " + std::to_string(lineCount) + " lines | ";
+                        
+                        std::string content = item.content;
+                        int maxContentLength = calculateMaxContentLength(true);
+                        if (static_cast<int>(content.length()) > maxContentLength) {
+                            content = smartTrim(content, maxContentLength);
+                        }
+                        
+                        for (char& c : content) {
+                            if (c == '\n' || c == '\r') c = ' ';
+                        }
+                        
+                        line += content;
+                    } else {
+                        size_t lineCount = 1;
+                        for (char c : item.content) {
+                            if (c == '\n') lineCount++;
+                        }
+                        
+                        std::string content = item.content;
+                        int maxContentLength = calculateMaxContentLength(false);
+                        if (static_cast<int>(content.length()) > maxContentLength) {
+                            content = smartTrim(content, maxContentLength);
+                        }
+                        
+                        for (char& c : content) {
+                            if (c == '\n' || c == '\r') c = ' ';
+                        }
+                        
+                        line += content;
+                        
+                        if (lineCount > 1) {
+                            line += " (" + std::to_string(lineCount) + " lines)";
+                        }
+                    }
+                    
+                    data.clipLines.push_back(line);
+                }
             }
             
-            for (size_t i = startIdx; i < endIdx; ++i) {
-                size_t actualIndex = getActualItemIndex(i);
-                const auto& item = items[actualIndex];
-                
-                std::string line;
-                
-                // Add selection indicator
-                if (i == selectedItem) {
-                    line = "> ";
-                } else {
-                    line = "  ";
-                }
-                
-                if (verboseMode) {
-                    // Verbose mode: timestamp | lines | content
-                    auto time_t = std::chrono::system_clock::to_time_t(item.timestamp);
-                    auto tm = *std::localtime(&time_t);
-                    
-                    std::ostringstream timeStream;
-                    timeStream << std::put_time(&tm, "%H:%M:%S");
-                    
-                    // Count lines in content
-                    size_t lineCount = 1;
-                    for (char c : item.content) {
-                        if (c == '\n') lineCount++;
-                    }
-                    
-                    line += timeStream.str() + " | " + std::to_string(lineCount) + " lines | ";
-                    
-                    // Truncate content if too long
-                    std::string content = item.content;
-                    int maxContentLength = calculateMaxContentLength(true);
-                    if (static_cast<int>(content.length()) > maxContentLength) {
-                        content = smartTrim(content, maxContentLength);
-                    }
-                    
-                    // Replace newlines with spaces for display
-                    for (char& c : content) {
-                        if (c == '\n' || c == '\r') c = ' ';
-                    }
-                    
-                    line += content;
-                } else {
-                    // Normal mode: content (line count if > 1)
-                    
-                    // Count lines in content
-                    size_t lineCount = 1;
-                    for (char c : item.content) {
-                        if (c == '\n') lineCount++;
-                    }
-                    
-                    // Truncate content if too long
-                    std::string content = item.content;
-                    int maxContentLength = calculateMaxContentLength(false);
-                    if (static_cast<int>(content.length()) > maxContentLength) {
-                        content = smartTrim(content, maxContentLength);
-                    }
-                    
-                    // Replace newlines with spaces for display
-                    for (char& c : content) {
-                        if (c == '\n' || c == '\r') c = ' ';
-                    }
-                    
-                    line += content;
-                    
-                    // Add line count if more than one line
-                    if (lineCount > 1) {
-                        line += " (" + std::to_string(lineCount) + " lines)";
-                    }
-                }
-                
-                // Highlight selected item with theme selection color
-                if (i == selectedItem) {
-                    XSetForeground(display, gc, selectionColor);
-                    XFillRectangle(display, window, gc, 5, y - 12, getClipListWidth(), 15);
-                    XSetForeground(display, gc, textColor);
-                } else {
-                    XSetForeground(display, gc, textColor);
-                }
-                
-                XDrawString(display, window, gc, 10, y, line.c_str(), line.length());
-                
-                y += LINE_HEIGHT;
-            }
-            
-            if (displayCount == 0 && !cmd_themeSelectMode) {
-                std::string empty;
-                if (filterMode) {
-                    empty = "No matching items...";
-                } else if (commandMode) {
-                    empty = "Enter command...";
-                } else {
-                    empty = "No clipboard items yet...";
-                }
-                XDrawString(display, window, gc, 10, y, empty.c_str(), empty.length());
-            }
+            ::drawConsole(display, window, gc, data);
             
             // Draw dialogs if visible
             if (bookmarkDialogVisible) {
@@ -4983,7 +4906,12 @@ public:
                                  selectedViewPinnedItem, viewPinnedScrollOffset, m_maxVisiblePinnedItems,
                                  backgroundColor, textColor, selectionColor, borderColor, LINE_HEIGHT);
             }
-            drawHelpDialog();
+            if (helpDialogVisible) {
+                DialogDimensions dims = getHelpDialogDimensions();
+                drawHelpDialog(display, window, gc, dims,
+                               helpFilterMode, helpFilterText, helpDialogScrollOffset,
+                               backgroundColor, textColor, borderColor);
+            }
             if (editDialogVisible) {
                 DialogDimensions dims = getEditDialogDimensions();
                 drawEditDialog(display, window, gc, font, dims,
@@ -4992,48 +4920,6 @@ public:
                                backgroundColor, textColor, borderColor);
             }
         }
-
-        void drawHelpDialog() {
-            if (!helpDialogVisible) return;
-            
-            // Get dynamic dialog dimensions
-            DialogDimensions dims = getHelpDialogDimensions();
-            
-            // Draw dialog background
-            XSetForeground(display, gc, backgroundColor);
-            XFillRectangle(display, window, gc, dims.x, dims.y, dims.width, dims.height);
-            XSetForeground(display, gc, borderColor);
-            XDrawRectangle(display, window, gc, dims.x, dims.y, dims.width, dims.height);
-            
-            // Draw help content
-            XSetForeground(display, gc, textColor);
-            const int titleLeft = dims.x + 20;
-            const int topicLeft = dims.x + 30;
-            const int lineHeight = 15;
-            const int gap = 10;
-
-            // Pre-input field at top
-            int inputY = dims.y + 20;
-
-            // Draw input field box
-            XSetForeground(display, gc, helpFilterMode ? textColor : borderColor);
-            XDrawRectangle(display, window, gc, dims.x + 20, inputY, dims.width - 40, 20);
-            
-            // Draw "/" prompt
-            std::string filterDisplay = "/" + helpFilterText;
-            XSetForeground(display, gc, textColor);
-            XDrawString(display, window, gc, dims.x + 25, inputY + 14, filterDisplay.c_str(), filterDisplay.length());
-
-            // Shift help topics down to make room for input field
-            int y = dims.y + 20 + 25 + gap;
-            const int contentTop = y;
-            const int contentBottom = dims.y + dims.height;
-
-            y = y + helpDialogScrollOffset;
-
-            drawAllHelpTopics(nullptr, titleLeft, topicLeft, lineHeight, gap, y, contentTop, contentBottom);
-        }
-
 #endif
     // End Linux UI Methods
 
@@ -5059,239 +4945,126 @@ public:
             RECT clientRect;
             GetClientRect(hwnd, &clientRect);
             
-            // Clear window with theme background
             HBRUSH hBgBrush = CreateSolidBrush(backgroundColor);
             FillRect(hdc, &clientRect, hBgBrush);
             DeleteObject(hBgBrush);
             
-            // Set text color
             SetTextColor(hdc, textColor);
             SetBkMode(hdc, TRANSPARENT);
             
-            // Draw filter or command textbox if in respective mode
-            int startY = 20;
-            if (filterMode) {
-                // Draw filter input
-                std::string filterDisplay = "/" + filterText;
-                TextOut(hdc, 10, startY, filterDisplay.c_str(), filterDisplay.length());
-                startY += LINE_HEIGHT;
+            // Build console draw data
+            ConsoleDrawData data;
+            data.filterMode = filterMode;
+            data.filterText = filterText;
+            data.commandMode = commandMode;
+            data.commandText = commandText;
+            data.themeSelectMode = cmd_themeSelectMode;
+            data.configSelectMode = cmd_configSelectMode;
+            
+            if (cmd_themeSelectMode) {
+                data.themeItems = availableThemes;
+                data.selectedTheme = selectedTheme;
+                data.themeScrollOffset = themeSelectScrollOffset;
             }
-            else if (commandMode) {
-                // Draw command input
-                std::string commandDisplay = ":" + commandText;
-                TextOut(hdc, 10, startY, commandDisplay.c_str(), commandDisplay.length());
-                startY += LINE_HEIGHT;
-            }
-            else if (cmd_themeSelectMode) {
-                // Draw theme selection header
-                std::string header = "Select theme (" + std::to_string(availableThemes.size()) + " total):";
-                TextOut(hdc, 10, startY, header.c_str(), header.length());
-                startY += LINE_HEIGHT;
-                
-                // Draw theme list
-                const int VISIBLE_THEMES = 10;
-                size_t startIdx = themeSelectScrollOffset;
-                size_t endIdx = std::min(startIdx + VISIBLE_THEMES, availableThemes.size());
-                
-                for (size_t i = startIdx; i < endIdx; ++i) {
-                    std::string themeDisplay = (i == selectedTheme ? "> " : "  ") + availableThemes[i];
-                    // Highlight selected theme
-                    if (i == selectedTheme) {
-                        RECT highlightRect = {5, startY - WIN_SEL_RECT_OFFSET_Y, getClipListWidth(), startY - WIN_SEL_RECT_OFFSET_Y + WIN_SEL_RECT_HEIGHT};
-                        HBRUSH hHighlightBrush = CreateSolidBrush(selectionColor);
-                        FillRect(hdc, &highlightRect, hHighlightBrush);
-                        DeleteObject(hHighlightBrush);
-                    }
-                    
-                    // Ensure text color is set before drawing
-                    SetTextColor(hdc, textColor);
-                    TextOut(hdc, 10, startY, themeDisplay.c_str(), themeDisplay.length());
-                    startY += LINE_HEIGHT;
-                }
-                
-                // Show scroll indicator if there are more themes
-                if (availableThemes.size() > VISIBLE_THEMES) {
-                    std::string scrollInfo = "Showing " + std::to_string(startIdx + 1) + "-" + std::to_string(endIdx) + " of " + std::to_string(availableThemes.size());
-                    TextOut(hdc, 10, startY, scrollInfo.c_str(), scrollInfo.length());
-                }
-                
-                // Cleanup and return
-                SelectObject(hdc, hOldFont);
-                DeleteObject(hFont);
-                ReleaseDC(hwnd, hdc);
-                return;
-            }
-            else if (cmd_configSelectMode) {
-                // Create font for drawing
-                HFONT hFont = CreateFont(FONT_SIZE, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE, 
-                                       DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, 
-                                       CLEARTYPE_QUALITY, DEFAULT_PITCH | FF_DONTCARE, FONT_NAME.c_str());
-                HFONT hOldFont = (HFONT)SelectObject(hdc, hFont);
-                
-                // Draw config selection header
-                std::string header = "Select config option (" + std::to_string(availableConfigs.size()) + " total):";
-                TextOut(hdc, 10, startY, header.c_str(), header.length());
-                startY += LINE_HEIGHT;
-                
-                // Draw config list
-                const int VISIBLE_CONFIGS = 10;
-                size_t startIdx = configSelectScrollOffset;
-                size_t endIdx = std::min(startIdx + VISIBLE_CONFIGS, availableConfigs.size());
-                
-                for (size_t i = startIdx; i < endIdx; ++i) {
-                    std::string configDisplay = (i == selectedConfig ? "> " : "  ") + availableConfigs[i];
-                    // Highlight selected config
-                    if (i == selectedConfig) {
-                        RECT highlightRect = {5, startY - WIN_SEL_RECT_OFFSET_Y, getClipListWidth(), startY - WIN_SEL_RECT_OFFSET_Y + WIN_SEL_RECT_HEIGHT};
-                        HBRUSH hHighlightBrush = CreateSolidBrush(selectionColor);
-                        FillRect(hdc, &highlightRect, hHighlightBrush);
-                        DeleteObject(hHighlightBrush);
-                    }
-                    
-                    // Ensure text color is set before drawing
-                    SetTextColor(hdc, textColor);
-                    TextOut(hdc, 10, startY, configDisplay.c_str(), configDisplay.length());
-                    startY += LINE_HEIGHT;
-                }
-                
-                // Show scroll indicator if there are more configs
-                if (availableConfigs.size() > VISIBLE_CONFIGS) {
-                    std::string scrollInfo = "Showing " + std::to_string(startIdx + 1) + "-" + std::to_string(endIdx) + " of " + std::to_string(availableConfigs.size());
-                    TextOut(hdc, 10, startY, scrollInfo.c_str(), scrollInfo.length());
-                }
-                
-                // Cleanup and return
-                SelectObject(hdc, hOldFont);
-                DeleteObject(hFont);
-                ReleaseDC(hwnd, hdc);
-                return;
+            if (cmd_configSelectMode) {
+                data.configItems = availableConfigs;
+                data.selectedConfig = selectedConfig;
+                data.configScrollOffset = configSelectScrollOffset;
             }
             
-            // Draw clipboard items
-            int y = startY;
-            size_t displayCount = getDisplayItemCount();
-            const int SCROLL_INDICATOR_HEIGHT = 15;
-            int availableHeight = windowHeight - startY - 10;
-
-            // If we need a scroll indicator, account for its space
-            if (static_cast<int>(displayCount) > (availableHeight / LINE_HEIGHT)) {
-                availableHeight -= SCROLL_INDICATOR_HEIGHT;
-            }
-
-            int maxItems = availableHeight / LINE_HEIGHT;
-            if (maxItems > 0) maxItems += 1;
-            if (maxItems < 1) maxItems = 1;
-
-            size_t startIdx = consoleScrollOffset;
-            size_t endIdx = std::min(startIdx + maxItems, displayCount);
-
-            // Adjust for the scroll indicator
-            if (static_cast<int>(displayCount) > maxItems) {
-                std::string scrollText = "[" + std::to_string(selectedItem + 1) + "/" + std::to_string(displayCount) + "]";
-                TextOut(hdc, windowWidth - 80, 15, scrollText.c_str(), scrollText.length());
-                y = y + 15;
-                maxItems = maxItems - 1;  // Reduce max items to account for scroll indicator space
+            data.startY = 20;
+            data.windowWidth = windowWidth;
+            data.windowHeight = windowHeight;
+            data.lineHeight = LINE_HEIGHT;
+            data.clipListWidth = clipListWidth;
+            data.bgColor = backgroundColor;
+            data.textColor = textColor;
+            data.selColor = selectionColor;
+            
+            // Build clip display lines
+            if (!cmd_themeSelectMode && !cmd_configSelectMode) {
+                size_t displayCount = filterMode ? filteredItems.size() : items.size();
+                data.totalClipCount = displayCount;
+                data.selectedItem = selectedItem;
+                data.clipScrollOffset = consoleScrollOffset;
+                
+                int availableHeight = windowHeight - data.startY - 10;
+                const int SCROLL_INDICATOR_HEIGHT = 15;
+                
+                if (static_cast<int>(displayCount) > (availableHeight / LINE_HEIGHT)) {
+                    availableHeight -= SCROLL_INDICATOR_HEIGHT;
+                }
+                
+                int maxItems = availableHeight / LINE_HEIGHT;
+                if (maxItems > 0) maxItems += 1;
+                if (maxItems < 1) maxItems = 1;
+                
+                size_t endIdx = std::min(consoleScrollOffset + maxItems, displayCount);
+                
+                for (size_t i = consoleScrollOffset; i < endIdx; ++i) {
+                    size_t actualIndex = filterMode ? filteredItems[i] : i;
+                    const auto& item = items[actualIndex];
+                    
+                    std::string line;
+                    if (i == selectedItem) {
+                        line = "> ";
+                    } else {
+                        line = "  ";
+                    }
+                    
+                    if (verboseMode) {
+                        auto time_t = std::chrono::system_clock::to_time_t(item.timestamp);
+                        auto tm = *std::localtime(&time_t);
+                        
+                        std::ostringstream timeStream;
+                        timeStream << std::put_time(&tm, "%H:%M:%S");
+                        
+                        size_t lineCount = 1;
+                        for (char c : item.content) {
+                            if (c == '\n') lineCount++;
+                        }
+                        
+                        line += timeStream.str() + " | " + std::to_string(lineCount) + " lines | ";
+                        
+                        std::string content = item.content;
+                        int maxContentLength = calculateMaxContentLength(true);
+                        if (static_cast<int>(content.length()) > maxContentLength) {
+                            content = smartTrim(content, maxContentLength);
+                        }
+                        
+                        for (char& c : content) {
+                            if (c == '\n' || c == '\r') c = ' ';
+                        }
+                        
+                        line += content;
+                    } else {
+                        size_t lineCount = 1;
+                        for (char c : item.content) {
+                            if (c == '\n') lineCount++;
+                        }
+                        
+                        std::string content = item.content;
+                        int maxContentLength = calculateMaxContentLength(false);
+                        if (static_cast<int>(content.length()) > maxContentLength) {
+                            content = smartTrim(content, maxContentLength);
+                        }
+                        
+                        for (char& c : content) {
+                            if (c == '\n' || c == '\r') c = ' ';
+                        }
+                        
+                        line += content;
+                        
+                        if (lineCount > 1) {
+                            line += " (" + std::to_string(lineCount) + " lines)";
+                        }
+                    }
+                    
+                    data.clipLines.push_back(line);
+                }
             }
             
-            for (size_t i = startIdx; i < endIdx; ++i) {
-                size_t actualIndex = getActualItemIndex(i);
-                const auto& item = items[actualIndex];
-                
-                std::string line;
-                
-                // Add selection indicator
-                if (i == selectedItem) {
-                    line = "> ";
-                } else {
-                    line = "  ";
-                }
-                
-                if (verboseMode) {
-                    // Verbose mode: timestamp | lines | content
-                    auto time_t = std::chrono::system_clock::to_time_t(item.timestamp);
-                    auto tm = *std::localtime(&time_t);
-                    
-                    std::ostringstream timeStream;
-                    timeStream << std::put_time(&tm, "%H:%M:%S");
-                    
-                    // Count lines in content
-                    size_t lineCount = 1;
-                    for (char c : item.content) {
-                        if (c == '\n') lineCount++;
-                    }
-                    
-                    line += timeStream.str() + " | " + std::to_string(lineCount) + " lines | ";
-                    
-                    // Truncate content if too long
-                    std::string content = item.content;
-                    int maxContentLength = calculateMaxContentLength(true);
-                    if (static_cast<int>(content.length()) > maxContentLength) {
-                        content = smartTrim(content, maxContentLength);
-                    }
-                    
-                    // Replace newlines with spaces for display
-                    for (char& c : content) {
-                        if (c == '\n' || c == '\r') c = ' ';
-                    }
-                    
-                    line += content;
-                } else {
-                    // Normal mode: content (line count if > 1)
-                    
-                    // Count lines in content
-                    size_t lineCount = 1;
-                    for (char c : item.content) {
-                        if (c == '\n') lineCount++;
-                    }
-                    
-                    // Truncate content if too long
-                    std::string content = item.content;
-                    int maxContentLength = calculateMaxContentLength(false);
-                    if (static_cast<int>(content.length()) > maxContentLength) {
-                        content = smartTrim(content, maxContentLength);
-                    }
-                    
-                    // Replace newlines with spaces for display
-                    for (char& c : content) {
-                        if (c == '\n' || c == '\r') c = ' ';
-                    }
-                    
-                    line += content;
-                    
-                    // Add line count if more than one line
-                    if (lineCount > 1) {
-                        line += " (" + std::to_string(lineCount) + " lines)";
-                    }
-                }
-                
-                // Highlight selected item with theme selection color
-                if (i == selectedItem) {
-                    RECT highlightRect = {5, y - WIN_SEL_RECT_OFFSET_Y, getClipListWidth(), y - WIN_SEL_RECT_OFFSET_Y + WIN_SEL_RECT_HEIGHT};
-                    HBRUSH hHighlightBrush = CreateSolidBrush(selectionColor);
-                    FillRect(hdc, &highlightRect, hHighlightBrush);
-                    DeleteObject(hHighlightBrush);
-                }
-                
-                // Ensure text color is set before drawing (matches Linux behavior)
-                SetTextColor(hdc, textColor);
-                TextOut(hdc, 10, y, line.c_str(), line.length());
-                
-                y += LINE_HEIGHT;
-            }
-            
-            if (displayCount == 0 && !cmd_themeSelectMode) {
-                std::string empty;
-                if (filterMode) {
-                    empty = "No matching items...";
-                } else if (commandMode) {
-                    empty = "Enter command...";
-                } else {
-                    empty = "No clipboard items yet...";
-                }
-                // Ensure text color is set before drawing
-                SetTextColor(hdc, textColor);
-                TextOut(hdc, 10, y, empty.c_str(), empty.length());
-            }
+            ::drawConsole(hdc, data, WIN_SEL_RECT_HEIGHT, WIN_SEL_RECT_OFFSET_Y);
             
             // Draw dialogs if visible
             if (bookmarkDialogVisible) {
@@ -5454,7 +5227,12 @@ public:
                                  backgroundColor, textColor, selectionColor, borderColor,
                                  LINE_HEIGHT, WIN_SEL_RECT_HEIGHT, WIN_SEL_RECT_OFFSET_Y);
             }
-            drawHelpDialog(hdc);
+            if (helpDialogVisible) {
+                DialogDimensions dims = getHelpDialogDimensions();
+                drawHelpDialog(hdc, dims,
+                               helpFilterMode, helpFilterText, helpDialogScrollOffset,
+                               backgroundColor, textColor, borderColor);
+            }
             if (editDialogVisible) {
                 DialogDimensions dims = getEditDialogDimensions();
                 drawEditDialog(hdc, dims,
@@ -5468,101 +5246,6 @@ public:
             DeleteObject(hFont);
             ReleaseDC(hwnd, hdc);
         }
-
-        void drawHelpDialog(HDC hdc) {
-            if (!helpDialogVisible)
-                return;
-
-            DialogDimensions dims = getHelpDialogDimensions();
-
-            // Background rectangle
-            RECT bgRect = {
-                dims.x,
-                dims.y,
-                dims.x + dims.width,
-                dims.y + dims.height
-            };
-
-            // --- Draw background safely ---
-            HBRUSH hBgBrush = CreateSolidBrush(backgroundColor);
-            FillRect(hdc, &bgRect, hBgBrush);
-            DeleteObject(hBgBrush);
-
-            // --- Draw border safely (manually, to avoid Win32 Rectangle() quirks) ---
-            HPEN hBorderPen = CreatePen(PS_SOLID, 1, borderColor);
-            HPEN hOldPen = (HPEN)SelectObject(hdc, hBorderPen);
-            HBRUSH hOldBrush = (HBRUSH)SelectObject(hdc, GetStockObject(NULL_BRUSH));
-
-            MoveToEx(hdc, dims.x,               dims.y,                NULL);
-            LineTo(hdc,   dims.x + dims.width,  dims.y);
-            LineTo(hdc,   dims.x + dims.width,  dims.y + dims.height);
-            LineTo(hdc,   dims.x,               dims.y + dims.height);
-            LineTo(hdc,   dims.x,               dims.y);
-
-            SelectObject(hdc, hOldBrush);
-            SelectObject(hdc, hOldPen);
-            DeleteObject(hBorderPen);
-
-            // --- Setup clipping so text never draws outside dialog ---
-            HRGN clipRegion = CreateRectRgn(
-                dims.x + 5,              // a little inset from border
-                dims.y + 5,
-                dims.x + dims.width - 5,
-                dims.y + dims.height - 5
-            );
-
-            int oldClip = SelectClipRgn(hdc, clipRegion);
-            DeleteObject(clipRegion);
-
-            // --- Text settings ---
-            SetTextColor(hdc, textColor);
-            SetBkMode(hdc, TRANSPARENT);
-
-            const int titleLeft = dims.x + 20;
-            const int topicLeft = dims.x + 30;
-            const int lineHeight = 15;
-            const int gap = 10;
-
-            // Pre-input field at top
-            int inputY = dims.y + 20;
-
-            // Draw input field box
-            HPEN hInputPen = CreatePen(PS_SOLID, 1, helpFilterMode ? textColor : borderColor);
-            HPEN hOldPen_input = (HPEN)SelectObject(hdc, hInputPen);
-            HBRUSH hOldBrush_input = (HBRUSH)SelectObject(hdc, GetStockObject(NULL_BRUSH));
-            Rectangle(hdc, dims.x + 20, inputY, dims.x + dims.width - 20, inputY + 20);
-            SelectObject(hdc, hOldBrush_input);
-            SelectObject(hdc, hOldPen_input);
-            DeleteObject(hInputPen);
-
-            // Draw "/" prompt
-            std::string filterDisplay = "/" + helpFilterText;
-            TextOut(hdc, dims.x + 25, inputY + 4, filterDisplay.c_str(), filterDisplay.length());
-
-            // Shift help topics down to make room for input field
-            int y = dims.y + 20 + 25 + gap;
-            const int contentTop = y;
-            const int contentBottom = dims.y + dims.height;
-
-            // Scroll offset clamping (optional, but recommended)
-            y = y + helpDialogScrollOffset;
-
-            // --- Draw help topics ---
-            drawAllHelpTopics(
-                hdc,
-                titleLeft,
-                topicLeft,
-                lineHeight,
-                gap,
-                y,
-                contentTop,
-                contentBottom
-            );
-
-            // Restore clipping region (VERY important)
-            SelectClipRgn(hdc, oldClip == NULLREGION ? nullptr : reinterpret_cast<HRGN>(oldClip));
-        }
-
 #endif
     // End Windows UI Methods
 

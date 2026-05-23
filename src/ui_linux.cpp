@@ -1,4 +1,5 @@
 #include "ui.h"
+#include "help.h"
 #include <sstream>
 
 #ifdef __linux__
@@ -282,6 +283,140 @@ void drawEditDialog(
                 XDrawString(display, window, gc, dims.x + 25, adjustedY, displayText.c_str(), displayText.length());
             }
         }
+    }
+}
+
+void drawHelpDialog(
+    Display* display, Window window, GC gc,
+    const DialogDimensions& dims,
+    bool filterMode, const std::string& filterText,
+    int scrollOffset,
+    unsigned long bgColor, unsigned long textColor,
+    unsigned long borderColor)
+{
+    XSetForeground(display, gc, bgColor);
+    XFillRectangle(display, window, gc, dims.x, dims.y, dims.width, dims.height);
+    XSetForeground(display, gc, borderColor);
+    XDrawRectangle(display, window, gc, dims.x, dims.y, dims.width, dims.height);
+
+    XSetForeground(display, gc, textColor);
+    const int titleLeft = dims.x + 20;
+    const int topicLeft = dims.x + 30;
+    const int lineHeight = 15;
+    const int gap = 10;
+
+    int inputY = dims.y + 20;
+
+    XSetForeground(display, gc, filterMode ? textColor : borderColor);
+    XDrawRectangle(display, window, gc, dims.x + 20, inputY, dims.width - 40, 20);
+
+    std::string filterDisplay = "/" + filterText;
+    XSetForeground(display, gc, textColor);
+    XDrawString(display, window, gc, dims.x + 25, inputY + 14, filterDisplay.c_str(), filterDisplay.length());
+
+    int y = dims.y + 20 + 25 + gap;
+    const int contentTop = y;
+    const int contentBottom = dims.y + dims.height;
+
+    y = y + scrollOffset;
+
+    drawAllHelpTopics(nullptr, titleLeft, topicLeft, lineHeight, gap, y, contentTop, contentBottom);
+}
+
+void drawConsole(
+    Display* display, Window window, GC gc,
+    const ConsoleDrawData& data)
+{
+    int y = data.startY;
+
+    if (data.filterMode) {
+        std::string filterDisplay = "/" + data.filterText;
+        XDrawString(display, window, gc, 10, y, filterDisplay.c_str(), filterDisplay.length());
+        y += data.lineHeight;
+    } else if (data.commandMode) {
+        std::string commandDisplay = ":" + data.commandText;
+        XDrawString(display, window, gc, 10, y, commandDisplay.c_str(), commandDisplay.length());
+        y += data.lineHeight;
+    }
+
+    if (data.themeSelectMode) {
+        std::string header = "Select theme (" + std::to_string(data.themeItems.size()) + " total):";
+        XDrawString(display, window, gc, 10, y, header.c_str(), header.length());
+        y += data.lineHeight;
+
+        const int VISIBLE_THEMES = 10;
+        size_t startIdx = data.themeScrollOffset;
+        size_t endIdx = std::min(startIdx + VISIBLE_THEMES, data.themeItems.size());
+
+        for (size_t i = startIdx; i < endIdx; ++i) {
+            std::string themeDisplay = (i == data.selectedTheme ? "> " : "  ") + data.themeItems[i];
+            XDrawString(display, window, gc, 10, y, themeDisplay.c_str(), themeDisplay.length());
+            y += data.lineHeight;
+        }
+
+        if (data.themeItems.size() > VISIBLE_THEMES) {
+            std::string scrollInfo = "Showing " + std::to_string(startIdx + 1) + "-" + std::to_string(endIdx) + " of " + std::to_string(data.themeItems.size());
+            XDrawString(display, window, gc, 10, y, scrollInfo.c_str(), scrollInfo.length());
+        }
+        return;
+    }
+
+    if (data.configSelectMode) {
+        std::string header = "Select config option (" + std::to_string(data.configItems.size()) + " total):";
+        XDrawString(display, window, gc, 10, y, header.c_str(), header.length());
+        y += data.lineHeight;
+
+        const int VISIBLE_CONFIGS = 10;
+        size_t startIdx = data.configScrollOffset;
+        size_t endIdx = std::min(startIdx + VISIBLE_CONFIGS, data.configItems.size());
+
+        for (size_t i = startIdx; i < endIdx; ++i) {
+            std::string configDisplay = (i == data.selectedConfig ? "> " : "  ") + data.configItems[i];
+            XDrawString(display, window, gc, 10, y, configDisplay.c_str(), configDisplay.length());
+            y += data.lineHeight;
+        }
+
+        if (data.configItems.size() > VISIBLE_CONFIGS) {
+            std::string scrollInfo = "Showing " + std::to_string(startIdx + 1) + "-" + std::to_string(endIdx) + " of " + std::to_string(data.configItems.size());
+            XDrawString(display, window, gc, 10, y, scrollInfo.c_str(), scrollInfo.length());
+        }
+        return;
+    }
+
+    const int SCROLL_INDICATOR_HEIGHT = 15;
+
+    bool needScrollIndicator = data.totalClipCount > data.clipLines.size();
+    if (needScrollIndicator) {
+        std::string scrollText = "[" + std::to_string(data.selectedItem + 1) + "/" + std::to_string(data.totalClipCount) + "]";
+        XDrawString(display, window, gc, data.windowWidth - 80, 15, scrollText.c_str(), scrollText.length());
+        y += SCROLL_INDICATOR_HEIGHT;
+    }
+
+    for (size_t i = 0; i < data.clipLines.size(); ++i) {
+        bool isSelected = (i + data.clipScrollOffset == data.selectedItem);
+
+        if (isSelected) {
+            XSetForeground(display, gc, data.selColor);
+            XFillRectangle(display, window, gc, 5, y - 12, data.clipListWidth, 15);
+            XSetForeground(display, gc, data.textColor);
+        } else {
+            XSetForeground(display, gc, data.textColor);
+        }
+
+        XDrawString(display, window, gc, 10, y, data.clipLines[i].c_str(), data.clipLines[i].length());
+        y += data.lineHeight;
+    }
+
+    if (data.clipLines.empty()) {
+        std::string empty;
+        if (data.filterMode) {
+            empty = "No matching items...";
+        } else if (data.commandMode) {
+            empty = "Enter command...";
+        } else {
+            empty = "No clipboard items yet...";
+        }
+        XDrawString(display, window, gc, 10, y, empty.c_str(), empty.length());
     }
 }
 

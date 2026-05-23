@@ -6,6 +6,38 @@
 #include <algorithm>
 #include <utility>
 
+struct ConsoleDrawData {
+    bool filterMode;
+    bool commandMode;
+    bool themeSelectMode;
+    bool configSelectMode;
+    std::string filterText;
+    std::string commandText;
+
+    std::vector<std::string> themeItems;
+    size_t selectedTheme;
+    size_t themeScrollOffset;
+
+    std::vector<std::string> configItems;
+    size_t selectedConfig;
+    size_t configScrollOffset;
+
+    std::vector<std::string> clipLines;
+    size_t selectedItem;
+    size_t clipScrollOffset;
+    size_t totalClipCount;
+    int clipListWidth;
+
+    int startY;
+    int windowWidth;
+    int windowHeight;
+    int lineHeight;
+
+    unsigned long bgColor;
+    unsigned long textColor;
+    unsigned long selColor;
+};
+
 struct DialogDimensions {
     int width;
     int height;
@@ -64,6 +96,18 @@ void drawEditDialog(
     int scrollOffset,
     unsigned long bgColor, unsigned long textColor,
     unsigned long borderColor);
+
+void drawHelpDialog(
+    Display* display, Window window, GC gc,
+    const DialogDimensions& dims,
+    bool filterMode, const std::string& filterText,
+    int scrollOffset,
+    unsigned long bgColor, unsigned long textColor,
+    unsigned long borderColor);
+
+void drawConsole(
+    Display* display, Window window, GC gc,
+    const ConsoleDrawData& data);
 #endif
 
 #ifdef _WIN32
@@ -118,6 +162,19 @@ void drawEditDialog(
     int scrollOffset,
     unsigned long bgColor, unsigned long textColor,
     unsigned long borderColor);
+
+void drawHelpDialog(
+    HDC hdc,
+    const DialogDimensions& dims,
+    bool filterMode, const std::string& filterText,
+    int scrollOffset,
+    unsigned long bgColor, unsigned long textColor,
+    unsigned long borderColor);
+
+void drawConsole(
+    HDC hdc,
+    const ConsoleDrawData& data,
+    int winSelRectHeight, int winSelRectOffsetY);
 #endif
 
 #endif
