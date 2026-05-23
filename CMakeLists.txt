@@ -8,6 +8,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 add_executable(mmry
     src/main.cpp
     src/key_translation.cpp
+    src/help.cpp
 )
 
 # Platform-specific libraries

@@ -27,6 +27,7 @@
 #include <fstream>
 #include <chrono>
 #include <iomanip>
+#include <regex>
 
 
 #ifdef __linux__
