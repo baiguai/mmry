@@ -7,6 +7,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 # Create executable
 add_executable(mmry
     src/main.cpp
+    src/config.cpp
     src/key_translation.cpp
     src/help.cpp
 )

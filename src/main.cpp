@@ -2,6 +2,7 @@
 #include "key_translation.h"
 #include "help.h"
 #include "ui.h"
+#include "config.h"
 
 #ifdef __linux__
     Display* display;
@@ -42,13 +43,13 @@ public:
 
 private:
     std::atomic<bool> hotkeyGrabbed{false};
-    bool m_debugging = true; // Debugging flag, controlled via config
     mutable std::ofstream logfile;
+    ConfigManager config;
 
     // Helper method for logging
     void writeLog(const std::string& message) const
     {
-        if (m_debugging)
+        if (config.m_debugging)
         {
             auto now = std::chrono::system_clock::now();
             auto in_time_t = std::chrono::system_clock::to_time_t(now);
@@ -1088,13 +1089,13 @@ public:
             else if (cmd_themeSelectMode)
             {
                 // Restore original theme and exit theme selection mode but doesn't hide window
-                if (!originalTheme.empty())
+                if (!config.originalTheme.empty())
                 {
-                    switchTheme(originalTheme);
+                    config.switchTheme(config.originalTheme);
                 }
                 cmd_themeSelectMode = false;
                 availableThemes.clear();
-                originalTheme.clear();
+                config.originalTheme.clear();
                 selectedItem = 0;
                 drawConsole();
             }
@@ -1450,7 +1451,7 @@ public:
                 saveBookmarkGroups();
                 
                 // Delete bookmark file
-                std::string bookmarkFile = bookmarksDir + "/bookmarks_" + groupToDelete + ".txt";
+                std::string bookmarkFile = config.bookmarksDir + "/bookmarks_" + groupToDelete + ".txt";
                 unlink(bookmarkFile.c_str());
                 
                 std::cout << "Deleted bookmark group and all clips: " << groupToDelete << "\n";
@@ -1544,7 +1545,7 @@ public:
         bool key_marks_clips_delete() {
             if (selectedViewBookmarkGroup < bookmarkGroups.size()) {
                 std::string selectedGroup = bookmarkGroups[selectedViewBookmarkGroup];
-                std::string bookmarkFile = bookmarksDir + "/bookmarks_" + selectedGroup + ".txt";
+                std::string bookmarkFile = config.bookmarksDir + "/bookmarks_" + selectedGroup + ".txt";
                 std::ifstream file(bookmarkFile);
                 
                 if (file.is_open()) {
@@ -1643,7 +1644,7 @@ public:
             } else {
                 if (selectedViewBookmarkGroup < bookmarkGroups.size()) {
                     std::string selectedGroup = bookmarkGroups[selectedViewBookmarkGroup];
-                    std::string bookmarkFile = bookmarksDir + "/bookmarks_" + selectedGroup + ".txt";
+                    std::string bookmarkFile = config.bookmarksDir + "/bookmarks_" + selectedGroup + ".txt";
                     std::ifstream file(bookmarkFile);
                     
                     if (file.is_open()) {
@@ -1732,7 +1733,7 @@ public:
                 sortedItems.erase(sortedItems.begin() + selectedViewPinnedItem);
 
                 // Write back remaining lines
-                std::ofstream outFile(pinnedFile);
+                std::ofstream outFile(config.pinnedFile);
                 if (outFile.is_open()) {
                     for (const auto& item : sortedItems) {
                         outFile << item << "\n";
@@ -1790,7 +1791,7 @@ public:
                     sortedItems.insert(sortedItems.begin(), newLine);
                     
                     // Write the updated lines back to the file
-                    std::ofstream outFile(pinnedFile);
+                    std::ofstream outFile(config.pinnedFile);
                     for (const auto& l : sortedItems) {
                         outFile << l << std::endl;
                     }
@@ -1825,7 +1826,7 @@ public:
                     std::string clipContent = items[actualIndex].content;
                     
                     // Read existing bookmarks in this group
-                    std::string bookmarkFile = bookmarksDir + "/bookmarks_" + selectedGroup + ".txt";
+                    std::string bookmarkFile = config.bookmarksDir + "/bookmarks_" + selectedGroup + ".txt";
                     std::ifstream file(bookmarkFile);
                     std::string line;
                     bool alreadyExists = false;
@@ -1982,12 +1983,12 @@ public:
                 // Enter theme selection mode
                 commandMode = false;
                 cmd_themeSelectMode = true;
-                discoverThemes();
+                availableThemes = config.discoverThemes();
                 // Store original theme and apply first theme for preview
                 if (!availableThemes.empty()) {
-                    originalTheme = theme;
+                    config.originalTheme = config.theme;
                     selectedTheme = 0;
-                    switchTheme(availableThemes[0]);
+                    config.switchTheme(availableThemes[0]);
                 }
                 drawConsole();
                 return true;
@@ -1996,7 +1997,7 @@ public:
                 // Enter config selection mode
                 commandMode = false;
                 cmd_configSelectMode = true;
-                discoverConfigs();
+                availableConfigs = config.discoverConfigs();
                 drawConsole();
                 return true;
             }
@@ -2010,12 +2011,12 @@ public:
 
         // Theme Command
         bool key_theme_cancel() {
-            if (!originalTheme.empty()) {
-                switchTheme(originalTheme);
+            if (!config.originalTheme.empty()) {
+                config.switchTheme(config.originalTheme);
             }
             cmd_themeSelectMode = false;
             availableThemes.clear();
-            originalTheme.clear();
+            config.originalTheme.clear();
             drawConsole();
 
             return true;
@@ -2023,13 +2024,13 @@ public:
 
         bool key_theme_apply() {
             if (selectedTheme < availableThemes.size()) {
-                switchTheme(availableThemes[selectedTheme]);
+                config.switchTheme(availableThemes[selectedTheme]);
                 // Save to config
-                saveConfig();
+                config.saveConfig();
             }
             cmd_themeSelectMode = false;
             availableThemes.clear();
-            originalTheme.clear();
+            config.originalTheme.clear();
             drawConsole();
 
             return true;
@@ -2041,7 +2042,7 @@ public:
                 updateThemeSelectScrollOffset();
                 // Apply live preview
                 if (selectedTheme < availableThemes.size()) {
-                    switchTheme(availableThemes[selectedTheme]);
+                    config.switchTheme(availableThemes[selectedTheme]);
                 }
                 drawConsole();
             }
@@ -2054,7 +2055,7 @@ public:
                 updateThemeSelectScrollOffset();
                 // Apply live preview
                 if (selectedTheme < availableThemes.size()) {
-                    switchTheme(availableThemes[selectedTheme]);
+                    config.switchTheme(availableThemes[selectedTheme]);
                 }
                 drawConsole();
             }
@@ -2092,7 +2093,7 @@ public:
         bool key_config_select() {
             if (selectedConfig < availableConfigs.size()) {
                 std::string configKey = availableConfigs[selectedConfig];
-                std::string currentValue = getConfigValue(configKey);
+                std::string currentValue = config.getConfigValue(configKey);
                 cmd_configSelectMode = false;
                 commandText = "config " + configKey + " " + currentValue;
                 commandMode = true;
@@ -2304,7 +2305,7 @@ public:
                 std::string clipContent = items[actualIndex].content;
                 
                 // Read existing bookmarks in this group
-                std::ifstream file(pinnedFile);
+                std::ifstream file(config.pinnedFile);
                 std::string line;
                 bool alreadyExists = false;
                 
@@ -2520,9 +2521,14 @@ public:
 #endif
         
         // Initialize configuration and theme
-        setupConfigDir();
-        loadConfig();
-        loadTheme();
+        config.setupConfigDir();
+        config.loadConfig();
+        config.loadTheme();
+#ifdef __linux__
+        if (gc) {
+            XSetForeground(display, gc, config.textColor);
+        }
+#endif
         loadFromFile();
         loadBookmarkGroups();
 
@@ -2537,7 +2543,7 @@ public:
             std::string dir = std::string(getenv("HOME")) + "/.config/autostart";
             std::string filePath = dir + "/mmry.desktop";
 
-            if (autoStart) {
+            if (config.autoStart) {
                 std::string appName = "mmry";
                 std::string appLabel = "Mmry";
 
@@ -2581,7 +2587,7 @@ Comment=Autostart for )" << appLabel << R"(
 
         
         std::cout << "MMRY Clipboard Manager started\n";
-        std::cout << "Config directory: " << configDir << "\n";
+        std::cout << "Config directory: " << config.configDir << "\n";
         std::cout << "Press Ctrl+Alt+C to show window, Escape to hide\n";
         std::cout << "Press Shift+Q in window to quit application\n";
         std::cout << "Press Ctrl+C in terminal to exit\n";
@@ -2853,23 +2859,6 @@ Comment=Autostart for )" << appLabel << R"(
         // Clipboard data
         std::vector<ClipboardItem> items;
         std::string lastClipboardContent;
-        bool verboseMode;
-    std::string configDir;
-    std::string bookmarksDir;
-    std::string dataFile;
-    std::string pinnedFile;
-    size_t maxClips = 500;
-    bool encrypted = false;
-    std::string encryptionKey = "";
-    std::string theme = "console";
-    std::string originalTheme = ""; // Store original theme for preview mode
-    bool autoStart = false;
-    
-    // Theme colors
-    unsigned long backgroundColor = 0;
-    unsigned long textColor = 0;
-    unsigned long selectionColor = 0;
-    unsigned long borderColor = 0;
     
     // Navigation
     size_t selectedItem = 0;
@@ -2956,7 +2945,7 @@ Comment=Autostart for )" << appLabel << R"(
     std::vector<std::string> getSortedPinnedItems() {
         std::vector<std::pair<long long, std::string>> pinnedItems;
         std::string line;
-        std::ifstream inFile(pinnedFile);
+        std::ifstream inFile(config.pinnedFile);
         
         // Read and parse lines
         while (std::getline(inFile, line)) {
@@ -3868,7 +3857,7 @@ Comment=Autostart for )" << appLabel << R"(
     
     // Simple XOR encryption helper functions
     std::string encrypt(const std::string& data) {
-        if (!encrypted || encryptionKey.empty()) {
+        if (!config.encrypted || config.encryptionKey.empty()) {
             return data;
         }
         
@@ -3876,7 +3865,7 @@ Comment=Autostart for )" << appLabel << R"(
         encrypted.resize(data.length());
         
         for (size_t i = 0; i < data.length(); ++i) {
-            encrypted[i] = data[i] ^ encryptionKey[i % encryptionKey.length()];
+            encrypted[i] = data[i] ^ config.encryptionKey[i % config.encryptionKey.length()];
         }
         
         // Simple base64 encoding
@@ -3906,7 +3895,7 @@ Comment=Autostart for )" << appLabel << R"(
     }
     
     std::string decrypt(const std::string& data) {
-        if (!encrypted || encryptionKey.empty()) {
+        if (!config.encrypted || config.encryptionKey.empty()) {
             return data;
         }
         
@@ -3935,170 +3924,10 @@ Comment=Autostart for )" << appLabel << R"(
         decrypted.resize(decoded.length());
         
         for (size_t i = 0; i < decoded.length(); ++i) {
-            decrypted[i] = decoded[i] ^ encryptionKey[i % encryptionKey.length()];
+            decrypted[i] = decoded[i] ^ config.encryptionKey[i % config.encryptionKey.length()];
         }
         
         return decrypted;
-    }
-    
-    // Convert hex color string to RGB value
-    unsigned long hexToRgb(const std::string& hex) {
-        if (hex.length() != 7 || hex[0] != '#') {
-            return 0; // Default to black if invalid
-        }
-        
-        try {
-            unsigned long r = std::stoul(hex.substr(1, 2), nullptr, 16);
-            unsigned long g = std::stoul(hex.substr(3, 2), nullptr, 16);
-            unsigned long b = std::stoul(hex.substr(5, 2), nullptr, 16);
-            
-#ifdef _WIN32
-            // Windows COLORREF uses BGR format (0x00BBGGRR)
-            return b * 256 * 256 + g * 256 + r;
-#else
-            // Linux/X11 uses RGB format
-            return r * 256 * 256 + g * 256 + b;
-#endif
-        } catch (...) {
-            return 0; // Default to black if conversion fails
-        }
-    }
-    
-    void loadTheme() {
-        // Set default colors (console theme)
-#ifdef _WIN32
-        // Windows COLORREF uses BGR format
-        backgroundColor = 0x000000; // Black (0x000000 works in both formats)
-        textColor = 0xFFFFFF;      // White (0xFFFFFF works in both formats)
-        selectionColor = 0x333333;  // Dark gray (0x333333 works in both formats)
-        borderColor = 0x888888;    // Gray (0x888888 works in both formats)
-#else
-        // Linux/X11 uses RGB format
-        backgroundColor = 0x000000; // Black
-        textColor = 0xFFFFFF;      // White
-        selectionColor = 0x333333;  // Dark gray
-        borderColor = 0x888888;    // Gray
-#endif
-        
-        // Cross-platform path separator
-#ifdef _WIN32
-        const char pathSep = '\\';
-#else
-        const char pathSep = '/';
-#endif
-        
-        // Try user config directory first, then fallback to local themes
-        std::string themePath = configDir + pathSep + "themes" + pathSep + theme + ".json";
-        std::ifstream file(themePath);
-        
-        if (!file.is_open()) {
-            // Fallback to local themes directory
-            themePath = std::string("themes") + pathSep + theme + ".json";
-            file.open(themePath);
-        }
-        
-        if (!file.is_open()) {
-            std::cout << "Theme file not found for theme: " << theme << ", using default colors\n";
-            return;
-        }
-        
-        std::cout << "Loading theme from: " << themePath << "\n";
-        
-        // Parse JSON theme file
-        std::string line;
-        bool inColorsSection = false;
-        while (std::getline(file, line)) {
-            // Remove whitespace
-            line.erase(0, line.find_first_not_of(" \t"));
-            line.erase(line.find_last_not_of(" \t") + 1);
-            
-            // Skip empty lines and comments
-            if (line.empty() || line[0] == '/' || line[0] == '#') {
-                continue;
-            }
-            
-            // Check if we're entering the colors section
-            if (line.find("\"colors\"") != std::string::npos) {
-                inColorsSection = true;
-                continue;
-            }
-            
-            // Check if we're exiting the colors section
-            if (inColorsSection && line.find("}") != std::string::npos) {
-                break;
-            }
-            
-            // Parse color values (only in JSON format)
-            if (inColorsSection) {
-                if (line.find("\"background\"") != std::string::npos) {
-                    size_t start = line.find('"', line.find(':'));
-                    size_t end = line.find('"', start + 1);
-                    if (start != std::string::npos && end != std::string::npos) {
-                        backgroundColor = hexToRgb(line.substr(start + 1, end - start - 1));
-                    }
-                }
-                else if (line.find("\"text\"") != std::string::npos) {
-                    size_t start = line.find('"', line.find(':'));
-                    size_t end = line.find('"', start + 1);
-                    if (start != std::string::npos && end != std::string::npos) {
-                        textColor = hexToRgb(line.substr(start + 1, end - start - 1));
-                    }
-                }
-                else if (line.find("\"selection\"") != std::string::npos) {
-                    size_t start = line.find('"', line.find(':'));
-                    size_t end = line.find('"', start + 1);
-                    if (start != std::string::npos && end != std::string::npos) {
-                        selectionColor = hexToRgb(line.substr(start + 1, end - start - 1));
-                    }
-                }
-                else if (line.find("\"border\"") != std::string::npos) {
-                    size_t start = line.find('"', line.find(':'));
-                    size_t end = line.find('"', start + 1);
-                    if (start != std::string::npos && end != std::string::npos) {
-                        borderColor = hexToRgb(line.substr(start + 1, end - start - 1));
-                    }
-                }
-            }
-        }
-        file.close();
-        
-        // Update graphics context with new text color
-#ifdef __linux__
-        if (gc) {
-            XSetForeground(display, gc, textColor);
-        }
-#endif
-    }
-    
-    void createDefaultThemeFile() {
-        // Create themes directory if it doesn't exist
-        std::string themesDir = configDir + "/themes";
-        struct stat st = {};
-        if (stat(themesDir.c_str(), &st) == -1) {
-#ifdef _WIN32
-            mkdir(themesDir.c_str());
-#else
-            mkdir(themesDir.c_str(), 0755);
-#endif
-        }
-        
-        // Create default console theme file with valid JSON
-        std::string themeFile = themesDir + "/console.json";
-        std::ofstream outFile(themeFile);
-        if (outFile.is_open()) {
-            outFile << "{\n";
-            outFile << "  \"name\": \"Console\",\n";
-            outFile << "  \"description\": \"Default console theme with black background and green text\",\n";
-            outFile << "  \"colors\": {\n";
-            outFile << "    \"background\": \"#000000\",\n";
-            outFile << "    \"text\": \"#FFFFFF\",\n";
-            outFile << "    \"selection\": \"#333333\",\n";
-            outFile << "    \"border\": \"#444444\"\n";
-            outFile << "  }\n";
-            outFile << "}\n";
-            outFile.close();
-            std::cout << "Created default theme file: " << themeFile << "\n";
-        }
     }
     
     void executeCommand(const std::string& command) {
@@ -4118,17 +3947,17 @@ Comment=Autostart for )" << appLabel << R"(
         if (cmd == "theme") {
             if (!args.empty()) {
                 // Direct theme switch: "theme dracula"
-                switchTheme(args);
+                config.switchTheme(args);
             } else {
                 // Enter theme selection mode: "theme"
                 commandMode = false;
                 cmd_themeSelectMode = true;
-                discoverThemes();
+                availableThemes = config.discoverThemes();
                 // Store original theme and apply first theme for preview
                 if (!availableThemes.empty()) {
-                    originalTheme = theme;
+                    config.originalTheme = config.theme;
                     selectedTheme = 0;
-                    switchTheme(availableThemes[0]);
+                    config.switchTheme(availableThemes[0]);
                 }
                 drawConsole();
             }
@@ -4154,13 +3983,13 @@ Comment=Autostart for )" << appLabel << R"(
                     std::cout << "DEBUG: Parsed configKey='" << configKey << "', configValue='" << configValue << "'\n";
                     
                         // Validate and update config based on type
-                    if (updateConfigValue(configKey, configValue)) {
+                    if (config.updateConfigValue(configKey, configValue)) {
                         std::cout << "DEBUG: updateConfigValue returned true, calling saveConfig()\n";
-                        saveConfig();
+                        config.saveConfig();
                         std::cout << "Updated " << configKey << " = " << configValue << "\n";
                     } else {
                         std::cout << "DEBUG: updateConfigValue returned false\n";
-                        std::cout << "Invalid value for " << configKey << ". Expected type: " << getConfigType(configKey) << "\n";
+                        std::cout << "Invalid value for " << configKey << ". Expected type: " << config.getConfigType(configKey) << "\n";
                     }
                 } else {
                     std::cout << "DEBUG: Failed to parse config key from args\n";
@@ -4169,7 +3998,7 @@ Comment=Autostart for )" << appLabel << R"(
                 // Enter config selection mode: "config"
                 commandMode = false;
                 cmd_configSelectMode = true;
-                discoverConfigs();
+                availableConfigs = config.discoverConfigs();
                 drawConsole();
             }
             return;
@@ -4186,80 +4015,6 @@ Comment=Autostart for )" << appLabel << R"(
         // - "export" - export clipboard history
     }
     
-    void discoverThemes() {
-        availableThemes.clear();
-        
-        // Try user themes directory first
-        std::string userThemesDir = configDir + "/themes";
-        std::string localThemesDir = "themes";
-        
-        // Function to scan a directory for theme files
-        auto scanThemesDir = [&](const std::string& themesDir) {
-            DIR* dir = opendir(themesDir.c_str());
-            if (dir) {
-                struct dirent* entry;
-                while ((entry = readdir(dir)) != nullptr) {
-                    std::string filename = entry->d_name;
-                    // Check if it's a .json file and not a special entry
-                    if (filename.length() > 5 && filename.substr(filename.length() - 5) == ".json" &&
-                        filename != "." && filename != "..") {
-                        // Remove .json extension
-                        std::string themeName = filename.substr(0, filename.length() - 5);
-                        availableThemes.push_back(themeName);
-                    }
-                }
-                closedir(dir);
-            }
-        };
-        
-        // Scan both directories
-        scanThemesDir(userThemesDir);
-        scanThemesDir(localThemesDir);
-        
-        // Remove duplicates and sort
-        std::sort(availableThemes.begin(), availableThemes.end());
-        availableThemes.erase(std::unique(availableThemes.begin(), availableThemes.end()), availableThemes.end());
-        
-        // Reset selection
-        selectedTheme = 0;
-        themeSelectScrollOffset = 0;
-    }
-
-    void discoverConfigs() {
-        availableConfigs.clear();
-
-        std::string configFile = configDir + "/config.json";
-       
-        std::ifstream file(configFile);
-        if (file.is_open()) {
-            std::string line;
-            while (std::getline(file, line)) {
-                // Look for lines containing config keys (in quotes)
-                size_t start = line.find('"');
-                if (start != std::string::npos && start != line.rfind('"')) {
-                    size_t end = line.find('"', start + 1);
-                    if (end != std::string::npos) {
-                        std::string configKey = line.substr(start + 1, end - start - 1);
-                        if (!configKey.empty()) {
-                            availableConfigs.push_back(configKey);
-                        }
-                    }
-                }
-            }
-            file.close();
-        }
-        
-        // Reset selection
-        selectedConfig = 0;
-        configSelectScrollOffset = 0;
-    }
-
-    void switchTheme(const std::string& themeName) {
-        theme = themeName;
-        loadTheme();
-        std::cout << "Switched to theme: " << themeName << "\n";
-    }
-    
     void loadBookmarkGroups() {
         // Cross-platform path separator
 #ifdef _WIN32
@@ -4268,7 +4023,7 @@ Comment=Autostart for )" << appLabel << R"(
         const char pathSep = '/';
 #endif
         
-        std::string bookmarkFile = bookmarksDir + pathSep + "bookmarks.txt";
+        std::string bookmarkFile = config.bookmarksDir + pathSep + "bookmarks.txt";
         std::ifstream file(bookmarkFile);
         bookmarkGroups.clear();
         
@@ -4293,7 +4048,7 @@ Comment=Autostart for )" << appLabel << R"(
     }
     
     void saveBookmarkGroups() {
-        std::string bookmarkFile = bookmarksDir + "/bookmarks.txt";
+        std::string bookmarkFile = config.bookmarksDir + "/bookmarks.txt";
         std::ofstream file(bookmarkFile);
         
         if (file.is_open()) {
@@ -4305,7 +4060,7 @@ Comment=Autostart for )" << appLabel << R"(
     }
     
     void addClipToBookmarkGroup(const std::string& groupName, const std::string& content) {
-        std::string bookmarkFile = bookmarksDir + "/bookmarks_" + groupName + ".txt";
+        std::string bookmarkFile = config.bookmarksDir + "/bookmarks_" + groupName + ".txt";
         std::ofstream file(bookmarkFile, std::ios::app);
         
         if (file.is_open()) {
@@ -4317,7 +4072,7 @@ Comment=Autostart for )" << appLabel << R"(
     }
 
     void addClipToPinned(const std::string& content) {
-        std::ofstream file(pinnedFile, std::ios::app);
+        std::ofstream file(config.pinnedFile, std::ios::app);
         
         if (file.is_open()) {
             auto timestamp = std::chrono::system_clock::now().time_since_epoch().count();
@@ -4327,133 +4082,13 @@ Comment=Autostart for )" << appLabel << R"(
         }
     }
     
-    void setupConfigDir() {
-        // Cross-platform home directory detection
-        const char* home = nullptr;
-        
-#ifdef _WIN32
-        home = getenv("USERPROFILE");
-        if (!home) home = getenv("APPDATA");
-#elif __APPLE__
-        home = getenv("HOME");
-#elif __linux__
-        home = getenv("HOME");
-#endif
-        
-        if (!home) home = ".";
-        
-        // Cross-platform config directory path
-#ifdef _WIN32
-        configDir = std::string(home) + "\\mmry";
-#elif __APPLE__
-        configDir = std::string(home) + "/Library/Application Support/mmry";
-#elif __linux__
-        configDir = std::string(home) + "/.config/mmry";
-#endif
-        
-        // Cross-platform directory creation
-        auto createDirectory = [](const std::string& path) {
-#ifdef _WIN32
-            return mkdir(path.c_str()) == 0 || errno == EEXIST;
-#else
-            return mkdir(path.c_str(), 0755) == 0 || errno == EEXIST;
-#endif
-        };
-        
-        // Create config directory if it doesn't exist
-        struct stat st = {};
-        if (stat(configDir.c_str(), &st) == -1) {
-            if (createDirectory(configDir)) {
-                std::cout << "Created config directory: " << configDir << "\n";
-            } else {
-                std::cerr << "Failed to create config directory: " << configDir << "\n";
-            }
-        }
-        
-        // Cross-platform path separator
-#ifdef _WIN32
-        const char pathSep = '\\';
-#else
-        const char pathSep = '/';
-#endif
-        
-        // Create themes directory if it doesn't exist
-        std::string themesDir = configDir + pathSep + "themes";
-        if (stat(themesDir.c_str(), &st) == -1) {
-            if (createDirectory(themesDir)) {
-                std::cout << "Created themes directory: " << themesDir << "\n";
-            } else {
-                std::cerr << "Failed to create themes directory: " << themesDir << "\n";
-            }
-        }
-        
-        // Create bookmarks directory if it doesn't exist
-        bookmarksDir = configDir + pathSep + "bookmarks";
-        if (stat(bookmarksDir.c_str(), &st) == -1) {
-            if (createDirectory(bookmarksDir)) {
-                std::cout << "Created bookmarks directory: " << bookmarksDir << "\n";
-            } else {
-                std::cerr << "Failed to create bookmarks directory: " << bookmarksDir << "\n";
-            }
-        }
-        
-        dataFile = configDir + pathSep + "clips.txt";
-        pinnedFile = configDir + pathSep + "pinned.txt";
-        
-        // Ensure all required files exist
-        ensureRequiredFiles();
-    }
-    
-    void ensureRequiredFiles() {
-        // Check and create config.json if needed
-        std::string configFile = configDir + "/config.json";
-        struct stat st = {};
-        if (stat(configFile.c_str(), &st) == -1) {
-            createDefaultConfig();
-        }
-        
-        // Check and create theme file if needed
-        std::string themeFile = configDir + "/themes/" + theme + ".json";
-        if (stat(themeFile.c_str(), &st) == -1) {
-            createDefaultThemeFile();
-        }
-        
-        // Check and create bookmarks.txt if needed
-        std::string bookmarksFile = bookmarksDir + "/bookmarks.txt";
-        if (stat(bookmarksFile.c_str(), &st) == -1) {
-            std::ofstream outFile(bookmarksFile);
-            if (outFile.is_open()) {
-                outFile << "default|0\n";
-                outFile.close();
-                std::cout << "Created bookmarks file: " << bookmarksFile << "\n";
-            }
-        }
-        
-        // Check and create clips.txt if needed
-        if (stat(dataFile.c_str(), &st) == -1) {
-            std::ofstream outFile(dataFile);
-            if (outFile.is_open()) {
-                outFile.close();
-                std::cout << "Created clips file: " << dataFile << "\n";
-            }
-        }
-        // Check and create pinned.txt if needed
-        if (stat(pinnedFile.c_str(), &st) == -1) {
-            std::ofstream outFile(pinnedFile);
-            if (outFile.is_open()) {
-                outFile.close();
-                std::cout << "Created pinned clips file: " << pinnedFile << "\n";
-            }
-        }
-    }
-    
     void createWindow() {
 #ifdef __linux__
         // Create window with theme colors
         window = XCreateSimpleWindow(display, root, 
                                    WINDOW_X, WINDOW_Y, 
                                    windowWidth, windowHeight,
-                                   2, borderColor, backgroundColor);
+                                   2, config.borderColor, config.backgroundColor);
         
         // Set window properties
         XStoreName(display, window, "MMRY");
@@ -4468,7 +4103,7 @@ Comment=Autostart for )" << appLabel << R"(
         
         // Create graphics context
         gc = XCreateGC(display, window, 0, nullptr);
-        XSetForeground(display, gc, textColor);
+        XSetForeground(display, gc, config.textColor);
         
         // Load font (try to find a monospace font)
         font = XLoadQueryFont(display, "-*-fixed-medium-r-*-*-13-*-*-*-*-*-*-*");
@@ -4631,7 +4266,7 @@ public:
             if (!visible) return;
             
             // Clear window with theme background
-            XSetWindowBackground(display, window, backgroundColor);
+            XSetWindowBackground(display, window, config.backgroundColor);
             XClearWindow(display, window);
             
             // Build console draw data
@@ -4659,9 +4294,9 @@ public:
             data.windowHeight = windowHeight;
             data.lineHeight = LINE_HEIGHT;
             data.clipListWidth = clipListWidth;
-            data.bgColor = backgroundColor;
-            data.textColor = textColor;
-            data.selColor = selectionColor;
+            data.bgColor = config.backgroundColor;
+            data.textColor = config.textColor;
+            data.selColor = config.selectionColor;
             
             // Build clip display lines
             if (!cmd_themeSelectMode && !cmd_configSelectMode) {
@@ -4694,7 +4329,7 @@ public:
                         line = "  ";
                     }
                     
-                    if (verboseMode) {
+                    if (config.verboseMode) {
                         auto time_t = std::chrono::system_clock::to_time_t(item.timestamp);
                         auto tm = *std::localtime(&time_t);
                         
@@ -4760,7 +4395,7 @@ public:
                 drawBookmarkDialog(display, window, gc, font, dims,
                                  bookmarkDialogInput, filteredGroups,
                                  selectedBookmarkGroup, bookmarkMgmtScrollOffset,
-                                 backgroundColor, textColor, selectionColor, borderColor);
+                                 config.backgroundColor, config.textColor, config.selectionColor, config.borderColor);
             }
             if (addToBookmarkDialogVisible) {
                 DialogDimensions dims = getAddBookmarkDialogDimensions();
@@ -4782,7 +4417,7 @@ public:
                                       displayedGroups,
                                       selectedAddBookmarkGroup, addBookmarkScrollOffset,
                                       filterAddBookmarksMode, filterAddBookmarksText,
-                                      backgroundColor, textColor, selectionColor, borderColor);
+                                      config.backgroundColor, config.textColor, config.selectionColor, config.borderColor);
             }
             if (viewBookmarksDialogVisible) {
                 DialogDimensions dims = getViewBookmarksDialogDimensions();
@@ -4826,7 +4461,7 @@ public:
                     } else {
                         if (selectedViewBookmarkGroup < bookmarkGroups.size()) {
                             std::string selectedGroup = bookmarkGroups[selectedViewBookmarkGroup];
-                            std::string bookmarkFile = bookmarksDir + "/bookmarks_" + selectedGroup + ".txt";
+                            std::string bookmarkFile = config.bookmarksDir + "/bookmarks_" + selectedGroup + ".txt";
                             std::ifstream file(bookmarkFile);
                             if (file.is_open()) {
                                 std::string line;
@@ -4865,7 +4500,7 @@ public:
                 drawViewBookmarksDialog(display, window, gc, font, dims,
                                       title, items, selItem, scrollOff,
                                       filterActive, filterTxt, itemLH, emptyMsg,
-                                      backgroundColor, textColor, selectionColor, borderColor);
+                                      config.backgroundColor, config.textColor, config.selectionColor, config.borderColor);
             }
             if (pinnedDialogVisible) {
                 auto sortedItems = getSortedPinnedItems();
@@ -4904,20 +4539,20 @@ public:
                 }
                 drawPinnedDialog(display, window, gc, font, displayItems, dims,
                                  selectedViewPinnedItem, viewPinnedScrollOffset, m_maxVisiblePinnedItems,
-                                 backgroundColor, textColor, selectionColor, borderColor, LINE_HEIGHT);
+                                 config.backgroundColor, config.textColor, config.selectionColor, config.borderColor, LINE_HEIGHT);
             }
             if (helpDialogVisible) {
                 DialogDimensions dims = getHelpDialogDimensions();
                 drawHelpDialog(display, window, gc, dims,
                                helpFilterMode, helpFilterText, helpDialogScrollOffset,
-                               backgroundColor, textColor, borderColor);
+                               config.backgroundColor, config.textColor, config.borderColor);
             }
             if (editDialogVisible) {
                 DialogDimensions dims = getEditDialogDimensions();
                 drawEditDialog(display, window, gc, font, dims,
                                editDialogInput, editDialogCursorLine, editDialogCursorPos,
                                editDialogScrollOffset,
-                               backgroundColor, textColor, borderColor);
+                               config.backgroundColor, config.textColor, config.borderColor);
             }
         }
 #endif
@@ -4945,11 +4580,11 @@ public:
             RECT clientRect;
             GetClientRect(hwnd, &clientRect);
             
-            HBRUSH hBgBrush = CreateSolidBrush(backgroundColor);
+            HBRUSH hBgBrush = CreateSolidBrush(config.backgroundColor);
             FillRect(hdc, &clientRect, hBgBrush);
             DeleteObject(hBgBrush);
             
-            SetTextColor(hdc, textColor);
+            SetTextColor(hdc, config.textColor);
             SetBkMode(hdc, TRANSPARENT);
             
             // Build console draw data
@@ -4977,9 +4612,9 @@ public:
             data.windowHeight = windowHeight;
             data.lineHeight = LINE_HEIGHT;
             data.clipListWidth = clipListWidth;
-            data.bgColor = backgroundColor;
-            data.textColor = textColor;
-            data.selColor = selectionColor;
+            data.bgColor = config.backgroundColor;
+            data.textColor = config.textColor;
+            data.selColor = config.selectionColor;
             
             // Build clip display lines
             if (!cmd_themeSelectMode && !cmd_configSelectMode) {
@@ -5012,7 +4647,7 @@ public:
                         line = "  ";
                     }
                     
-                    if (verboseMode) {
+                    if (config.verboseMode) {
                         auto time_t = std::chrono::system_clock::to_time_t(item.timestamp);
                         auto tm = *std::localtime(&time_t);
                         
@@ -5078,7 +4713,7 @@ public:
                 drawBookmarkDialog(hdc, dims,
                                  bookmarkDialogInput, filteredGroups,
                                  selectedBookmarkGroup, bookmarkMgmtScrollOffset,
-                                 backgroundColor, textColor, selectionColor, borderColor,
+                                 config.backgroundColor, config.textColor, config.selectionColor, config.borderColor,
                                  WIN_SEL_RECT_HEIGHT, WIN_SEL_RECT_OFFSET_Y);
             }
             if (addToBookmarkDialogVisible) {
@@ -5101,7 +4736,7 @@ public:
                                       displayedGroups,
                                       selectedAddBookmarkGroup, addBookmarkScrollOffset,
                                       filterAddBookmarksMode, filterAddBookmarksText,
-                                      backgroundColor, textColor, selectionColor, borderColor,
+                                      config.backgroundColor, config.textColor, config.selectionColor, config.borderColor,
                                       WIN_SEL_RECT_HEIGHT, WIN_SEL_RECT_OFFSET_Y);
             }
             if (viewBookmarksDialogVisible) {
@@ -5146,7 +4781,7 @@ public:
                     } else {
                         if (selectedViewBookmarkGroup < bookmarkGroups.size()) {
                             std::string selectedGroup = bookmarkGroups[selectedViewBookmarkGroup];
-                            std::string bookmarkFile = bookmarksDir + "/bookmarks_" + selectedGroup + ".txt";
+                            std::string bookmarkFile = config.bookmarksDir + "/bookmarks_" + selectedGroup + ".txt";
                             std::ifstream file(bookmarkFile);
                             if (file.is_open()) {
                                 std::string line;
@@ -5184,7 +4819,7 @@ public:
                 drawViewBookmarksDialog(hdc, dims,
                                       title, items, selItem, scrollOff,
                                       filterActive, filterTxt, itemLH, emptyMsg,
-                                      backgroundColor, textColor, selectionColor, borderColor,
+                                      config.backgroundColor, config.textColor, config.selectionColor, config.borderColor,
                                       WIN_SEL_RECT_HEIGHT, WIN_SEL_RECT_OFFSET_Y);
             }
             if (pinnedDialogVisible) {
@@ -5224,21 +4859,21 @@ public:
                 }
                 drawPinnedDialog(hdc, displayItems, dims,
                                  selectedViewPinnedItem, viewPinnedScrollOffset, m_maxVisiblePinnedItems,
-                                 backgroundColor, textColor, selectionColor, borderColor,
+                                 config.backgroundColor, config.textColor, config.selectionColor, config.borderColor,
                                  LINE_HEIGHT, WIN_SEL_RECT_HEIGHT, WIN_SEL_RECT_OFFSET_Y);
             }
             if (helpDialogVisible) {
                 DialogDimensions dims = getHelpDialogDimensions();
                 drawHelpDialog(hdc, dims,
                                helpFilterMode, helpFilterText, helpDialogScrollOffset,
-                               backgroundColor, textColor, borderColor);
+                               config.backgroundColor, config.textColor, config.borderColor);
             }
             if (editDialogVisible) {
                 DialogDimensions dims = getEditDialogDimensions();
                 drawEditDialog(hdc, dims,
                                editDialogInput, editDialogCursorLine, editDialogCursorPos,
                                editDialogScrollOffset,
-                               backgroundColor, textColor, borderColor);
+                               config.backgroundColor, config.textColor, config.borderColor);
             }
 
             // Cleanup
@@ -5352,7 +4987,7 @@ public:
         }
 
         items.emplace(items.begin(), trimmed_content);
-        while (items.size() > maxClips) {
+        while (items.size() > config.maxClips) {
             items.pop_back();
         }
         
@@ -5372,229 +5007,6 @@ public:
         if (visible) {
             drawConsole();
         }
-    }
-    
-    void loadConfig() {
-        // Cross-platform path separator
-#ifdef _WIN32
-        const char pathSep = '\\';
-#else
-        const char pathSep = '/';
-#endif
-        
-        std::string configFile = configDir + pathSep + "config.json";
-        std::ifstream file(configFile);
-        if (file.is_open()) {
-            std::string line;
-            while (std::getline(file, line)) {
-                // Parse verbose
-                if (line.find("\"verbose\"") != std::string::npos) {
-                    verboseMode = line.find("true") != std::string::npos;
-                }
-                // Parse max_clips
-                else if (line.find("\"max_clips\"") != std::string::npos) {
-                    size_t colon = line.find(':');
-                    if (colon != std::string::npos) {
-                        std::string value = line.substr(colon + 1);
-                        // Remove whitespace and commas
-                        value.erase(0, value.find_first_not_of(" \t"));
-                        value.erase(value.find_last_not_of(" \t,") + 1);
-                        maxClips = std::stoull(value);
-                    }
-                }
-                // Parse encrypted
-                else if (line.find("\"encrypted\"") != std::string::npos) {
-                    encrypted = line.find("true") != std::string::npos;
-                }
-                // Parse autostart
-                else if (line.find("\"autostart\"") != std::string::npos) {
-                    autoStart = line.find("true") != std::string::npos;
-                }
-                // Parse encryption_key
-                else if (line.find("\"encryption_key\"") != std::string::npos) {
-                    size_t start = line.find('"', line.find(':'));
-                    size_t end = line.find('"', start + 1);
-                    if (start != std::string::npos && end != std::string::npos) {
-                        encryptionKey = line.substr(start + 1, end - start - 1);
-                    }
-                }
-                // Parse theme
-                else if (line.find("\"theme\"") != std::string::npos) {
-                    size_t start = line.find('"', line.find(':'));
-                    size_t end = line.find('"', start + 1);
-                    if (start != std::string::npos && end != std::string::npos) {
-                        theme = line.substr(start + 1, end - start - 1);
-                    }
-                }
-                // Parse debugging
-                else if (line.find("\"debugging\"") != std::string::npos) {
-                    m_debugging = line.find("true") != std::string::npos;
-                }
-            }
-            file.close();
-        } else {
-            // Create default config with all settings
-            createDefaultConfig();
-        }
-    }
-    
-    void saveConfig() {
-        if (maxClips > 1000) {
-            maxClips = 1000;
-        }
-
-        std::string configFile = configDir + "/config.json";
-        std::cout << "DEBUG: Saving to " << configFile << "\n";
-        std::cout << "DEBUG: maxClips before save = " << maxClips << "\n";
-        
-        std::ofstream outFile(configFile, std::ios::trunc);
-        
-        if (!outFile.is_open()) {
-            std::cout << "DEBUG: Failed to open file for writing\n";
-            return;
-        }
-        
-        std::cout << "DEBUG: File opened successfully\n";
-        
-        // Use a map to store all config values dynamically
-        std::map<std::string, std::string> configValues;
-        configValues["verbose"] = verboseMode ? "true" : "false";
-        configValues["debugging"] = m_debugging ? "true" : "false";
-        configValues["max_clips"] = std::to_string(maxClips);
-        configValues["encrypted"] = encrypted ? "true" : "false";
-        configValues["encryption_key"] = encryptionKey;
-        configValues["autostart"] = autoStart ? "true" : "false";
-        configValues["theme"] = theme;
-        
-        std::cout << "DEBUG: About to write max_clips = " << configValues["max_clips"] << "\n";
-        
-        outFile << "{\n";
-        bool first = true;
-        int writeCount = 0;
-        for (const auto& pair : configValues) {
-            if (!first) {
-                outFile << ",\n";
-            }
-            first = false;
-            
-            // Check if value should be quoted (string) or not (boolean/number)
-            if (pair.second == "true" || pair.second == "false") {
-                // Boolean - don't quote
-                outFile << "    \"" << pair.first << "\": " << pair.second;
-            } else if (pair.second.find_first_not_of("0123456789") == std::string::npos) {
-                // Number - don't quote
-                outFile << "    \"" << pair.first << "\": " << pair.second;
-            } else {
-                // String - quote it
-                outFile << "    \"" << pair.first << "\": \"" << pair.second << "\"";
-            }
-            writeCount++;
-            std::cout << "DEBUG: Wrote config entry " << writeCount << ": " << pair.first << " = " << pair.second << "\n";
-        }
-        outFile << "\n}\n";
-        outFile.flush();
-        outFile.close();
-        
-        std::cout << "DEBUG: Save completed, wrote " << writeCount << " entries\n";
-    }
-    
-    // Config value helper functions
-
-
-    std::string getConfigValue(const std::string& configKey) {
-        if (configKey == "verbose") return verboseMode ? "true" : "false";
-        if (configKey == "debugging") return m_debugging ? "true" : "false";
-        if (configKey == "max_clips") return std::to_string(maxClips);
-        if (configKey == "encrypted") return encrypted ? "true" : "false";
-        if (configKey == "encryption_key") return encryptionKey;
-        if (configKey == "autostart") return autoStart ? "true" : "false";
-        if (configKey == "theme") return theme;
-        return "";
-    }
-    
-    std::string getConfigType(const std::string& configKey) {
-        if (configKey == "verbose" || configKey == "debugging" || 
-            configKey == "encrypted" || configKey == "autostart") {
-            return "boolean (true/false)";
-        }
-        if (configKey == "max_clips") {
-            return "number (positive integer)";
-        }
-        if (configKey == "encryption_key" || configKey == "theme") {
-            return "string";
-        }
-        return "unknown";
-    }
-    
-    bool updateConfigValue(const std::string& configKey, const std::string& newValue) {
-        try {
-            // Get current value to determine type
-            std::string currentValue = getConfigValue(configKey);
-            
-            // Boolean values
-            if (currentValue == "true" || currentValue == "false") {
-                if (newValue == "true" || newValue == "false") {
-                    // Update the specific boolean variable
-                    if (configKey == "verbose") verboseMode = newValue == "true";
-                    else if (configKey == "debugging") m_debugging = newValue == "true";
-                    else if (configKey == "encrypted") encrypted = newValue == "true";
-                    else if (configKey == "autostart") autoStart = newValue == "true";
-                    return true;
-                }
-                return false;
-            }
-            
-            // Try to parse as number first
-            try {
-                std::stoull(currentValue); // Just to check if it's a number
-                // If current value is a number, expect new value to be a number
-                size_t newNumValue = std::stoull(newValue);
-                if (newNumValue > 0) {
-                    // Update the specific numeric variable
-                    if (configKey == "max_clips") {
-                        std::cout << "DEBUG: Updating maxClips from " << maxClips << " to " << newNumValue << "\n";
-                        maxClips = newNumValue;
-                        std::cout << "DEBUG: maxClips is now " << maxClips << "\n";
-                    }
-                    return true;
-                }
-                return false;
-            }
-            catch (...) {
-                // Not a number, treat as string
-                if (configKey == "encryption_key") {
-                    encryptionKey = newValue;
-                    return true;
-                }
-                else if (configKey == "theme") {
-                    theme = newValue;
-                    loadTheme(); // Apply theme immediately
-                    return true;
-                }
-                // For any other string values
-                return true;
-            }
-        }
-        catch (const std::exception& e) {
-            return false;
-        }
-    }
-    
-    void createDefaultConfig() {
-        std::string configFile = configDir + "/config.json";
-        std::ofstream outFile(configFile);
-        outFile << "{\n";
-        outFile << "    \"debugging\": false,\n"; // Default debugging to true
-        outFile << "    \"verbose\": false,\n";
-        outFile << "    \"max_clips\": 500,\n";
-        outFile << "    \"encrypted\": true,\n";
-        outFile << "    \"encryption_key\": \"mmry_default_key_2024\",\n";
-        outFile << "    \"autostart\": false,\n";
-        outFile << "    \"theme\": \"console\"\n";
-        outFile << "}\n";
-        outFile.close();
-        
-        std::cout << "Created default config at: " << configFile << "\n";
     }
     
     int countLines(const std::string& content) {
@@ -5641,7 +5053,7 @@ public:
     }
     
     void saveToFile() {
-        std::ofstream file(dataFile);
+        std::ofstream file(config.dataFile);
         if (file.is_open()) {
             for (const auto& item : items) {
                 // Store timestamp and content (encrypted if enabled)
@@ -5655,7 +5067,7 @@ public:
     }
     
     void loadFromFile() {
-        std::ifstream file(dataFile);
+        std::ifstream file(config.dataFile);
         if (file.is_open()) {
             std::string line;
             while (std::getline(file, line)) {
@@ -5702,12 +5114,12 @@ public:
             file.close();
         } else {
             // Create empty clips.txt file if it doesn't exist
-            std::ofstream outFile(dataFile);
+            std::ofstream outFile(config.dataFile);
             if (outFile.is_open()) {
                 outFile.close();
-                std::cout << "Created empty clips file: " << dataFile << "\n";
+                std::cout << "Created empty clips file: " << config.dataFile << "\n";
             } else {
-                std::cerr << "Failed to create clips file: " << dataFile << "\n";
+                std::cerr << "Failed to create clips file: " << config.dataFile << "\n";
             }
         }
     }
@@ -5757,7 +5169,7 @@ void ClipboardManager::updateFilteredBookmarkClips() {
 
     std::string selectedGroup = bookmarkGroups[selectedViewBookmarkGroup];
 
-    std::string bookmarkFile = bookmarksDir + "/bookmarks_" + selectedGroup + ".txt";
+    std::string bookmarkFile = config.bookmarksDir + "/bookmarks_" + selectedGroup + ".txt";
 
     std::ifstream file(bookmarkFile);
 
@@ -5859,7 +5271,7 @@ size_t ClipboardManager::getBookmarkItemCount() {
         }
 
         std::string selectedGroup = bookmarkGroups[selectedViewBookmarkGroup];
-        std::string bookmarkFile = bookmarksDir + "/bookmarks_" + selectedGroup + ".txt";
+        std::string bookmarkFile = config.bookmarksDir + "/bookmarks_" + selectedGroup + ".txt";
         std::ifstream file(bookmarkFile);
         
             size_t itemCount = 0;
