@@ -43,6 +43,18 @@ void drawAddToBookmarkDialog(
     bool filterMode, const std::string& filterText,
     unsigned long bgColor, unsigned long textColor,
     unsigned long selColor, unsigned long borderColor);
+
+void drawViewBookmarksDialog(
+    Display* display, Window window, GC gc, XFontStruct* font,
+    const DialogDimensions& dims,
+    const std::string& title,
+    const std::vector<std::string>& items,
+    size_t selectedItem, size_t scrollOffset,
+    bool filterActive, const std::string& filterText,
+    int itemLineHeight,
+    const std::string& emptyMessage,
+    unsigned long bgColor, unsigned long textColor,
+    unsigned long selColor, unsigned long borderColor);
 #endif
 
 #ifdef _WIN32
@@ -72,6 +84,19 @@ void drawAddToBookmarkDialog(
     const std::vector<std::string>& displayedGroups,
     size_t selectedGroup, size_t scrollOffset,
     bool filterMode, const std::string& filterText,
+    unsigned long bgColor, unsigned long textColor,
+    unsigned long selColor, unsigned long borderColor,
+    int winSelRectHeight, int winSelRectOffsetY);
+
+void drawViewBookmarksDialog(
+    HDC hdc,
+    const DialogDimensions& dims,
+    const std::string& title,
+    const std::vector<std::string>& items,
+    size_t selectedItem, size_t scrollOffset,
+    bool filterActive, const std::string& filterText,
+    int itemLineHeight,
+    const std::string& emptyMessage,
     unsigned long bgColor, unsigned long textColor,
     unsigned long selColor, unsigned long borderColor,
     int winSelRectHeight, int winSelRectOffsetY);

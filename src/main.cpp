@@ -4861,7 +4861,89 @@ public:
                                       filterAddBookmarksMode, filterAddBookmarksText,
                                       backgroundColor, textColor, selectionColor, borderColor);
             }
-            drawViewBookmarksDialog();
+            if (viewBookmarksDialogVisible) {
+                DialogDimensions dims = getViewBookmarksDialogDimensions();
+                std::string title;
+                std::vector<std::string> items;
+                size_t selItem = 0;
+                size_t scrollOff = 0;
+                bool filterActive = false;
+                std::string filterTxt;
+                int itemLH = 18;
+                std::string emptyMsg;
+                if (viewBookmarksShowingGroups) {
+                    title = "Select Bookmark Group";
+                    if (filterBookmarksMode) {
+                        std::string lowerFilter = stringToLower(filterBookmarksText);
+                        for (const auto& group : bookmarkGroups) {
+                            if (stringToLower(group).find(lowerFilter) != std::string::npos) {
+                                items.push_back(group);
+                            }
+                        }
+                        filterActive = true;
+                        filterTxt = filterBookmarksText;
+                    } else {
+                        items = bookmarkGroups;
+                    }
+                    if (selectedViewBookmarkGroup >= items.size() && !items.empty()) {
+                        selectedViewBookmarkGroup = items.size() - 1;
+                    }
+                    selItem = selectedViewBookmarkGroup;
+                    scrollOff = viewBookmarksScrollOffset;
+                } else {
+                    if (selectedViewBookmarkGroup < bookmarkGroups.size()) {
+                        title = "View Bookmarks: " + bookmarkGroups[selectedViewBookmarkGroup];
+                    } else {
+                        title = "View Bookmarks";
+                    }
+                    if (filterBookmarkClipsMode) {
+                        items = filteredBookmarkClips;
+                        filterActive = true;
+                        filterTxt = filterBookmarkClipsText;
+                    } else {
+                        if (selectedViewBookmarkGroup < bookmarkGroups.size()) {
+                            std::string selectedGroup = bookmarkGroups[selectedViewBookmarkGroup];
+                            std::string bookmarkFile = bookmarksDir + "/bookmarks_" + selectedGroup + ".txt";
+                            std::ifstream file(bookmarkFile);
+                            if (file.is_open()) {
+                                std::string line;
+                                while (std::getline(file, line)) {
+                                    size_t pos = line.find('|');
+                                    if (pos != std::string::npos && pos > 0) {
+                                        std::string content = line.substr(pos + 1);
+                                        try {
+                                            items.push_back(decrypt(content));
+                                        } catch (...) {
+                                            items.push_back(content);
+                                        }
+                                    }
+                                }
+                                file.close();
+                            }
+                        }
+                    }
+                    int maxContentLength = calculateDialogContentLength(dims);
+                    for (auto& item : items) {
+                        if (static_cast<int>(item.length()) > maxContentLength) {
+                            item = smartTrim(item, maxContentLength);
+                        }
+                        for (char& c : item) {
+                            if (c == '\n' || c == '\r') c = ' ';
+                        }
+                    }
+                    if (selectedViewBookmarkItem >= items.size() && !items.empty()) {
+                        selectedViewBookmarkItem = items.size() - 1;
+                    }
+                    selItem = selectedViewBookmarkItem;
+                    scrollOff = viewBookmarksScrollOffset;
+                    itemLH = LINE_HEIGHT;
+                    emptyMsg = "No bookmarks in this group";
+                }
+                drawViewBookmarksDialog(display, window, gc, font, dims,
+                                      title, items, selItem, scrollOff,
+                                      filterActive, filterTxt, itemLH, emptyMsg,
+                                      backgroundColor, textColor, selectionColor, borderColor);
+            }
             if (pinnedDialogVisible) {
                 auto sortedItems = getSortedPinnedItems();
                 std::vector<std::pair<long long, std::string>> displayItems;
@@ -4905,145 +4987,6 @@ public:
             drawEditDialog();
         }
 
-        void drawViewBookmarksDialog() {
-            if (!viewBookmarksDialogVisible) return;
-            
-            // Get dynamic dialog dimensions
-            DialogDimensions dims = getViewBookmarksDialogDimensions();
-            
-            // Draw dialog background
-            XSetForeground(display, gc, backgroundColor);
-            XFillRectangle(display, window, gc, dims.x, dims.y, dims.width, dims.height);
-            XSetForeground(display, gc, borderColor);
-            XDrawRectangle(display, window, gc, dims.x, dims.y, dims.width, dims.height);
-            
-            // Draw title
-            std::string title = viewBookmarksShowingGroups ? "Select Bookmark Group" : "View Bookmarks: " + bookmarkGroups[selectedViewBookmarkGroup];
-            int titleWidth = XTextWidth(font, title.c_str(), title.length());
-            XDrawString(display, window, gc, dims.x + (dims.width - titleWidth) / 2, dims.y + 25, title.c_str(), title.length());
-            
-                        if (viewBookmarksShowingGroups) {
-                            // Show bookmark groups list with scrolling
-                            XSetForeground(display, gc, textColor);
-                            int y = dims.y + 60;
-                            
-                            // Filter groups if in filter mode
-                            std::vector<std::string> displayedGroups;
-                            if (filterBookmarksMode) {
-                                std::string lowerFilterBookmarksText = stringToLower(filterBookmarksText);
-                                for (const auto& group : bookmarkGroups) {
-                                    if (stringToLower(group).find(lowerFilterBookmarksText) != std::string::npos) {
-                                        displayedGroups.push_back(group);
-                                    }
-                                }
-                            } else {
-                                displayedGroups = bookmarkGroups;
-                            }
-            
-                            // Adjust selection if out of bounds
-                            if (selectedViewBookmarkGroup >= displayedGroups.size() && !displayedGroups.empty()) {
-                                selectedViewBookmarkGroup = displayedGroups.size() - 1;
-                            }
-            
-                            const int VISIBLE_ITEMS = 15;
-                            size_t startIdx = viewBookmarksScrollOffset;
-                            size_t endIdx = std::min(startIdx + VISIBLE_ITEMS, displayedGroups.size());
-                            
-                            for (size_t i = startIdx; i < endIdx; ++i) {
-                                std::string displayText = displayedGroups[i];
-                                
-                                if (i == selectedViewBookmarkGroup) {
-                                    displayText = "> " + displayText;
-                                    XSetForeground(display, gc, selectionColor);
-                                    XFillRectangle(display, window, gc, dims.x + 15, y - 12, dims.width - 30, 15);
-                                    XSetForeground(display, gc, textColor);
-                                } else {
-                                    displayText = "  " + displayText;
-                                }
-                                
-                                XDrawString(display, window, gc, dims.x + 20, y, displayText.c_str(), displayText.length());
-                                y += 18;
-                            }
-            
-                            if (filterBookmarksMode) {
-                                std::string filterDisplay = "Filter: /" + filterBookmarksText + "_";
-                                XDrawString(display, window, gc, dims.x + 20, dims.y + dims.height - 20, filterDisplay.c_str(), filterDisplay.length());
-                            }
-            
-                        } else {
-                            // Show clips for the selected group
-                            XSetForeground(display, gc, textColor);
-                            int y = dims.y + 60;
-                            const int VISIBLE_ITEMS = 20; // Number of items visible in the dialog
-                            int maxDialogContentLength = calculateDialogContentLength(dims);
-
-                            std::vector<std::string> currentClipList;
-                            if (filterBookmarkClipsMode) {
-                                currentClipList = filteredBookmarkClips;
-                            } else {
-                                std::string selectedGroup = bookmarkGroups[selectedViewBookmarkGroup];
-                                std::string bookmarkFile = bookmarksDir + "/bookmarks_" + selectedGroup + ".txt";
-                                std::ifstream file(bookmarkFile);
-                                
-                                if (file.is_open()) {
-                                    std::string line;
-                                    while (std::getline(file, line)) {
-                                        size_t pos = line.find('|');
-                                        if (pos != std::string::npos && pos > 0) {
-                                            std::string content = line.substr(pos + 1);
-                                            try {
-                                                currentClipList.push_back(decrypt(content));
-                                            } catch (...) {
-                                                currentClipList.push_back(content);
-                                            }
-                                        }
-                                    }
-                                    file.close();
-                                }
-                            }
-                            
-                            size_t startIdx = viewBookmarksScrollOffset;
-                            size_t endIdx = std::min(startIdx + VISIBLE_ITEMS, currentClipList.size());
-            
-                            if (selectedViewBookmarkItem >= currentClipList.size() && !currentClipList.empty()) {
-                                 selectedViewBookmarkItem = currentClipList.size() - 1;
-                            }
-                                
-                            for (size_t i = startIdx; i < endIdx; ++i) {
-                                std::string content = currentClipList[i];
-                                
-                                std::string displayText = content;
-                                for (char& c : displayText) {
-                                    if (c == '\n' || c == '\r') c = ' ';
-                                }
-        
-                                if (static_cast<int>(displayText.length()) > maxDialogContentLength) {
-                                    displayText = smartTrim(displayText, maxDialogContentLength);
-                                }
-                                
-                                if (i == selectedViewBookmarkItem) {
-                                    displayText = "> " + displayText;
-                                    XSetForeground(display, gc, selectionColor);
-                                    XFillRectangle(display, window, gc, dims.x + 15, y - 12, dims.width - 30, 15);
-                                    XSetForeground(display, gc, textColor);
-                                } else {
-                                    displayText = "  " + displayText;
-                                }
-                                
-                                XDrawString(display, window, gc, dims.x + 20, y, displayText.c_str(), displayText.length());
-                                y += 18;
-                            }
-                            
-                            if (currentClipList.empty()) {
-                                XDrawString(display, window, gc, dims.x + 20, y, "No bookmarks in this group", 26);
-                            }
-
-                            if (filterBookmarkClipsMode) {
-                                std::string filterDisplay = "Filter: /" + filterBookmarkClipsText + "_";
-                                XDrawString(display, window, gc, dims.x + 20, dims.y + dims.height - 20, filterDisplay.c_str(), filterDisplay.length());
-                            }
-                        }
-                    }
         void drawHelpDialog() {
             if (!helpDialogVisible) return;
             
@@ -5474,7 +5417,89 @@ public:
                                       backgroundColor, textColor, selectionColor, borderColor,
                                       WIN_SEL_RECT_HEIGHT, WIN_SEL_RECT_OFFSET_Y);
             }
-            drawViewBookmarksDialog(hdc);
+            if (viewBookmarksDialogVisible) {
+                DialogDimensions dims = getViewBookmarksDialogDimensions();
+                std::string title;
+                std::vector<std::string> items;
+                size_t selItem = 0;
+                size_t scrollOff = 0;
+                bool filterActive = false;
+                std::string filterTxt;
+                int itemLH = LINE_HEIGHT;
+                std::string emptyMsg;
+                if (viewBookmarksShowingGroups) {
+                    title = "Select Bookmark Group";
+                    if (filterBookmarksMode) {
+                        std::string lowerFilter = stringToLower(filterBookmarksText);
+                        for (const auto& group : bookmarkGroups) {
+                            if (stringToLower(group).find(lowerFilter) != std::string::npos) {
+                                items.push_back(group);
+                            }
+                        }
+                        filterActive = true;
+                        filterTxt = filterBookmarksText;
+                    } else {
+                        items = bookmarkGroups;
+                    }
+                    if (selectedViewBookmarkGroup >= items.size() && !items.empty()) {
+                        selectedViewBookmarkGroup = items.size() - 1;
+                    }
+                    selItem = selectedViewBookmarkGroup;
+                    scrollOff = viewBookmarksScrollOffset;
+                } else {
+                    if (selectedViewBookmarkGroup < bookmarkGroups.size()) {
+                        title = "View Bookmarks: " + bookmarkGroups[selectedViewBookmarkGroup];
+                    } else {
+                        title = "View Bookmarks";
+                    }
+                    if (filterBookmarkClipsMode) {
+                        items = filteredBookmarkClips;
+                        filterActive = true;
+                        filterTxt = filterBookmarkClipsText;
+                    } else {
+                        if (selectedViewBookmarkGroup < bookmarkGroups.size()) {
+                            std::string selectedGroup = bookmarkGroups[selectedViewBookmarkGroup];
+                            std::string bookmarkFile = bookmarksDir + "/bookmarks_" + selectedGroup + ".txt";
+                            std::ifstream file(bookmarkFile);
+                            if (file.is_open()) {
+                                std::string line;
+                                while (std::getline(file, line)) {
+                                    size_t pos = line.find('|');
+                                    if (pos != std::string::npos && pos > 0) {
+                                        std::string content = line.substr(pos + 1);
+                                        try {
+                                            items.push_back(decrypt(content));
+                                        } catch (...) {
+                                            items.push_back(content);
+                                        }
+                                    }
+                                }
+                                file.close();
+                            }
+                        }
+                    }
+                    int maxContentLength = calculateDialogContentLength(dims);
+                    for (auto& item : items) {
+                        if (static_cast<int>(item.length()) > maxContentLength) {
+                            item = smartTrim(item, maxContentLength);
+                        }
+                        for (char& c : item) {
+                            if (c == '\n' || c == '\r') c = ' ';
+                        }
+                    }
+                    if (selectedViewBookmarkItem >= items.size() && !items.empty()) {
+                        selectedViewBookmarkItem = items.size() - 1;
+                    }
+                    selItem = selectedViewBookmarkItem;
+                    scrollOff = viewBookmarksScrollOffset;
+                    emptyMsg = "No bookmarks in this group";
+                }
+                drawViewBookmarksDialog(hdc, dims,
+                                      title, items, selItem, scrollOff,
+                                      filterActive, filterTxt, itemLH, emptyMsg,
+                                      backgroundColor, textColor, selectionColor, borderColor,
+                                      WIN_SEL_RECT_HEIGHT, WIN_SEL_RECT_OFFSET_Y);
+            }
             if (pinnedDialogVisible) {
                 auto sortedItems = getSortedPinnedItems();
                 std::vector<std::pair<long long, std::string>> displayItems;
@@ -5523,175 +5548,6 @@ public:
             DeleteObject(hFont);
             ReleaseDC(hwnd, hdc);
         }
-
-        void drawViewBookmarksDialog(HDC hdc) {
-            if (!viewBookmarksDialogVisible) return;
-            
-            // Get dynamic dialog dimensions
-            DialogDimensions dims = getViewBookmarksDialogDimensions();
-            
-            // Draw dialog background
-            HBRUSH hBgBrush = CreateSolidBrush(backgroundColor);
-            RECT bgRect = {dims.x, dims.y, dims.x + dims.width, dims.y + dims.height};
-            FillRect(hdc, &bgRect, hBgBrush);
-            DeleteObject(hBgBrush);
-            
-            // --- Draw border safely (manually, to avoid Win32 Rectangle() quirks) ---
-            HPEN hBorderPen = CreatePen(PS_SOLID, 1, borderColor);
-            HPEN hOldPen = (HPEN)SelectObject(hdc, hBorderPen);
-            HBRUSH hOldBrush = (HBRUSH)SelectObject(hdc, GetStockObject(NULL_BRUSH));
-
-            MoveToEx(hdc, dims.x,               dims.y,                NULL);
-            LineTo(hdc,   dims.x + dims.width,  dims.y);
-            LineTo(hdc,   dims.x + dims.width,  dims.y + dims.height);
-            LineTo(hdc,   dims.x,               dims.y + dims.height);
-            LineTo(hdc,   dims.x,               dims.y);
-
-            SelectObject(hdc, hOldBrush);
-            SelectObject(hdc, hOldPen);
-            DeleteObject(hBorderPen);
-            
-            // Draw title
-            std::string title = viewBookmarksShowingGroups ? "Select Bookmark Group" : "View Bookmarks: " + bookmarkGroups[selectedViewBookmarkGroup];
-            int titleWidth = 200; // Approximate width
-            SetTextColor(hdc, textColor);
-            TextOut(hdc, dims.x + (dims.width - titleWidth) / 2, dims.y + 25, title.c_str(), title.length());
-            
-            if (viewBookmarksShowingGroups) {
-                // Show bookmark groups list with scrolling
-                SetTextColor(hdc, textColor);
-                int y = dims.y + 60;
-                
-                // Filter groups if in filter mode
-                std::vector<std::string> displayedGroups;
-                if (filterBookmarksMode) {
-                    std::string lowerFilterBookmarksText = stringToLower(filterBookmarksText);
-                    for (const auto& group : bookmarkGroups) {
-                        if (stringToLower(group).find(lowerFilterBookmarksText) != std::string::npos) {
-                            displayedGroups.push_back(group);
-                        }
-                    }
-                } else {
-                    displayedGroups = bookmarkGroups;
-                }
-
-                // Adjust selection if out of bounds
-                if (selectedViewBookmarkGroup >= displayedGroups.size() && !displayedGroups.empty()) {
-                    selectedViewBookmarkGroup = displayedGroups.size() - 1;
-                }
-
-                int dynamicVisibleItems = std::max(1, (dims.contentHeight - (y - dims.y)) / LINE_HEIGHT);
-                
-                size_t startIdx = viewBookmarksScrollOffset;
-                size_t endIdx = std::min(startIdx + dynamicVisibleItems, displayedGroups.size());
-                
-                for (size_t i = startIdx; i < endIdx; ++i) {
-                    std::string displayText = displayedGroups[i];
-                    
-                    if (i == selectedViewBookmarkGroup) {
-                        displayText = "> " + displayText;
-                        HBRUSH hHighlightBrush = CreateSolidBrush(selectionColor);
-                        RECT highlightRect = {dims.x + 15, y - WIN_SEL_RECT_OFFSET_Y, dims.x + dims.width - 15, y - WIN_SEL_RECT_OFFSET_Y + WIN_SEL_RECT_HEIGHT};
-                        FillRect(hdc, &highlightRect, hHighlightBrush);
-                        DeleteObject(hHighlightBrush);
-                    } else {
-                        displayText = "  " + displayText;
-                    }
-                    
-                    SetTextColor(hdc, textColor);
-                    TextOut(hdc, dims.x + 20, y, displayText.c_str(), displayText.length());
-                    y += LINE_HEIGHT;
-                }
-
-                if (filterBookmarksMode) {
-                    std::string filterDisplay = "Filter: /" + filterBookmarksText + "_";
-                    TextOut(hdc, dims.x + 20, dims.y + dims.height - 20, filterDisplay.c_str(), filterDisplay.length());
-                }
-                
-            } else {
-                // Show bookmark items for selected group
-                SetTextColor(hdc, textColor);
-                int itemY = dims.y + 60;
-                // Calculate dynamic VISIBLE_ITEMS for clips view
-                int dynamicVisibleItems = std::max(1, (dims.contentHeight - (itemY - dims.y)) / LINE_HEIGHT);
-                
-                std::vector<std::string> currentClipList;
-                if (filterBookmarkClipsMode) {
-                    currentClipList = filteredBookmarkClips;
-                } else {
-                    if (selectedViewBookmarkGroup < bookmarkGroups.size()) {
-                        std::string selectedGroup = bookmarkGroups[selectedViewBookmarkGroup];
-                        std::string bookmarkFile = bookmarksDir + "/bookmarks_" + selectedGroup + ".txt";
-                        std::ifstream file(bookmarkFile);
-                        
-                        if (file.is_open()) {
-                            std::string line;
-                            while (std::getline(file, line)) {
-                                size_t pos = line.find('|');
-                                if (pos != std::string::npos && pos > 0) {
-                                    std::string content = line.substr(pos + 1);
-                                    try {
-                                        currentClipList.push_back(decrypt(content));
-                                    } catch (...) {
-                                        currentClipList.push_back(content);
-                                    }
-                                }
-                            }
-                            file.close();
-                        }
-                    }
-                }
-                
-                size_t startIdx = viewBookmarksScrollOffset;
-                size_t endIdx = std::min(startIdx + dynamicVisibleItems, currentClipList.size());
-                
-                if (selectedViewBookmarkItem >= currentClipList.size() && !currentClipList.empty()) {
-                    selectedViewBookmarkItem = currentClipList.size() - 1;
-                }
-                
-                for (size_t i = startIdx; i < endIdx; ++i) {
-                    std::string displayText = currentClipList[i];
-                    
-                    // Truncate if too long
-                    int maxContentLength = calculateDialogContentLength(dims);
-                    if (static_cast<int>(displayText.length()) > maxContentLength) {
-                        displayText = smartTrim(displayText, maxContentLength);
-                    }
-                    
-                    // Replace newlines with spaces for display
-                    for (char& c : displayText) {
-                        if (c == '\n' || c == '\r') c = ' ';
-                    }
-                    
-                    // Add selection indicator
-                    if (i == selectedViewBookmarkItem) {
-                        displayText = "> " + displayText;
-                        // Highlight selected
-                        HBRUSH hHighlightBrush = CreateSolidBrush(selectionColor);
-                        RECT highlightRect = {dims.x + 15, itemY - WIN_SEL_RECT_OFFSET_Y, dims.x + dims.width - 15, itemY - WIN_SEL_RECT_OFFSET_Y + WIN_SEL_RECT_HEIGHT};
-                        FillRect(hdc, &highlightRect, hHighlightBrush);
-                        DeleteObject(hHighlightBrush);
-                            } else {
-                        displayText = "  " + displayText;
-                    }
-                    
-                    // Ensure text color is set before drawing
-                    SetTextColor(hdc, textColor);
-                    TextOut(hdc, dims.x + 20, itemY, displayText.c_str(), displayText.length());
-                    itemY += LINE_HEIGHT;
-                }
-                
-                if (currentClipList.empty()) {
-                    // Ensure text color is set before drawing
-                    SetTextColor(hdc, textColor);
-                    TextOut(hdc, dims.x + 20, itemY, "No bookmarks in this group", 26);
-                }
-
-                if (filterBookmarkClipsMode) {
-                    std::string filterDisplay = "Filter: /" + filterBookmarkClipsText + "_";
-                    TextOut(hdc, dims.x + 20, dims.y + dims.height - 20, filterDisplay.c_str(), filterDisplay.length());
-                }
-            }        }
 
         void drawHelpDialog(HDC hdc) {
             if (!helpDialogVisible)

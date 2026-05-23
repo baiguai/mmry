@@ -221,4 +221,85 @@ void drawAddToBookmarkDialog(
     DeleteObject(hFont);
 }
 
+void drawViewBookmarksDialog(
+    HDC hdc,
+    const DialogDimensions& dims,
+    const std::string& title,
+    const std::vector<std::string>& items,
+    size_t selectedItem, size_t scrollOffset,
+    bool filterActive, const std::string& filterText,
+    int itemLineHeight,
+    const std::string& emptyMessage,
+    unsigned long bgColor, unsigned long textColor,
+    unsigned long selColor, unsigned long borderColor,
+    int winSelRectHeight, int winSelRectOffsetY)
+{
+    HFONT hFont = CreateFont(14, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
+                           DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
+                           CLEARTYPE_QUALITY, DEFAULT_PITCH | FF_DONTCARE, "Consolas");
+    HFONT hOldFont = (HFONT)SelectObject(hdc, hFont);
+    SetBkMode(hdc, TRANSPARENT);
+
+    HBRUSH hBgBrush = CreateSolidBrush(bgColor);
+    RECT bgRect = {dims.x, dims.y, dims.x + dims.width, dims.y + dims.height};
+    FillRect(hdc, &bgRect, hBgBrush);
+    DeleteObject(hBgBrush);
+
+    HPEN hBorderPen = CreatePen(PS_SOLID, 1, borderColor);
+    HPEN hOldPen = (HPEN)SelectObject(hdc, hBorderPen);
+    HBRUSH hOldBrush = (HBRUSH)SelectObject(hdc, GetStockObject(NULL_BRUSH));
+
+    MoveToEx(hdc, dims.x,               dims.y,                NULL);
+    LineTo(hdc,   dims.x + dims.width,  dims.y);
+    LineTo(hdc,   dims.x + dims.width,  dims.y + dims.height);
+    LineTo(hdc,   dims.x,               dims.y + dims.height);
+    LineTo(hdc,   dims.x,               dims.y);
+
+    SelectObject(hdc, hOldBrush);
+    SelectObject(hdc, hOldPen);
+    DeleteObject(hBorderPen);
+
+    int titleWidth = 200;
+    SetTextColor(hdc, textColor);
+    TextOut(hdc, dims.x + (dims.width - titleWidth) / 2, dims.y + 25, title.c_str(), title.length());
+
+    SetTextColor(hdc, textColor);
+    int y = dims.y + 60;
+
+    if (items.empty() && !emptyMessage.empty()) {
+        TextOut(hdc, dims.x + 20, y, emptyMessage.c_str(), emptyMessage.length());
+    } else {
+        int visibleCount = std::max(1, (dims.contentHeight - (y - dims.y)) / itemLineHeight);
+
+        size_t startIdx = scrollOffset;
+        size_t endIdx = std::min(startIdx + visibleCount, items.size());
+
+        for (size_t i = startIdx; i < endIdx; ++i) {
+            std::string displayText = items[i];
+
+            if (i == selectedItem) {
+                displayText = "> " + displayText;
+                HBRUSH hHighlightBrush = CreateSolidBrush(selColor);
+                RECT highlightRect = {dims.x + 15, y - winSelRectOffsetY, dims.x + dims.width - 15, y - winSelRectOffsetY + winSelRectHeight};
+                FillRect(hdc, &highlightRect, hHighlightBrush);
+                DeleteObject(hHighlightBrush);
+            } else {
+                displayText = "  " + displayText;
+            }
+
+            SetTextColor(hdc, textColor);
+            TextOut(hdc, dims.x + 20, y, displayText.c_str(), displayText.length());
+            y += itemLineHeight;
+        }
+    }
+
+    if (filterActive) {
+        std::string filterDisplay = "Filter: /" + filterText + "_";
+        TextOut(hdc, dims.x + 20, dims.y + dims.height - 20, filterDisplay.c_str(), filterDisplay.length());
+    }
+
+    SelectObject(hdc, hOldFont);
+    DeleteObject(hFont);
+}
+
 #endif

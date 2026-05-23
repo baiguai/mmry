@@ -145,4 +145,57 @@ void drawAddToBookmarkDialog(
     }
 }
 
+void drawViewBookmarksDialog(
+    Display* display, Window window, GC gc, XFontStruct* font,
+    const DialogDimensions& dims,
+    const std::string& title,
+    const std::vector<std::string>& items,
+    size_t selectedItem, size_t scrollOffset,
+    bool filterActive, const std::string& filterText,
+    int itemLineHeight,
+    const std::string& emptyMessage,
+    unsigned long bgColor, unsigned long textColor,
+    unsigned long selColor, unsigned long borderColor)
+{
+    XSetForeground(display, gc, bgColor);
+    XFillRectangle(display, window, gc, dims.x, dims.y, dims.width, dims.height);
+    XSetForeground(display, gc, borderColor);
+    XDrawRectangle(display, window, gc, dims.x, dims.y, dims.width, dims.height);
+
+    int titleWidth = XTextWidth(font, title.c_str(), title.length());
+    XDrawString(display, window, gc, dims.x + (dims.width - titleWidth) / 2, dims.y + 25, title.c_str(), title.length());
+
+    XSetForeground(display, gc, textColor);
+    int y = dims.y + 60;
+
+    if (items.empty() && !emptyMessage.empty()) {
+        XDrawString(display, window, gc, dims.x + 20, y, emptyMessage.c_str(), emptyMessage.length());
+    } else {
+        const int VISIBLE_ITEMS = 15;
+        size_t startIdx = scrollOffset;
+        size_t endIdx = std::min(startIdx + VISIBLE_ITEMS, items.size());
+
+        for (size_t i = startIdx; i < endIdx; ++i) {
+            std::string displayText = items[i];
+
+            if (i == selectedItem) {
+                displayText = "> " + displayText;
+                XSetForeground(display, gc, selColor);
+                XFillRectangle(display, window, gc, dims.x + 15, y - 12, dims.width - 30, 15);
+                XSetForeground(display, gc, textColor);
+            } else {
+                displayText = "  " + displayText;
+            }
+
+            XDrawString(display, window, gc, dims.x + 20, y, displayText.c_str(), displayText.length());
+            y += itemLineHeight;
+        }
+    }
+
+    if (filterActive) {
+        std::string filterDisplay = "Filter: /" + filterText + "_";
+        XDrawString(display, window, gc, dims.x + 20, dims.y + dims.height - 20, filterDisplay.c_str(), filterDisplay.length());
+    }
+}
+
 #endif
