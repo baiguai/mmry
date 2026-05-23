@@ -4984,7 +4984,13 @@ public:
                                  backgroundColor, textColor, selectionColor, borderColor, LINE_HEIGHT);
             }
             drawHelpDialog();
-            drawEditDialog();
+            if (editDialogVisible) {
+                DialogDimensions dims = getEditDialogDimensions();
+                drawEditDialog(display, window, gc, font, dims,
+                               editDialogInput, editDialogCursorLine, editDialogCursorPos,
+                               editDialogScrollOffset,
+                               backgroundColor, textColor, borderColor);
+            }
         }
 
         void drawHelpDialog() {
@@ -5028,98 +5034,6 @@ public:
             drawAllHelpTopics(nullptr, titleLeft, topicLeft, lineHeight, gap, y, contentTop, contentBottom);
         }
 
-        void drawEditDialog() {
-            if (!editDialogVisible) return;
-            
-            // Get dynamic dialog dimensions
-            DialogDimensions dims = getEditDialogDimensions();
-            
-            // Draw dialog background
-            XSetForeground(display, gc, backgroundColor);
-            XFillRectangle(display, window, gc, dims.x, dims.y, dims.width, dims.height);
-            XSetForeground(display, gc, borderColor);
-            XDrawRectangle(display, window, gc, dims.x, dims.y, dims.width, dims.height);
-            
-            // Draw title
-            std::string title = "Edit Clip (CTRL+ENTER to save, ESC to cancel)";
-            int titleWidth = XTextWidth(font, title.c_str(), title.length());
-            XDrawString(display, window, gc, dims.x + (dims.width - titleWidth) / 2, dims.y + 25, title.c_str(), title.length());
-            
-            // Draw input box
-            XSetForeground(display, gc, backgroundColor);
-            XFillRectangle(display, window, gc, dims.x + 20, dims.y + 50, dims.width - 40, dims.height - 70);
-            XSetForeground(display, gc, textColor);
-            XDrawRectangle(display, window, gc, dims.x + 20, dims.y + 50, dims.width - 40, dims.height - 70);
-            
-            // Draw input text (multi-line with wrapping)
-            const int lineHeight = 15;
-            const int charWidth = 8; // Estimate for monospace font
-            int maxCharsPerLine = (dims.width - 50) / charWidth; // 25px margin on each side
-            if (maxCharsPerLine < 1) maxCharsPerLine = 1;
-
-            std::istringstream iss(editDialogInput);
-            std::string logicalLine;
-            
-            int logicalLineIndex = 0;
-
-            std::vector<std::string> visualLines;
-            std::vector<std::pair<int, int>> visualToLogicalMap;
-
-            // First, break the text into visual lines
-            while (std::getline(iss, logicalLine)) {
-                if (logicalLine.empty()) {
-                    visualLines.push_back("");
-                    visualToLogicalMap.push_back({logicalLineIndex, 0});
-                } else {
-                    size_t offset = 0;
-                    while (offset < logicalLine.length()) {
-                        visualLines.push_back(logicalLine.substr(offset, maxCharsPerLine));
-                        visualToLogicalMap.push_back({logicalLineIndex, (int)offset});
-                        offset += maxCharsPerLine;
-                    }
-                }
-                logicalLineIndex++;
-            }
-            if (editDialogInput.empty()) {
-                 visualLines.push_back("");
-                 visualToLogicalMap.push_back({0, 0});
-            } else if (editDialogInput.back() == '\n') {
-                 visualLines.push_back("");
-                 visualToLogicalMap.push_back({logicalLineIndex, 0});
-            }
-
-
-            // Draw the visual lines
-            for (size_t i = 0; i < visualLines.size(); ++i) {
-                if ((int)i >= editDialogScrollOffset) {
-                    // Calculate Y position accounting for scroll offset
-                    int adjustedY = dims.y + 65 + ((int)i - editDialogScrollOffset) * lineHeight;
-                    
-                    // Only draw if within visible area
-                    if (adjustedY < dims.y + dims.height - 20) {
-                        std::string displayText = visualLines[i];
-                        
-                        // Check if cursor is on this line
-                        auto logicalPos = visualToLogicalMap[i];
-                        if (logicalPos.first == (int)editDialogCursorLine) {
-                            size_t cursorInLine = editDialogCursorPos;
-                            size_t lineStartOffset = logicalPos.second;
-                            size_t lineEndOffset = lineStartOffset + visualLines[i].length();
-
-                            if(cursorInLine >= lineStartOffset && cursorInLine <= lineEndOffset) {
-                                size_t cursorInSub = cursorInLine - lineStartOffset;
-                                 if (cursorInSub <= displayText.length()) {
-                                    displayText.insert(cursorInSub, "^");
-                                } else {
-                                    displayText += "^";
-                                }
-                            }
-                        }
-                        XDrawString(display, window, gc, dims.x + 25, adjustedY, displayText.c_str(), displayText.length());
-                    }
-                }
-            }
-        }
 #endif
     // End Linux UI Methods
 
@@ -5541,8 +5455,14 @@ public:
                                  LINE_HEIGHT, WIN_SEL_RECT_HEIGHT, WIN_SEL_RECT_OFFSET_Y);
             }
             drawHelpDialog(hdc);
-            drawEditDialog(hdc);
-            
+            if (editDialogVisible) {
+                DialogDimensions dims = getEditDialogDimensions();
+                drawEditDialog(hdc, dims,
+                               editDialogInput, editDialogCursorLine, editDialogCursorPos,
+                               editDialogScrollOffset,
+                               backgroundColor, textColor, borderColor);
+            }
+
             // Cleanup
             SelectObject(hdc, hOldFont);
             DeleteObject(hFont);
@@ -5643,129 +5563,6 @@ public:
             SelectClipRgn(hdc, oldClip == NULLREGION ? nullptr : reinterpret_cast<HRGN>(oldClip));
         }
 
-        void drawEditDialog(HDC hdc) {
-            if (!editDialogVisible) return;
-            
-            // Create and select font
-            HFONT hFont = CreateFont(14, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
-                                   DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
-                                   CLEARTYPE_QUALITY, DEFAULT_PITCH | FF_DONTCARE, "Consolas");
-            HFONT hOldFont = (HFONT)SelectObject(hdc, hFont);
-            SetBkMode(hdc, TRANSPARENT);
-            
-            // Get dynamic dialog dimensions
-            DialogDimensions dims = getEditDialogDimensions();
-            
-            // Draw dialog background
-            HBRUSH hBgBrush = CreateSolidBrush(backgroundColor);
-            RECT bgRect = {dims.x, dims.y, dims.x + dims.width, dims.y + dims.height};
-            FillRect(hdc, &bgRect, hBgBrush);
-            DeleteObject(hBgBrush);
-            
-            // --- Draw border safely (manually, to avoid Win32 Rectangle() quirks) ---
-            HPEN hBorderPen = CreatePen(PS_SOLID, 1, borderColor);
-            HPEN hOldPen_border = (HPEN)SelectObject(hdc, hBorderPen);
-            HBRUSH hOldBrush = (HBRUSH)SelectObject(hdc, GetStockObject(NULL_BRUSH));
-
-            MoveToEx(hdc, dims.x,               dims.y,                NULL);
-            LineTo(hdc,   dims.x + dims.width,  dims.y);
-            LineTo(hdc,   dims.x + dims.width,  dims.y + dims.height);
-            LineTo(hdc,   dims.x,               dims.y + dims.height);
-            LineTo(hdc,   dims.x,               dims.y);
-
-            SelectObject(hdc, hOldBrush);
-            SelectObject(hdc, hOldPen_border);
-            DeleteObject(hBorderPen);
-            
-            // Draw title
-            std::string title = "Edit Clip (CTRL+ENTER to save, ESC to cancel)";
-            SetTextColor(hdc, textColor);
-            TextOut(hdc, dims.x + 20, dims.y + 25, title.c_str(), title.length());
-            
-            // Draw input box
-            HBRUSH hInputBrush = CreateSolidBrush(backgroundColor);
-            RECT inputRect = {dims.x + 20, dims.y + 50, dims.x + dims.width - 20, dims.y + dims.height - 20};
-            FillRect(hdc, &inputRect, hInputBrush);
-            DeleteObject(hInputBrush);
-            
-            // Draw input box border
-            HPEN hInputPen = CreatePen(PS_SOLID, 1, textColor);
-            hOldBrush = (HBRUSH)SelectObject(hdc, GetStockObject(NULL_BRUSH));
-            HPEN hOldPen_input = (HPEN)SelectObject(hdc, hInputPen);
-            Rectangle(hdc, dims.x + 20, dims.y + 50, dims.x + dims.width - 20, dims.y + dims.height - 20);
-            SelectObject(hdc, hOldPen_input);
-            SelectObject(hdc, hOldBrush);
-            DeleteObject(hInputPen);
-            
-            // Draw input text (multi-line with wrapping)
-            const int lineHeight = 15;
-            const int charWidth = 8; // Estimate for monospace font
-            int maxCharsPerLine = (dims.width - 50) / charWidth;
-            if (maxCharsPerLine < 1) maxCharsPerLine = 1;
-
-            std::istringstream iss(editDialogInput);
-            std::string logicalLine;
-            
-            int logicalLineIndex = 0;
-            int y = dims.y + 55;
-
-            std::vector<std::string> visualLines;
-            std::vector<std::pair<int, int>> visualToLogicalMap;
-
-            // First, break the text into visual lines
-            while (std::getline(iss, logicalLine)) {
-                if (logicalLine.empty()) {
-                    visualLines.push_back("");
-                    visualToLogicalMap.push_back({logicalLineIndex, 0});
-                } else {
-                    size_t offset = 0;
-                    while (offset < logicalLine.length()) {
-                        visualLines.push_back(logicalLine.substr(offset, maxCharsPerLine));
-                        visualToLogicalMap.push_back({logicalLineIndex, (int)offset});
-                        offset += maxCharsPerLine;
-                    }
-                }
-                logicalLineIndex++;
-            }
-            if (editDialogInput.empty()) {
-                 visualLines.push_back("");
-                 visualToLogicalMap.push_back({0, 0});
-            } else if (editDialogInput.back() == '\n') {
-                 visualLines.push_back("");
-                 visualToLogicalMap.push_back({logicalLineIndex, 0});
-            }
-
-            // Draw the visual lines
-            for (size_t i = 0; i < visualLines.size(); ++i) {
-                if ((int)i >= editDialogScrollOffset && y < dims.y + dims.height - 20 - lineHeight) {
-                    std::string displayText = visualLines[i];
-                    
-                    // Check if cursor is on this line
-                    auto logicalPos = visualToLogicalMap[i];
-                    if (logicalPos.first == (int)editDialogCursorLine) {
-                        size_t cursorInLine = editDialogCursorPos;
-                        size_t lineStartOffset = logicalPos.second;
-                        size_t lineEndOffset = lineStartOffset + visualLines[i].length();
-
-                        if(cursorInLine >= lineStartOffset && cursorInLine <= lineEndOffset) {
-                            size_t cursorInSub = cursorInLine - lineStartOffset;
-                             if (cursorInSub <= displayText.length()) {
-                                displayText.insert(cursorInSub, "^");
-                            } else {
-                                displayText += "^";
-                            }
-                        }
-                    }
-                    SetTextColor(hdc, textColor);
-                    TextOut(hdc, dims.x + 25, y, displayText.c_str(), displayText.length());
-                    y += lineHeight;
-                }
-            }
-            
-            // Cleanup
-            SelectObject(hdc, hOldFont);
-            DeleteObject(hFont);
-        }
 #endif
     // End Windows UI Methods
 

@@ -1,4 +1,5 @@
 #include "ui.h"
+#include <sstream>
 
 #ifdef _WIN32
 
@@ -296,6 +297,122 @@ void drawViewBookmarksDialog(
     if (filterActive) {
         std::string filterDisplay = "Filter: /" + filterText + "_";
         TextOut(hdc, dims.x + 20, dims.y + dims.height - 20, filterDisplay.c_str(), filterDisplay.length());
+    }
+
+    SelectObject(hdc, hOldFont);
+    DeleteObject(hFont);
+}
+
+void drawEditDialog(
+    HDC hdc,
+    const DialogDimensions& dims,
+    const std::string& inputText,
+    size_t cursorLine, size_t cursorPos,
+    int scrollOffset,
+    unsigned long bgColor, unsigned long textColor,
+    unsigned long borderColor)
+{
+    HFONT hFont = CreateFont(14, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
+                           DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
+                           CLEARTYPE_QUALITY, DEFAULT_PITCH | FF_DONTCARE, "Consolas");
+    HFONT hOldFont = (HFONT)SelectObject(hdc, hFont);
+    SetBkMode(hdc, TRANSPARENT);
+
+    HBRUSH hBgBrush = CreateSolidBrush(bgColor);
+    RECT bgRect = {dims.x, dims.y, dims.x + dims.width, dims.y + dims.height};
+    FillRect(hdc, &bgRect, hBgBrush);
+    DeleteObject(hBgBrush);
+
+    HPEN hBorderPen = CreatePen(PS_SOLID, 1, borderColor);
+    HPEN hOldPen_border = (HPEN)SelectObject(hdc, hBorderPen);
+    HBRUSH hOldBrush = (HBRUSH)SelectObject(hdc, GetStockObject(NULL_BRUSH));
+
+    MoveToEx(hdc, dims.x,               dims.y,                NULL);
+    LineTo(hdc,   dims.x + dims.width,  dims.y);
+    LineTo(hdc,   dims.x + dims.width,  dims.y + dims.height);
+    LineTo(hdc,   dims.x,               dims.y + dims.height);
+    LineTo(hdc,   dims.x,               dims.y);
+
+    SelectObject(hdc, hOldBrush);
+    SelectObject(hdc, hOldPen_border);
+    DeleteObject(hBorderPen);
+
+    std::string title = "Edit Clip (CTRL+ENTER to save, ESC to cancel)";
+    SetTextColor(hdc, textColor);
+    TextOut(hdc, dims.x + 20, dims.y + 25, title.c_str(), title.length());
+
+    HBRUSH hInputBrush = CreateSolidBrush(bgColor);
+    RECT inputRect = {dims.x + 20, dims.y + 50, dims.x + dims.width - 20, dims.y + dims.height - 20};
+    FillRect(hdc, &inputRect, hInputBrush);
+    DeleteObject(hInputBrush);
+
+    HPEN hInputPen = CreatePen(PS_SOLID, 1, textColor);
+    hOldBrush = (HBRUSH)SelectObject(hdc, GetStockObject(NULL_BRUSH));
+    HPEN hOldPen_input = (HPEN)SelectObject(hdc, hInputPen);
+    Rectangle(hdc, dims.x + 20, dims.y + 50, dims.x + dims.width - 20, dims.y + dims.height - 20);
+    SelectObject(hdc, hOldPen_input);
+    SelectObject(hdc, hOldBrush);
+    DeleteObject(hInputPen);
+
+    const int lineHeight = 15;
+    const int charWidth = 8;
+    int maxCharsPerLine = (dims.width - 50) / charWidth;
+    if (maxCharsPerLine < 1) maxCharsPerLine = 1;
+
+    std::istringstream iss(inputText);
+    std::string logicalLine;
+
+    int logicalLineIndex = 0;
+    int y = dims.y + 55;
+
+    std::vector<std::string> visualLines;
+    std::vector<std::pair<int, int>> visualToLogicalMap;
+
+    while (std::getline(iss, logicalLine)) {
+        if (logicalLine.empty()) {
+            visualLines.push_back("");
+            visualToLogicalMap.push_back({logicalLineIndex, 0});
+        } else {
+            size_t offset = 0;
+            while (offset < logicalLine.length()) {
+                visualLines.push_back(logicalLine.substr(offset, maxCharsPerLine));
+                visualToLogicalMap.push_back({logicalLineIndex, (int)offset});
+                offset += maxCharsPerLine;
+            }
+        }
+        logicalLineIndex++;
+    }
+    if (inputText.empty()) {
+         visualLines.push_back("");
+         visualToLogicalMap.push_back({0, 0});
+    } else if (inputText.back() == '\n') {
+         visualLines.push_back("");
+         visualToLogicalMap.push_back({logicalLineIndex, 0});
+    }
+
+    for (size_t i = 0; i < visualLines.size(); ++i) {
+        if ((int)i >= scrollOffset && y < dims.y + dims.height - 20 - lineHeight) {
+            std::string displayText = visualLines[i];
+
+            auto logicalPos = visualToLogicalMap[i];
+            if (logicalPos.first == (int)cursorLine) {
+                size_t cursorInLine = cursorPos;
+                size_t lineStartOffset = logicalPos.second;
+                size_t lineEndOffset = lineStartOffset + visualLines[i].length();
+
+                if(cursorInLine >= lineStartOffset && cursorInLine <= lineEndOffset) {
+                    size_t cursorInSub = cursorInLine - lineStartOffset;
+                     if (cursorInSub <= displayText.length()) {
+                        displayText.insert(cursorInSub, "^");
+                    } else {
+                        displayText += "^";
+                    }
+                }
+            }
+            SetTextColor(hdc, textColor);
+            TextOut(hdc, dims.x + 25, y, displayText.c_str(), displayText.length());
+            y += lineHeight;
+        }
     }
 
     SelectObject(hdc, hOldFont);

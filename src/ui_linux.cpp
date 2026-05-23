@@ -1,4 +1,5 @@
 #include "ui.h"
+#include <sstream>
 
 #ifdef __linux__
 
@@ -195,6 +196,92 @@ void drawViewBookmarksDialog(
     if (filterActive) {
         std::string filterDisplay = "Filter: /" + filterText + "_";
         XDrawString(display, window, gc, dims.x + 20, dims.y + dims.height - 20, filterDisplay.c_str(), filterDisplay.length());
+    }
+}
+
+void drawEditDialog(
+    Display* display, Window window, GC gc, XFontStruct* font,
+    const DialogDimensions& dims,
+    const std::string& inputText,
+    size_t cursorLine, size_t cursorPos,
+    int scrollOffset,
+    unsigned long bgColor, unsigned long textColor,
+    unsigned long borderColor)
+{
+    XSetForeground(display, gc, bgColor);
+    XFillRectangle(display, window, gc, dims.x, dims.y, dims.width, dims.height);
+    XSetForeground(display, gc, borderColor);
+    XDrawRectangle(display, window, gc, dims.x, dims.y, dims.width, dims.height);
+
+    std::string title = "Edit Clip (CTRL+ENTER to save, ESC to cancel)";
+    int titleWidth = XTextWidth(font, title.c_str(), title.length());
+    XDrawString(display, window, gc, dims.x + (dims.width - titleWidth) / 2, dims.y + 25, title.c_str(), title.length());
+
+    XSetForeground(display, gc, bgColor);
+    XFillRectangle(display, window, gc, dims.x + 20, dims.y + 50, dims.width - 40, dims.height - 70);
+    XSetForeground(display, gc, textColor);
+    XDrawRectangle(display, window, gc, dims.x + 20, dims.y + 50, dims.width - 40, dims.height - 70);
+
+    const int lineHeight = 15;
+    const int charWidth = 8;
+    int maxCharsPerLine = (dims.width - 50) / charWidth;
+    if (maxCharsPerLine < 1) maxCharsPerLine = 1;
+
+    std::istringstream iss(inputText);
+    std::string logicalLine;
+
+    int logicalLineIndex = 0;
+
+    std::vector<std::string> visualLines;
+    std::vector<std::pair<int, int>> visualToLogicalMap;
+
+    while (std::getline(iss, logicalLine)) {
+        if (logicalLine.empty()) {
+            visualLines.push_back("");
+            visualToLogicalMap.push_back({logicalLineIndex, 0});
+        } else {
+            size_t offset = 0;
+            while (offset < logicalLine.length()) {
+                visualLines.push_back(logicalLine.substr(offset, maxCharsPerLine));
+                visualToLogicalMap.push_back({logicalLineIndex, (int)offset});
+                offset += maxCharsPerLine;
+            }
+        }
+        logicalLineIndex++;
+    }
+    if (inputText.empty()) {
+         visualLines.push_back("");
+         visualToLogicalMap.push_back({0, 0});
+    } else if (inputText.back() == '\n') {
+         visualLines.push_back("");
+         visualToLogicalMap.push_back({logicalLineIndex, 0});
+    }
+
+    for (size_t i = 0; i < visualLines.size(); ++i) {
+        if ((int)i >= scrollOffset) {
+            int adjustedY = dims.y + 65 + ((int)i - scrollOffset) * lineHeight;
+
+            if (adjustedY < dims.y + dims.height - 20) {
+                std::string displayText = visualLines[i];
+
+                auto logicalPos = visualToLogicalMap[i];
+                if (logicalPos.first == (int)cursorLine) {
+                    size_t cursorInLine = cursorPos;
+                    size_t lineStartOffset = logicalPos.second;
+                    size_t lineEndOffset = lineStartOffset + visualLines[i].length();
+
+                    if(cursorInLine >= lineStartOffset && cursorInLine <= lineEndOffset) {
+                        size_t cursorInSub = cursorInLine - lineStartOffset;
+                         if (cursorInSub <= displayText.length()) {
+                            displayText.insert(cursorInSub, "^");
+                        } else {
+                            displayText += "^";
+                        }
+                    }
+                }
+                XDrawString(display, window, gc, dims.x + 25, adjustedY, displayText.c_str(), displayText.length());
+            }
+        }
     }
 }
 

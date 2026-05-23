@@ -55,6 +55,15 @@ void drawViewBookmarksDialog(
     const std::string& emptyMessage,
     unsigned long bgColor, unsigned long textColor,
     unsigned long selColor, unsigned long borderColor);
+
+void drawEditDialog(
+    Display* display, Window window, GC gc, XFontStruct* font,
+    const DialogDimensions& dims,
+    const std::string& inputText,
+    size_t cursorLine, size_t cursorPos,
+    int scrollOffset,
+    unsigned long bgColor, unsigned long textColor,
+    unsigned long borderColor);
 #endif
 
 #ifdef _WIN32
@@ -100,6 +109,15 @@ void drawViewBookmarksDialog(
     unsigned long bgColor, unsigned long textColor,
     unsigned long selColor, unsigned long borderColor,
     int winSelRectHeight, int winSelRectOffsetY);
+
+void drawEditDialog(
+    HDC hdc,
+    const DialogDimensions& dims,
+    const std::string& inputText,
+    size_t cursorLine, size_t cursorPos,
+    int scrollOffset,
+    unsigned long bgColor, unsigned long textColor,
+    unsigned long borderColor);
 #endif
 
 #endif
