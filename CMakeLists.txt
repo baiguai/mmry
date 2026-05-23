@@ -10,6 +10,7 @@ add_executable(mmry
     src/config.cpp
     src/key_translation.cpp
     src/help.cpp
+    src/utils.cpp
 )
 
 if(UNIX AND NOT APPLE)

@@ -60,6 +60,7 @@ x86_64-w64-mingw32-g++ -std=c++17 \
     -o mmry.exe \
     ../src/main.cpp \
     ../src/config.cpp \
+    ../src/utils.cpp \
     ../src/key_translation.cpp \
     ../src/help.cpp \
     ../src/ui_win32.cpp \

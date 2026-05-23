@@ -3,6 +3,7 @@
 #include "help.h"
 #include "ui.h"
 #include "config.h"
+#include "utils.h"
 
 #ifdef __linux__
     Display* display;
@@ -1275,7 +1276,7 @@ public:
         bool key_edit_scroll_down()
         {
             // Need to calculate max scroll offset based on content and dialog height
-            DialogDimensions dims = getEditDialogDimensions();
+            DialogDimensions dims = calculateDialogDimensions(windowWidth, windowHeight, 600, 400);
             const int lineHeight = 15;
             const int charWidth = 8;
             int maxCharsPerLine = (dims.width - 50) / charWidth;
@@ -1560,7 +1561,7 @@ public:
                         if (pos != std::string::npos && pos > 0) {
                             std::string content = line.substr(pos + 1);
                             try {
-                                actualBookmarkItems.push_back(decrypt(content));
+                                actualBookmarkItems.push_back(decrypt(content, config));
                             } catch (...) {
                                 actualBookmarkItems.push_back(content);
                             }
@@ -1656,7 +1657,7 @@ public:
                             if (pos != std::string::npos && pos > 0) {
                                 std::string content = line.substr(pos + 1);
                                 try {
-                                    std::string decryptedContent = decrypt(content);
+                                    std::string decryptedContent = decrypt(content, config);
                                     bookmarkItems.push_back(decryptedContent);
                                 } catch (...) {
                                     bookmarkItems.push_back(content);
@@ -1690,7 +1691,7 @@ public:
 
         // Pinned Clips
         bool key_pin_down() {
-            auto sortedItems = getSortedPinnedItems();
+            auto sortedItems = getSortedPinnedItems(config.pinnedFile);
             if (selectedViewPinnedItem < sortedItems.size() - 1) {
                 selectedViewPinnedItem++;
                 updatePinnedScrollOffset();
@@ -1716,7 +1717,7 @@ public:
         }
 
         bool key_pin_bottom() {
-            auto sortedItems = getSortedPinnedItems();
+            auto sortedItems = getSortedPinnedItems(config.pinnedFile);
             if (!sortedItems.empty()) {
                 selectedViewPinnedItem = sortedItems.size() - 1;
                 updatePinnedScrollOffset();
@@ -1726,7 +1727,7 @@ public:
         }
 
         bool key_pin_delete() {
-            auto sortedItems = getSortedPinnedItems();
+            auto sortedItems = getSortedPinnedItems(config.pinnedFile);
             
             // Remove the selected item if valid
             if (selectedViewPinnedItem < sortedItems.size()) {
@@ -1759,7 +1760,7 @@ public:
         }
 
         bool key_pin_copy() {
-            auto sortedItems = getSortedPinnedItems();
+            auto sortedItems = getSortedPinnedItems(config.pinnedFile);
 
             if (selectedViewPinnedItem < sortedItems.size()) {
                 std::string selectedLine = sortedItems[selectedViewPinnedItem];
@@ -1768,7 +1769,7 @@ public:
                     std::string contentToCopy;
                     std::string contentToSave = selectedLine.substr(pos + 1);
                     try {
-                        contentToCopy = decrypt(contentToSave);
+                        contentToCopy = decrypt(contentToSave, config);
                     } catch (...) {
                         contentToCopy = contentToSave;
                     }
@@ -1832,7 +1833,7 @@ public:
                     bool alreadyExists = false;
                     
                     while (std::getline(file, line)) {
-                        std::string decrypted = decrypt(line);
+                        std::string decrypted = decrypt(line, config);
                         if (decrypted == clipContent) {
                             alreadyExists = true;
                             break;
@@ -2310,7 +2311,7 @@ public:
                 bool alreadyExists = false;
                 
                 while (std::getline(file, line)) {
-                    std::string decrypted = decrypt(line);
+                    std::string decrypted = decrypt(line, config);
                     if (decrypted == clipContent) {
                         alreadyExists = true;
                         break;
@@ -2940,515 +2941,6 @@ Comment=Autostart for )" << appLabel << R"(
     
     // Helper methods
 
-    // Pinned clips helper methods
-    ////////////////////////////////////////////////////////////////////////////
-    std::vector<std::string> getSortedPinnedItems() {
-        std::vector<std::pair<long long, std::string>> pinnedItems;
-        std::string line;
-        std::ifstream inFile(config.pinnedFile);
-        
-        // Read and parse lines
-        while (std::getline(inFile, line)) {
-            size_t pos = line.find('|');
-            if (pos != std::string::npos && pos > 0) {
-                try {
-                    long long timestamp = std::stoll(line.substr(0, pos));
-                    pinnedItems.push_back({timestamp, line});
-                } catch (...) {
-                    // Fallback for parsing error: use current time, keep original line
-                    long long timestamp = std::chrono::system_clock::now().time_since_epoch().count();
-                    pinnedItems.push_back({timestamp, line});
-                }
-            }
-        }
-        inFile.close();
-
-        // Sort by timestamp (newest first) to match display order
-        std::sort(pinnedItems.begin(), pinnedItems.end(),
-                  [](const auto& a, const auto& b) { return a.first > b.first; });
-
-        // Extract just the line strings in sorted order
-        std::vector<std::string> sortedLines;
-        for (const auto& item : pinnedItems) {
-            sortedLines.push_back(item.second);
-        }
-        
-        return sortedLines;
-    }
-
-    // Custom Trimming
-    ////////////////////////////////////////////////////////////////////////////
-    std::string smartTrim(const std::string& text, size_t maxLength) {
-        if (isPath(text)) {
-            return trimMiddle(text, maxLength);
-        }
-
-        return text.substr(0, maxLength - 3) + "...";
-    }
-
-
-    bool isPath(const std::string& text) {
-        if (isUrl(text) || isFilePath(text)) {
-            return true;
-        }
-        return false;
-    }
-
-    bool isUrl(const std::string& text) {
-        // Check for common URL patterns
-        return (text.substr(0, 7) == "http://" || 
-                text.substr(0, 8) == "https://" ||
-                text.substr(0, 6) == "ftp://" ||
-                text.substr(0, 7) == "sftp://" ||
-                text.substr(0, 4) == "www.");
-    }
-    
-    class PathDetector {
-    public:
-        static bool isFilePath(const std::string& text) {
-            if (text.empty() || text.length() > 4096) return false;
-            
-            // Trim whitespace
-            std::string trimmed = trim(text);
-            if (trimmed.empty()) return false;
-            
-            // Quick checks for obvious paths
-            if (isAbsolutePath(trimmed)) return true;
-            
-            // Check for path separators
-            if (hasPathSeparators(trimmed)) return true;
-            
-            // Check for file extensions with proper context
-            if (hasValidFileExtension(trimmed)) return true;
-            
-            // Use regex for more complex patterns
-            if (matchesPathPattern(trimmed)) return true;
-            
-            return false;
-        }
-
-    private:
-        static std::string trim(const std::string& str) {
-            size_t start = str.find_first_not_of(" \t\n\r");
-            if (start == std::string::npos) return "";
-            size_t end = str.find_last_not_of(" \t\n\r");
-            return str.substr(start, end - start + 1);
-        }
-        
-        static bool isAbsolutePath(const std::string& text) {
-            // Unix/Linux/macOS absolute path
-            if (text[0] == '/') return true;
-            
-            // Windows absolute path (C:\, D:\, etc.)
-            if (text.length() >= 3 && 
-                std::isalpha(text[0]) && 
-                text[1] == ':' && 
-                (text[2] == '\\' || text[2] == '/')) {
-                return true;
-            }
-            
-            // Windows UNC path (\\server\share)
-            if (text.length() >= 2 && text[0] == '\\' && text[1] == '\\') {
-                return true;
-            }
-            
-            return false;
-        }
-        
-        static bool hasPathSeparators(const std::string& text) {
-            // Count separators
-            size_t slashCount = std::count(text.begin(), text.end(), '/');
-            size_t backslashCount = std::count(text.begin(), text.end(), '\\');
-            
-            // If has backslashes, likely Windows path
-            if (backslashCount > 0) return true;
-            
-            // Unix-style relative paths (./file or ../file or dir/file)
-            if (slashCount > 0) {
-                if (text.find("./") == 0 || text.find("../") == 0) return true;
-                // Check if it looks like a path (has directory structure)
-                if (slashCount >= 1 && text.find(' ') == std::string::npos) return true;
-            }
-            
-            return false;
-        }
-        
-        static bool hasValidFileExtension(const std::string& text) {
-            size_t lastDot = text.find_last_of('.');
-            size_t lastSlash = text.find_last_of("/\\");
-            
-            // Extension must be after last path separator
-            if (lastDot == std::string::npos || 
-                lastDot == 0 || 
-                lastDot == text.length() - 1) {
-                return false;
-            }
-            
-            // Make sure dot is after the last separator (not in directory name)
-            if (lastSlash != std::string::npos && lastDot < lastSlash) {
-                return false;
-            }
-            
-            std::string ext = text.substr(lastDot + 1);
-            
-            // Extension should be reasonable length and alphanumeric
-            if (ext.length() < 1 || ext.length() > 10) return false;
-            
-            // Check if extension is alphanumeric
-            bool validExt = std::all_of(ext.begin(), ext.end(), 
-                [](char c) { return std::isalnum(c); });
-            
-            if (!validExt) return false;
-            
-            // Must have at least one character before the dot
-            std::string basename = text.substr(0, lastDot);
-            if (lastSlash != std::string::npos) {
-                basename = basename.substr(lastSlash + 1);
-            }
-            
-            // Avoid matching things like "version 2.0" or "item.no"
-            if (basename.empty() || basename.find(' ') != std::string::npos) {
-                return false;
-            }
-            
-            // Check against common extensions (expanded list)
-            std::string extLower = ext;
-            std::transform(extLower.begin(), extLower.end(), extLower.begin(), ::tolower);
-            
-            static const std::vector<std::string> commonExts = {
-                // Code
-                "c", "cpp", "cc", "cxx", "h", "hpp", "hxx", "cs", "java", "py", "rb", "go",
-                "js", "ts", "jsx", "tsx", "php", "swift", "kt", "rs", "scala", "r", "m", "mm",
-                // Web
-                "html", "htm", "css", "scss", "sass", "less", "xml", "json", "yaml", "yml",
-                // Documents
-                "txt", "md", "doc", "docx", "pdf", "rtf", "odt", "tex", "log",
-                // Spreadsheets
-                "xls", "xlsx", "csv", "ods",
-                // Presentations
-                "ppt", "pptx", "odp",
-                // Images
-                "jpg", "jpeg", "png", "gif", "bmp", "svg", "ico", "webp", "tiff", "tif",
-                // Audio
-                "mp3", "wav", "ogg", "flac", "aac", "m4a", "wma",
-                // Video
-                "mp4", "avi", "mkv", "mov", "wmv", "flv", "webm",
-                // Archives
-                "zip", "rar", "7z", "tar", "gz", "bz2", "xz", "tgz",
-                // Executables
-                "exe", "dll", "so", "dylib", "app", "dmg", "deb", "rpm", "msi",
-                // Config
-                "ini", "cfg", "conf", "config", "properties", "toml",
-                // Scripts
-                "sh", "bash", "bat", "cmd", "ps1", "vbs",
-                // Data
-                "db", "sqlite", "sql", "dat", "bin"
-            };
-            
-            return std::find(commonExts.begin(), commonExts.end(), extLower) != commonExts.end();
-        }
-        
-        static bool matchesPathPattern(const std::string& text) {
-            // Regex patterns for different path types
-            static const std::regex patterns[] = {
-                // Unix absolute: /path/to/file or /path/to/dir/
-                std::regex(R"(^/([a-zA-Z0-9_\-\.]+/?)+$)"),
-                
-                // Unix relative: ./file, ../file, dir/file
-                std::regex(R"(^\.{1,2}/([a-zA-Z0-9_\-\.]+/?)+$)"),
-                
-                // Windows absolute: C:\path\to\file
-                std::regex(R"(^[a-zA-Z]:[/\\]([a-zA-Z0-9_\-\. ]+[/\\]?)+$)"),
-                
-                // Windows UNC: \\server\share\path
-                std::regex(R"(^\\\\[a-zA-Z0-9_\-\.]+\\([a-zA-Z0-9_\-\. ]+\\?)+$)"),
-                
-                // Relative with subdirs: folder/subfolder/file.ext
-                std::regex(R"(^[a-zA-Z0-9_\-\.]+(/[a-zA-Z0-9_\-\.]+)+(\.[a-zA-Z0-9]{1,10})?$)"),
-                
-                // Home directory: ~/path/to/file
-                std::regex(R"(^~(/[a-zA-Z0-9_\-\.]+)+$)")
-            };
-            
-            for (const auto& pattern : patterns) {
-                if (std::regex_match(text, pattern)) {
-                    return true;
-                }
-            }
-            
-            return false;
-        }
-    };
-
-    // Convenience function
-    bool isFilePath(const std::string& text) {
-        return PathDetector::isFilePath(text);
-    }
-    
-    class StringTrimmer {
-    public:
-        static std::string trimMiddle(const std::string& text, size_t maxLength) {
-            if (text.length() <= maxLength) {
-                return text;
-            }
-            
-            // Minimum sensible length for ellipsis trimming
-            if (maxLength < 4) {
-                return text.substr(0, maxLength);
-            }
-            
-            // For very short lengths, just use end trimming
-            if (maxLength <= 10) {
-                return text.substr(0, maxLength - 3) + "...";
-            }
-            
-            const std::string ellipsis = "...";
-            const size_t ellipsisLen = ellipsis.length();
-            
-            // Try smart trimming for URLs and file paths
-            if (isUrl(text)) {
-                return trimUrlMiddle(text, maxLength, ellipsisLen);
-            } else if (isFilePath(text)) {
-                return trimPathMiddle(text, maxLength, ellipsisLen);
-            }
-            
-            // Default: balanced trim
-            return trimBalanced(text, maxLength, ellipsisLen);
-        }
-
-    private:
-        static std::string trimUrlMiddle(const std::string& url, size_t maxLength, size_t ellipsisLen) {
-            // Try to preserve: protocol + domain + filename/endpoint
-            size_t protocolEnd = url.find("://");
-            
-            if (protocolEnd == std::string::npos) {
-                return trimBalanced(url, maxLength, ellipsisLen);
-            }
-            
-            protocolEnd += 3; // Include "://"
-            
-            // Safety check
-            if (protocolEnd >= url.length()) {
-                return trimBalanced(url, maxLength, ellipsisLen);
-            }
-            
-            // Find domain end (first slash after protocol)
-            size_t domainEnd = url.find('/', protocolEnd);
-            size_t queryStart = url.find('?');
-            size_t fragmentStart = url.find('#');
-            
-            // Find the last meaningful part (filename or endpoint)
-            size_t lastSlash = url.find_last_of('/');
-            
-            // Calculate important sections
-            std::string protocol = url.substr(0, protocolEnd);
-            std::string domain = (domainEnd != std::string::npos) 
-                ? url.substr(protocolEnd, domainEnd - protocolEnd)
-                : url.substr(protocolEnd);
-            
-            // Get last path segment (filename/endpoint)
-            std::string lastSegment;
-            if (lastSlash != std::string::npos && lastSlash + 1 < url.length()) {
-                size_t segmentEnd = std::min({
-                    queryStart != std::string::npos ? queryStart : url.length(),
-                    fragmentStart != std::string::npos ? fragmentStart : url.length(),
-                    url.length()
-                });
-                
-                if (segmentEnd > lastSlash) {
-                    lastSegment = url.substr(lastSlash, segmentEnd - lastSlash);
-                }
-            }
-            
-            // Strategy: protocol + domain + ... + lastSegment
-            size_t prefixLen = protocol.length() + domain.length();
-            size_t suffixLen = lastSegment.length();
-            
-            // Check if we can fit protocol + domain + ... + last segment
-            if (prefixLen + ellipsisLen + suffixLen <= maxLength && 
-                !lastSegment.empty() &&
-                domainEnd != std::string::npos && 
-                lastSlash != std::string::npos &&
-                lastSlash > domainEnd) {
-                return protocol + domain + "..." + lastSegment;
-            }
-            
-            // Check if we can fit protocol + domain + ...
-            if (prefixLen + ellipsisLen <= maxLength && domainEnd != std::string::npos) {
-                size_t remainingSpace = maxLength - prefixLen - ellipsisLen;
-                if (remainingSpace > 0 && remainingSpace <= url.length()) {
-                    std::string suffix = url.substr(url.length() - remainingSpace);
-                    return protocol + domain + "..." + suffix;
-                }
-                return protocol + domain + "...";
-            }
-            
-            // If domain itself is too long, trim it
-            if (protocol.length() + ellipsisLen < maxLength) {
-                size_t domainSpace = maxLength - protocol.length() - ellipsisLen;
-                
-                if (domainSpace < domain.length() && domainSpace > 0) {
-                    return protocol + domain.substr(0, domainSpace) + "...";
-                }
-            }
-            
-            // Fallback to balanced trim
-            return trimBalanced(url, maxLength, ellipsisLen);
-        }
-        
-        static std::string trimPathMiddle(const std::string& path, size_t maxLength, size_t ellipsisLen) {
-            // Strategy: preserve root + first dir(s) + ... + last dir(s)
-            
-            // Get root/prefix
-            std::string prefix;
-            size_t prefixEnd = 0;
-            
-            if (path[0] == '/') {
-                // Unix absolute path - keep "/"
-                prefix = "/";
-                prefixEnd = 1;
-            } else if (path.length() >= 2 && path[1] == ':') {
-                // Windows drive letter - keep "C:\" or "C:/"
-                prefix = path.substr(0, std::min(size_t(3), path.length()));
-                prefixEnd = prefix.length();
-            } else if (path.length() >= 2 && path[0] == '\\' && path[1] == '\\') {
-                // UNC path - keep "\\server"
-                size_t nextSep = path.find_first_of("\\/", 2);
-                if (nextSep != std::string::npos) {
-                    prefix = path.substr(0, nextSep);
-                    prefixEnd = nextSep;
-                } else {
-                    prefix = path.substr(0, std::min(size_t(20), path.length()));
-                    prefixEnd = prefix.length();
-                }
-            } else if (path.find("./") == 0 || path.find("../") == 0) {
-                // Relative path - keep "./" or "../"
-                size_t firstSep = path.find_first_of("/\\");
-                if (firstSep != std::string::npos) {
-                    prefix = path.substr(0, firstSep + 1);
-                    prefixEnd = firstSep + 1;
-                } else {
-                    prefix = path;
-                    prefixEnd = path.length();
-                }
-            } else if (path.find("~/") == 0) {
-                // Home directory
-                prefix = "~/";
-                prefixEnd = 2;
-            }
-            
-            // Find all separators after prefix
-            std::vector<size_t> separators;
-            for (size_t i = prefixEnd; i < path.length(); ++i) {
-                if (path[i] == '/' || path[i] == '\\') {
-                    separators.push_back(i);
-                }
-            }
-            
-            if (separators.empty()) {
-                // No separators after prefix, return as-is or trim balanced
-                if (path.length() <= maxLength) {
-                    return path;
-                }
-                return trimBalanced(path, maxLength, ellipsisLen);
-            }
-            
-            // Try to preserve: prefix + first_dirs + ... + last_dirs
-            // Example: /home/baiguai/...images/raw
-            
-            // Get first 1-2 components after prefix
-            size_t firstComponentsEnd = separators[0]; // At least first component
-            if (separators.size() > 1) {
-                firstComponentsEnd = separators[1]; // Try to get 2 components
-            }
-            std::string firstPart = path.substr(0, firstComponentsEnd);
-            
-            // Get last 2-3 components
-            size_t lastComponentsStart = separators[separators.size() - 1];
-            if (separators.size() >= 2) {
-                lastComponentsStart = separators[separators.size() - 2];
-            }
-            if (separators.size() >= 3) {
-                lastComponentsStart = separators[separators.size() - 3];
-            }
-            std::string lastPart = path.substr(lastComponentsStart);
-            
-            // Try: firstPart + ... + lastPart
-            if (firstPart.length() + ellipsisLen + lastPart.length() <= maxLength) {
-                return firstPart + "..." + lastPart;
-            }
-            
-            // If that's too long, try just first component + ... + last 2 components
-            if (separators.size() >= 2) {
-                firstComponentsEnd = separators[0];
-                firstPart = path.substr(0, firstComponentsEnd);
-                
-                lastComponentsStart = separators[separators.size() - 2];
-                lastPart = path.substr(lastComponentsStart);
-                
-                if (firstPart.length() + ellipsisLen + lastPart.length() <= maxLength) {
-                    return firstPart + "..." + lastPart;
-                }
-            }
-            
-            // Fall back to: prefix + ... + last components
-            size_t suffixStart = separators[separators.size() - 1];
-            if (separators.size() >= 2) {
-                suffixStart = separators[separators.size() - 2];
-            }
-            if (separators.size() >= 3) {
-                suffixStart = separators[separators.size() - 3];
-            }
-            std::string suffix = path.substr(suffixStart);
-            
-            if (prefix.length() + ellipsisLen + suffix.length() <= maxLength) {
-                return prefix + "..." + suffix;
-            }
-            
-            // If still too long, just keep prefix + ... + last component
-            suffix = path.substr(separators[separators.size() - 1]);
-            if (prefix.length() + ellipsisLen + suffix.length() <= maxLength) {
-                return prefix + "..." + suffix;
-            }
-            
-            // Last resort: trim suffix to fit
-            size_t remainingSpace = maxLength - prefix.length() - ellipsisLen;
-            if (remainingSpace > 0 && remainingSpace <= suffix.length()) {
-                return prefix + "..." + suffix.substr(suffix.length() - remainingSpace);
-            }
-            
-            // Fallback to balanced trim
-            return trimBalanced(path, maxLength, ellipsisLen);
-        }
-        
-        static std::string trimBalanced(const std::string& text, size_t maxLength, size_t ellipsisLen) {
-            size_t availableSpace = maxLength - ellipsisLen;
-            size_t keepStart = availableSpace / 2;
-            size_t keepEnd = availableSpace - keepStart;
-            
-            return text.substr(0, keepStart) + "..." + text.substr(text.length() - keepEnd);
-        }
-        
-        // Placeholder functions - replace with your actual implementations
-        static bool isUrl(const std::string& text) {
-            return text.find("://") != std::string::npos;
-        }
-        
-        static bool isFilePath(const std::string& text) {
-            // Use your actual isFilePath implementation
-            return text.find('/') != std::string::npos || 
-                   text.find('\\') != std::string::npos ||
-                   (text.length() >= 3 && text[1] == ':');
-        }
-    };
-
-    // Convenience function
-    std::string trimMiddle(const std::string& text, size_t maxLength) {
-        return StringTrimmer::trimMiddle(text, maxLength);
-    }
-    ////////////////////////////////////////////////////////////////////////////
-
-
     size_t getDisplayItemCount() {
         if (filterMode) {
             return filteredItems.size();
@@ -3461,27 +2953,6 @@ Comment=Autostart for )" << appLabel << R"(
             return filteredItems[displayIndex];
         }
         return displayIndex;
-    }
-    
-    std::string wildcardToRegex(const std::string& wildcard_pattern) {
-        std::string regex_pattern;
-        regex_pattern.reserve(wildcard_pattern.size() * 2);
-        for (char c : wildcard_pattern) {
-            switch (c) {
-                case '*':
-                    regex_pattern += ".*";
-                    break;
-                // Escape other special regex characters
-                case '.': case '+': case '?': case '^': case '$': case '(': case ')':
-                case '[': case ']': case '{': case '}': case '|': case '\\':
-                    regex_pattern += '\\';
-                    regex_pattern += c;
-                    break;
-                default:
-                    regex_pattern += c;
-            }
-        }
-        return regex_pattern;
     }
     
     void updateFilteredItems() {
@@ -3554,7 +3025,7 @@ Comment=Autostart for )" << appLabel << R"(
         
                     
     void updateScrollOffset() {
-        DialogDimensions dims = getViewBookmarksDialogDimensions();
+        DialogDimensions dims = calculateDialogDimensions(windowWidth, windowHeight, 600, 500);
         const int ITEM_LINE_HEIGHT = 25; // Now uses LINE_HEIGHT
         
         // This 'y' is the starting point of the list within the dialog
@@ -3594,7 +3065,7 @@ Comment=Autostart for )" << appLabel << R"(
     }
     
     void updateEditDialogScrollOffset() {
-        DialogDimensions dims = getEditDialogDimensions();
+        DialogDimensions dims = calculateDialogDimensions(windowWidth, windowHeight, 600, 400);
         const int lineHeight = 15;
         const int charWidth = 8;
         int maxCharsPerLine = (dims.width - 50) / charWidth;
@@ -3750,185 +3221,10 @@ Comment=Autostart for )" << appLabel << R"(
         return windowHeight;
     }
     
-    int calculateMaxContentLength(bool verboseMode) const {
-        // Calculate available width for content (excluding selection indicator and margins)
-        int availableWidth = getClipListWidth() - 30; // 10px left margin + 20px for selection indicator
-        
-        if (verboseMode) {
-            // Verbose mode: "HH:MM:SS | X lines | " prefix takes about 20 chars
-            availableWidth -= 20;
-        }
-        
-        // Estimate character width (assuming monospace font, average width ~8 pixels)
-        int maxChars = availableWidth / 8;
-        
-        // Ensure reasonable minimum and maximum
-        if (maxChars < 20) maxChars = 20;
-        if (maxChars > 200) maxChars = 200;
-        
-        return maxChars;
-    }
     
-
     
     // Dialog positioning and sizing structure
 
-    
-    // Modular dialog positioning functions
-    DialogDimensions calculateDialogDimensions(int preferredWidth, int preferredHeight) const {
-        DialogDimensions dims;
-
-        writeLog("-- calculateDialogDimensions --");
-        writeLog("windowHeight: " + std::to_string(windowHeight) + ", windowWidth: " + std::to_string(windowWidth));
-        
-        // Calculate maximum size that fits in window with margins
-        int maxHeight = windowHeight - 40; // 20px margin on each side
-        int maxWidth = windowWidth - 40;  // 20px margin on each side
-
-        writeLog("maxHeight: " + std::to_string(maxHeight) + ", maxWidth: " + std::to_string(maxWidth));
-
-        // Ensure minimum usable size
-        int minDialogWidth = 200;
-        int minDialogHeight = 100;
-        
-        // Use preferred size if it fits, otherwise scale down
-        dims.height = std::min(preferredHeight, std::max(minDialogHeight, maxHeight));
-        dims.width = std::min(preferredWidth, std::max(minDialogWidth, maxWidth));
-
-        writeLog("dims.height: " + std::to_string(dims.height) + ", dims.width: " + std::to_string(dims.width));
-        
-        // Calculate content area (excluding borders and margins)
-        dims.contentHeight = dims.height - 80; // 30px margin top/bottom for title and padding
-        dims.contentWidth = dims.width - 40;  // 20px margin on each side
-
-        // Ensure minimum content area
-        if (dims.contentWidth < 200) dims.contentWidth = 200;
-
-        writeLog("dims.contentHeight: " + std::to_string(dims.contentHeight) + ", dims.contentWidth: " + std::to_string(dims.contentWidth));
-
-        // Center dialog in window
-        dims.x = (windowWidth - dims.width) / 2;
-        dims.y = (windowHeight - dims.height) / 2;
-
-        writeLog("dims.x: " + std::to_string(dims.x) + ", dims.y: " + std::to_string(dims.y));
-
-
-        
-        return dims;
-    }
-    
-    DialogDimensions getBookmarkDialogDimensions() const {
-        return calculateDialogDimensions(400, 300);
-    }
-
-    DialogDimensions getPinnedDimensions() const {
-        return calculateDialogDimensions(200, 150);
-    }
-    
-    DialogDimensions getAddBookmarkDialogDimensions() const {
-        return calculateDialogDimensions(400, 300);
-    }
-    
-    DialogDimensions getHelpDialogDimensions() const {
-        return calculateDialogDimensions(600, 500);
-    }
-    
-    DialogDimensions getEditDialogDimensions() const {
-        return calculateDialogDimensions(600, 400); // Or adjust preferred size as needed
-    }
-    
-    DialogDimensions getViewBookmarksDialogDimensions() const {
-        return calculateDialogDimensions(600, 500);
-    }
-    
-    int calculateDialogContentLength(const DialogDimensions& dims) const {
-        // Calculate available width for dialog content
-        int availableWidth = dims.contentWidth;
-        
-        // Estimate character width (assuming monospace font, average width ~8 pixels)
-        int maxChars = availableWidth / 8;
-        
-        // Ensure reasonable minimum and maximum
-        if (maxChars < 20) maxChars = 20;
-        if (maxChars > 100) maxChars = 100;
-        
-        return maxChars;
-    }
-    
-    // Simple XOR encryption helper functions
-    std::string encrypt(const std::string& data) {
-        if (!config.encrypted || config.encryptionKey.empty()) {
-            return data;
-        }
-        
-        std::string encrypted;
-        encrypted.resize(data.length());
-        
-        for (size_t i = 0; i < data.length(); ++i) {
-            encrypted[i] = data[i] ^ config.encryptionKey[i % config.encryptionKey.length()];
-        }
-        
-        // Simple base64 encoding
-        const std::string chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
-        std::string result;
-        int val = 0, valb = -6;
-        
-        for (char c : encrypted) {
-            val = (val << 8) + (c & 0xff);
-            valb += 8;
-            while (valb >= 0) {
-                result.push_back(chars[(val >> valb) & 0x3f]);
-                valb -= 6;
-            }
-        }
-        
-        if (valb > -6) {
-            result.push_back(chars[((val << 8) >> (valb + 8)) & 0x3f]);
-        }
-        
-        // Pad with '='
-        while (result.length() % 4) {
-            result.push_back('=');
-        }
-        
-        return result;
-    }
-    
-    std::string decrypt(const std::string& data) {
-        if (!config.encrypted || config.encryptionKey.empty()) {
-            return data;
-        }
-        
-        // Simple base64 decoding
-        const std::string chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
-        std::string decoded;
-        int val = 0, valb = -8;
-        
-        for (char c : data) {
-            if (c == '=') break;
-            
-            size_t pos = chars.find(c);
-            if (pos == std::string::npos) continue;
-            
-            val = (val << 6) + pos;
-            valb += 6;
-            
-            if (valb >= 0) {
-                decoded.push_back((val >> valb) & 0xff);
-                valb -= 8;
-            }
-        }
-        
-        // XOR decrypt
-        std::string decrypted;
-        decrypted.resize(decoded.length());
-        
-        for (size_t i = 0; i < decoded.length(); ++i) {
-            decrypted[i] = decoded[i] ^ config.encryptionKey[i % config.encryptionKey.length()];
-        }
-        
-        return decrypted;
-    }
     
     void executeCommand(const std::string& command) {
         // Parse command and arguments
@@ -4065,7 +3361,7 @@ Comment=Autostart for )" << appLabel << R"(
         
         if (file.is_open()) {
             auto timestamp = std::chrono::system_clock::now().time_since_epoch().count();
-            std::string contentToSave = encrypt(content);
+            std::string contentToSave = encrypt(content, config);
             file << timestamp << "|" << contentToSave << "\n";
             file.close();
         }
@@ -4076,12 +3372,12 @@ Comment=Autostart for )" << appLabel << R"(
         
         if (file.is_open()) {
             auto timestamp = std::chrono::system_clock::now().time_since_epoch().count();
-            std::string contentToSave = encrypt(content);
+            std::string contentToSave = encrypt(content, config);
             file << timestamp << "|" << contentToSave << "\n";
             file.close();
         }
     }
-    
+
     void createWindow() {
 #ifdef __linux__
         // Create window with theme colors
@@ -4344,7 +3640,7 @@ public:
                         line += timeStream.str() + " | " + std::to_string(lineCount) + " lines | ";
                         
                         std::string content = item.content;
-                        int maxContentLength = calculateMaxContentLength(true);
+                        int maxContentLength = calculateMaxContentLength(clipListWidth, true);
                         if (static_cast<int>(content.length()) > maxContentLength) {
                             content = smartTrim(content, maxContentLength);
                         }
@@ -4361,7 +3657,7 @@ public:
                         }
                         
                         std::string content = item.content;
-                        int maxContentLength = calculateMaxContentLength(false);
+                        int maxContentLength = calculateMaxContentLength(clipListWidth, false);
                         if (static_cast<int>(content.length()) > maxContentLength) {
                             content = smartTrim(content, maxContentLength);
                         }
@@ -4385,7 +3681,7 @@ public:
             
             // Draw dialogs if visible
             if (bookmarkDialogVisible) {
-                DialogDimensions dims = getBookmarkDialogDimensions();
+                DialogDimensions dims = calculateDialogDimensions(windowWidth, windowHeight, 400, 300);
                 std::vector<std::string> filteredGroups;
                 for (const auto& group : bookmarkGroups) {
                     if (bookmarkDialogInput.empty() || group.find(bookmarkDialogInput) != std::string::npos) {
@@ -4398,7 +3694,7 @@ public:
                                  config.backgroundColor, config.textColor, config.selectionColor, config.borderColor);
             }
             if (addToBookmarkDialogVisible) {
-                DialogDimensions dims = getAddBookmarkDialogDimensions();
+                DialogDimensions dims = calculateDialogDimensions(windowWidth, windowHeight, 400, 300);
                 std::vector<std::string> displayedGroups;
                 if (filterAddBookmarksMode) {
                     std::string lowerFilterText = stringToLower(filterAddBookmarksText);
@@ -4420,7 +3716,7 @@ public:
                                       config.backgroundColor, config.textColor, config.selectionColor, config.borderColor);
             }
             if (viewBookmarksDialogVisible) {
-                DialogDimensions dims = getViewBookmarksDialogDimensions();
+                DialogDimensions dims = calculateDialogDimensions(windowWidth, windowHeight, 600, 500);
                 std::string title;
                 std::vector<std::string> items;
                 size_t selItem = 0;
@@ -4470,7 +3766,7 @@ public:
                                     if (pos != std::string::npos && pos > 0) {
                                         std::string content = line.substr(pos + 1);
                                         try {
-                                            items.push_back(decrypt(content));
+                                            items.push_back(decrypt(content, config));
                                         } catch (...) {
                                             items.push_back(content);
                                         }
@@ -4503,7 +3799,7 @@ public:
                                       config.backgroundColor, config.textColor, config.selectionColor, config.borderColor);
             }
             if (pinnedDialogVisible) {
-                auto sortedItems = getSortedPinnedItems();
+                auto sortedItems = getSortedPinnedItems(config.pinnedFile);
                 std::vector<std::pair<long long, std::string>> displayItems;
                 for (const auto& line : sortedItems) {
                     size_t pos = line.find('|');
@@ -4511,7 +3807,7 @@ public:
                         std::string timestampStr = line.substr(0, pos);
                         std::string content = line.substr(pos + 1);
                         try {
-                            std::string decryptedContent = decrypt(content);
+                            std::string decryptedContent = decrypt(content, config);
                             long long timestamp = std::stoll(timestampStr);
                             displayItems.push_back({timestamp, decryptedContent});
                         } catch (...) {
@@ -4527,7 +3823,7 @@ public:
                 }
                 int numItems = displayItems.empty() ? 1 : displayItems.size();
                 int preferredHeight = (numItems * LINE_HEIGHT) + 80;
-                DialogDimensions dims = calculateDialogDimensions(windowWidth - 40, preferredHeight);
+                DialogDimensions dims = calculateDialogDimensions(windowWidth, windowHeight, windowWidth - 40, preferredHeight);
                 int maxContentLength = calculateDialogContentLength(dims);
                 for (auto& entry : displayItems) {
                     if (static_cast<int>(entry.second.length()) > maxContentLength) {
@@ -4542,13 +3838,13 @@ public:
                                  config.backgroundColor, config.textColor, config.selectionColor, config.borderColor, LINE_HEIGHT);
             }
             if (helpDialogVisible) {
-                DialogDimensions dims = getHelpDialogDimensions();
+                DialogDimensions dims = calculateDialogDimensions(windowWidth, windowHeight, 600, 500);
                 drawHelpDialog(display, window, gc, dims,
                                helpFilterMode, helpFilterText, helpDialogScrollOffset,
                                config.backgroundColor, config.textColor, config.borderColor);
             }
             if (editDialogVisible) {
-                DialogDimensions dims = getEditDialogDimensions();
+                DialogDimensions dims = calculateDialogDimensions(windowWidth, windowHeight, 600, 400);
                 drawEditDialog(display, window, gc, font, dims,
                                editDialogInput, editDialogCursorLine, editDialogCursorPos,
                                editDialogScrollOffset,
@@ -4662,7 +3958,7 @@ public:
                         line += timeStream.str() + " | " + std::to_string(lineCount) + " lines | ";
                         
                         std::string content = item.content;
-                        int maxContentLength = calculateMaxContentLength(true);
+                        int maxContentLength = calculateMaxContentLength(clipListWidth, true);
                         if (static_cast<int>(content.length()) > maxContentLength) {
                             content = smartTrim(content, maxContentLength);
                         }
@@ -4679,7 +3975,7 @@ public:
                         }
                         
                         std::string content = item.content;
-                        int maxContentLength = calculateMaxContentLength(false);
+                        int maxContentLength = calculateMaxContentLength(clipListWidth, false);
                         if (static_cast<int>(content.length()) > maxContentLength) {
                             content = smartTrim(content, maxContentLength);
                         }
@@ -4703,7 +3999,7 @@ public:
             
             // Draw dialogs if visible
             if (bookmarkDialogVisible) {
-                DialogDimensions dims = getBookmarkDialogDimensions();
+                DialogDimensions dims = calculateDialogDimensions(windowWidth, windowHeight, 400, 300);
                 std::vector<std::string> filteredGroups;
                 for (const auto& group : bookmarkGroups) {
                     if (bookmarkDialogInput.empty() || group.find(bookmarkDialogInput) != std::string::npos) {
@@ -4717,7 +4013,7 @@ public:
                                  WIN_SEL_RECT_HEIGHT, WIN_SEL_RECT_OFFSET_Y);
             }
             if (addToBookmarkDialogVisible) {
-                DialogDimensions dims = getAddBookmarkDialogDimensions();
+                DialogDimensions dims = calculateDialogDimensions(windowWidth, windowHeight, 400, 300);
                 std::vector<std::string> displayedGroups;
                 if (filterAddBookmarksMode) {
                     std::string lowerFilterText = stringToLower(filterAddBookmarksText);
@@ -4740,7 +4036,7 @@ public:
                                       WIN_SEL_RECT_HEIGHT, WIN_SEL_RECT_OFFSET_Y);
             }
             if (viewBookmarksDialogVisible) {
-                DialogDimensions dims = getViewBookmarksDialogDimensions();
+                DialogDimensions dims = calculateDialogDimensions(windowWidth, windowHeight, 600, 500);
                 std::string title;
                 std::vector<std::string> items;
                 size_t selItem = 0;
@@ -4790,7 +4086,7 @@ public:
                                     if (pos != std::string::npos && pos > 0) {
                                         std::string content = line.substr(pos + 1);
                                         try {
-                                            items.push_back(decrypt(content));
+                                            items.push_back(decrypt(content, config));
                                         } catch (...) {
                                             items.push_back(content);
                                         }
@@ -4823,7 +4119,7 @@ public:
                                       WIN_SEL_RECT_HEIGHT, WIN_SEL_RECT_OFFSET_Y);
             }
             if (pinnedDialogVisible) {
-                auto sortedItems = getSortedPinnedItems();
+                auto sortedItems = getSortedPinnedItems(config.pinnedFile);
                 std::vector<std::pair<long long, std::string>> displayItems;
                 for (const auto& line : sortedItems) {
                     size_t pos = line.find('|');
@@ -4831,7 +4127,7 @@ public:
                         std::string timestampStr = line.substr(0, pos);
                         std::string content = line.substr(pos + 1);
                         try {
-                            std::string decryptedContent = decrypt(content);
+                            std::string decryptedContent = decrypt(content, config);
                             long long timestamp = std::stoll(timestampStr);
                             displayItems.push_back({timestamp, decryptedContent});
                         } catch (...) {
@@ -4847,7 +4143,7 @@ public:
                 }
                 int numItems = displayItems.empty() ? 1 : displayItems.size();
                 int preferredHeight = (numItems * LINE_HEIGHT) + 80;
-                DialogDimensions dims = calculateDialogDimensions(windowWidth - 40, preferredHeight);
+                DialogDimensions dims = calculateDialogDimensions(windowWidth, windowHeight, windowWidth - 40, preferredHeight);
                 int maxContentLength = calculateDialogContentLength(dims);
                 for (auto& entry : displayItems) {
                     if (static_cast<int>(entry.second.length()) > maxContentLength) {
@@ -4863,13 +4159,13 @@ public:
                                  LINE_HEIGHT, WIN_SEL_RECT_HEIGHT, WIN_SEL_RECT_OFFSET_Y);
             }
             if (helpDialogVisible) {
-                DialogDimensions dims = getHelpDialogDimensions();
+                DialogDimensions dims = calculateDialogDimensions(windowWidth, windowHeight, 600, 500);
                 drawHelpDialog(hdc, dims,
                                helpFilterMode, helpFilterText, helpDialogScrollOffset,
                                config.backgroundColor, config.textColor, config.borderColor);
             }
             if (editDialogVisible) {
-                DialogDimensions dims = getEditDialogDimensions();
+                DialogDimensions dims = calculateDialogDimensions(windowWidth, windowHeight, 600, 400);
                 drawEditDialog(hdc, dims,
                                editDialogInput, editDialogCursorLine, editDialogCursorPos,
                                editDialogScrollOffset,
@@ -5009,15 +4305,6 @@ public:
         }
     }
     
-    int countLines(const std::string& content) {
-        if (content.empty()) return 0;
-        int lines = 1;
-        for (char c : content) {
-            if (c == '\n') lines++;
-        }
-        return lines;
-    }
-    
     void copyToClipboard(const std::string& content) {
 #ifdef __linux__
         // Use xclip to copy to clipboard
@@ -5059,7 +4346,7 @@ public:
                 // Store timestamp and content (encrypted if enabled)
                 auto timestamp = std::chrono::duration_cast<std::chrono::seconds>(
                     item.timestamp.time_since_epoch()).count();
-                std::string contentToSave = encrypt(item.content);
+                std::string contentToSave = encrypt(item.content, config);
                 file << timestamp << "|" << contentToSave << "\n";
             }
             file.close();
@@ -5081,7 +4368,7 @@ public:
                         
                         // Try to decrypt first
                         try {
-                            decryptedContent = decrypt(content);
+                            decryptedContent = decrypt(content, config);
                             // Check if decryption produced reasonable results (no control characters)
                             bool hasControlChars = false;
                             for (char c : decryptedContent) {
@@ -5189,7 +4476,7 @@ void ClipboardManager::updateFilteredBookmarkClips() {
 
                 try {
 
-                    std::string decryptedContent = decrypt(content);
+                    std::string decryptedContent = decrypt(content, config);
 
                     // Perform case-insensitive search
 
