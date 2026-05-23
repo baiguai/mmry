@@ -61,6 +61,7 @@ x86_64-w64-mingw32-g++ -std=c++17 \
     ../src/main.cpp \
     ../src/key_translation.cpp \
     ../src/help.cpp \
+    ../src/ui_win32.cpp \
     -luser32 \
     -lgdi32 \
     -lkernel32 \

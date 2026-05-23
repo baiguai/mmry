@@ -11,6 +11,12 @@ add_executable(mmry
     src/help.cpp
 )
 
+if(UNIX AND NOT APPLE)
+    target_sources(mmry PRIVATE src/ui_linux.cpp)
+elseif(WIN32)
+    target_sources(mmry PRIVATE src/ui_win32.cpp)
+endif()
+
 # Platform-specific libraries
 if(UNIX AND NOT APPLE)
     # Linux/X11
