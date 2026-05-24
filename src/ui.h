@@ -175,6 +175,9 @@ void drawConsole(
     HDC hdc,
     const ConsoleDrawData& data,
     int winSelRectHeight, int winSelRectOffsetY);
+
+void drawConsole();
+
 #endif
 
 #endif

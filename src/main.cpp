@@ -2815,126 +2815,27 @@ Comment=Autostart for )" << appLabel << R"(
     }
     
 #ifdef _WIN32
-        HWND hwnd = nullptr;
-        HFONT font = nullptr;
+    HWND hwnd = nullptr;
+    HFONT font = nullptr;
 
-        char getCharFromMsg(MSG* msg) {
-            // Get the scan code from lParam
-            UINT scanCode = (msg->lParam >> 16) & 0xFF;
+    char getCharFromMsg(MSG* msg) {
+        // Get the scan code from lParam
+        UINT scanCode = (msg->lParam >> 16) & 0xFF;
 
-            // Get current keyboard state
-            BYTE keyboardState[256];
-            GetKeyboardState(keyboardState);
+        // Get current keyboard state
+        BYTE keyboardState[256];
+        GetKeyboardState(keyboardState);
 
-            // Convert virtual key to character
-            char charBuffer[2]; // Needs space for null terminator
-            int result = ToAscii(msg->wParam, scanCode, keyboardState, (LPWORD)charBuffer, 0);
+        // Convert virtual key to character
+        char charBuffer[2]; // Needs space for null terminator
+        int result = ToAscii(msg->wParam, scanCode, keyboardState, (LPWORD)charBuffer, 0);
 
-            if (result == 1) {
-                return charBuffer[0];
-            }
-            return 0; // Return null character if conversion fails
+        if (result == 1) {
+            return charBuffer[0];
         }
+        return 0; // Return null character if conversion fails
+    }
 #endif
-    
-            std::atomic<bool> running;
-            std::atomic<bool> visible;
-        // Window properties
-        int windowWidth = 800;
-        int windowHeight = 600;
-        const int WINDOW_X = 100;
-        const int WINDOW_Y = 100;
-        const int LINE_HEIGHT = 25;
-        const int WIN_SEL_RECT_HEIGHT = 26;
-        const int WIN_SEL_RECT_OFFSET_Y = 4;
-        const int FONT_SIZE = 16;
-        const std::string FONT_NAME = "Consolas";
-        
-        // Minimum window size constraints
-        const int MIN_WINDOW_WIDTH = 425;
-        const int MIN_WINDOW_HEIGHT = 525;
-        
-        // Dynamic width adjustment for clip list
-        int clipListWidth = 780; // Default width (windowWidth - 20 for margins)
-        
-        // Clipboard data
-        std::vector<ClipboardItem> items;
-        std::string lastClipboardContent;
-    
-    // Navigation
-    size_t selectedItem = 0;
-    size_t consoleScrollOffset = 0; // For scrolling main clips list
-    bool filterMode = false;
-    std::string filterText;
-    std::vector<size_t> filteredItems;
-    
-    // Command mode
-    bool commandMode = false;
-    std::string commandText;
-    
-    // Theme selection mode
-    bool cmd_themeSelectMode = false;
-    std::vector<std::string> availableThemes;
-    size_t selectedTheme = 0;
-    size_t themeSelectScrollOffset = 0;
-
-    // Config selection mode
-    bool cmd_configSelectMode = false;
-    std::vector<std::string> availableConfigs;
-    size_t selectedConfig = 0;
-    size_t configSelectScrollOffset = 0;
-    
-
-    
-    // Bookmark dialog
-    bool bookmarkDialogVisible = false;
-    std::string bookmarkDialogInput;
-    std::vector<std::string> bookmarkGroups;
-    size_t selectedBookmarkGroup = 0;
-    size_t bookmarkMgmtScrollOffset = 0; // For scrolling long lists
-
-    // Pinned dialog
-    bool pinnedDialogVisible = false;
-    size_t selectedViewPinnedItem = 0;
-    size_t viewPinnedScrollOffset = 0; // For scrolling long lists
-    int m_maxVisiblePinnedItems = 1; // Stores the number of currently visible pinned items
-    
-    // Add to bookmark dialog state
-    bool addToBookmarkDialogVisible = false;
-    size_t selectedAddBookmarkGroup = 0;
-    size_t addBookmarkScrollOffset = 0; // For scrolling long lists
-    
-    // Help dialog state
-    bool helpDialogVisible = false;
-    size_t helpDialogScrollOffset = 0;
-    bool helpFilterMode = false;
-    size_t helpFilterScrollOffset = 0;
-
-    // Edit dialog state
-    bool editDialogVisible = false;
-    std::string editDialogInput;
-    int editDialogScrollOffset = 0;
-    size_t editDialogCursorPos = 0;
-    size_t editDialogCursorLine = 0;
-    
-    // View bookmarks dialog state
-    bool viewBookmarksDialogVisible = false;
-    bool viewBookmarksShowingGroups = true; // true = groups, false = clips
-    size_t selectedViewBookmarkGroup = 0;
-    size_t selectedViewBookmarkItem = 0;
-    size_t viewBookmarksScrollOffset = 0; // For scrolling long lists
-
-    // Bookmark dialog filtering
-    bool filterBookmarksMode = false;
-    std::string filterBookmarksText;
-
-    bool filterAddBookmarksMode = false;
-    std::string filterAddBookmarksText;
-
-    // Bookmark clips filtering
-    bool filterBookmarkClipsMode = false;
-    std::string filterBookmarkClipsText;
-    std::vector<std::string> filteredBookmarkClips;
     
     void updateFilteredBookmarkClips();
     size_t getBookmarkItemCount();
