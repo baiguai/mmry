@@ -8,9 +8,13 @@ void drawPinnedDialog(
     Display* display, Window window, GC gc, XFontStruct* font,
     const std::vector<std::pair<long long, std::string>>& displayItems,
     const DialogDimensions& dims,
-    size_t& selectedItem, size_t scrollOffset, int& maxVisibleItems,
-    unsigned long bgColor, unsigned long textColor,
-    unsigned long selColor, unsigned long borderColor,
+    size_t& selectedItem,
+    size_t scrollOffset,
+    int& maxVisibleItems,
+    unsigned long bgColor,
+    unsigned long textColor,
+    unsigned long selColor,
+    unsigned long borderColor,
     int lineHeight)
 {
     XSetForeground(display, gc, bgColor);

@@ -16,7 +16,7 @@ echo "Building MMRY for Windows..."
 # Determine build type
 BUILD_TYPE_FLAGS=""
 BUILD_MESSAGE="DEBUG"
-if [ "$1" == "y" ]; then
+if [ "$1" == "r" ]; then
     BUILD_TYPE_FLAGS="-s" # Strip all symbol tables
     BUILD_MESSAGE="RELEASE"
 fi
