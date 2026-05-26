@@ -5,6 +5,46 @@
 #include "config.h"
 #include "utils.h"
 
+/*
+
+    ============================================================================
+    MMRY
+    Clipboard Manager
+    ============================================================================
+
+
+    -- SOURCE CODE -------------------------------------------------------------
+
+    https://github.com/baiguai/mmry
+
+
+    -- PROJECT STRUCTURE -------------------------------------------------------
+
+    key_translations
+        This file handles translating key codes from different platforms into
+        one common set of key values.
+
+    help
+        This file handles the drawing of the help dialog as well as defining
+        all of the help entries themselves.
+
+    ui
+        For the UI the code is broken out into each platform's logic.
+        This file handles the drawing of all the various dialogs, including
+        the main window.
+
+    config
+        This file handles all of the configuration logic, including handling
+        themes and ensuring the required configuration files are present.
+
+    utils
+        This file contains various helper methods that are used throughout
+        the project.
+
+*/
+
+
+
 #ifdef __linux__
     Display* display;
     Window window;
@@ -12,11 +52,11 @@
     int screen;
     GC gc;
     XFontStruct* font;
-        Atom clipboardAtom;
-        Atom utf8Atom;
-        Atom textAtom;
-        int xfixes_event_base;
-        int xfixes_error_base;
+    Atom clipboardAtom;
+    Atom utf8Atom;
+    Atom textAtom;
+    int xfixes_event_base;
+    int xfixes_error_base;
 #endif
 
 class ClipboardManager
@@ -1333,48 +1373,59 @@ public:
             return true;
         }
 
-        // !@!
-        bool key_help_scroll_up() {
-            if (helpDialogScrollOffset > 0) {
+        bool key_help_scroll_up()
+        {
+            if (helpDialogScrollOffset > 0)
+            {
                 updateHelpDialogScrollOffset(1);
                 drawConsole();
             }
             return true;
         }
 
-        bool key_help_scroll_top() {
+        bool key_help_scroll_top()
+        {
             helpDialogScrollOffset = 0;
             drawConsole();
             return true;
         }
 
         // Add Groups
-        bool key_addgroup_add() {
+        bool key_addgroup_add()
+        {
             // Enter creates/selects bookmark group using input text only
-            if (!bookmarkDialogInput.empty()) {
+            if (!bookmarkDialogInput.empty())
+            {
                 // Check if this is a new group
                 bool groupExists = false;
-                for (const auto& group : bookmarkGroups) {
-                    if (group == bookmarkDialogInput) {
+                for (const auto& group : bookmarkGroups)
+                {
+                    if (group == bookmarkDialogInput)
+                    {
                         groupExists = true;
                         break;
                     }
                 }
                 
-                if (!groupExists) {
+                if (!groupExists)
+                {
                     // Create new group and add current clip
                     bookmarkGroups.push_back(bookmarkDialogInput);
                     saveBookmarkGroups();
                     
                     // Add current clip to bookmark
-                    if (!items.empty() && selectedItem < getDisplayItemCount()) {
+                    if (!items.empty() && selectedItem < getDisplayItemCount())
+                    {
                         size_t actualIndex = getActualItemIndex(selectedItem);
                         addClipToBookmarkGroup(bookmarkDialogInput, items[actualIndex].content);
                         std::cout << "Added clip to bookmark group: " << bookmarkDialogInput << "\n";
                     }
-                } else {
+                }
+                else
+                {
                     // Add current clip to existing group
-                    if (!items.empty() && selectedItem < getDisplayItemCount()) {
+                    if (!items.empty() && selectedItem < getDisplayItemCount())
+                    {
                         size_t actualIndex = getActualItemIndex(selectedItem);
                         addClipToBookmarkGroup(bookmarkDialogInput, items[actualIndex].content);
                         std::cout << "Added clip to bookmark group: " << bookmarkDialogInput << "\n";
@@ -1387,8 +1438,10 @@ public:
             return true;
         }
 
-        bool key_addgroup_back() {
-            if (!bookmarkDialogInput.empty()) {
+        bool key_addgroup_back()
+        {
+            if (!bookmarkDialogInput.empty())
+            {
                 bookmarkDialogInput.pop_back();
                 drawConsole();
             }
@@ -1396,13 +1449,17 @@ public:
         }
 
         // Bookmarks
-        bool key_marks_show() {
-            if (!viewBookmarksShowingGroups) {
+        bool key_marks_show()
+        {
+            if (!viewBookmarksShowingGroups)
+            {
                 // If viewing clips, go back to groups
                 viewBookmarksShowingGroups = true;
                 selectedViewBookmarkItem = 0;
                 viewBookmarksScrollOffset = 0; // Reset scroll when going back
-            } else {
+            }
+            else
+            {
                 // If viewing groups, close dialog
                 viewBookmarksDialogVisible = false;
             }
@@ -1411,8 +1468,10 @@ public:
             return true;
         }
 
-        bool key_marks_groups_down() {
-            if (selectedViewBookmarkGroup < bookmarkGroups.size() - 1) {
+        bool key_marks_groups_down()
+        {
+            if (selectedViewBookmarkGroup < bookmarkGroups.size() - 1)
+            {
                 selectedViewBookmarkGroup++;
                 updateScrollOffset();
                 drawConsole();
@@ -1420,8 +1479,10 @@ public:
             return true;
         }
 
-        bool key_marks_groups_up() {
-            if (selectedViewBookmarkGroup > 0) {
+        bool key_marks_groups_up()
+        {
+            if (selectedViewBookmarkGroup > 0)
+            {
                 selectedViewBookmarkGroup--;
                 updateScrollOffset();
                 drawConsole();
@@ -1429,22 +1490,26 @@ public:
             return true;
         }
 
-        bool key_marks_groups_top() {
+        bool key_marks_groups_top()
+        {
             selectedViewBookmarkGroup = 0;
             viewBookmarksScrollOffset = 0;
             drawConsole();
             return true;
         }
 
-        bool key_marks_groups_bottom() {
+        bool key_marks_groups_bottom()
+        {
             selectedViewBookmarkGroup = bookmarkGroups.size() - 1;
             updateScrollOffset();
             drawConsole();
             return true;
         }
 
-        bool key_marks_groups_delete() {
-            if (selectedViewBookmarkGroup < bookmarkGroups.size()) {
+        bool key_marks_groups_delete()
+        {
+            if (selectedViewBookmarkGroup < bookmarkGroups.size())
+            {
                 std::string groupToDelete = bookmarkGroups[selectedViewBookmarkGroup];
                 
                 // Remove group from list
@@ -1458,12 +1523,14 @@ public:
                 std::cout << "Deleted bookmark group and all clips: " << groupToDelete << "\n";
                 
                 // Adjust selection
-                if (selectedViewBookmarkGroup > 0 && selectedViewBookmarkGroup >= bookmarkGroups.size()) {
+                if (selectedViewBookmarkGroup > 0 && selectedViewBookmarkGroup >= bookmarkGroups.size())
+                {
                     selectedViewBookmarkGroup = bookmarkGroups.size() - 1;
                 }
                 
                 // Close dialog if no groups left
-                if (bookmarkGroups.empty()) {
+                if (bookmarkGroups.empty())
+                {
                     viewBookmarksDialogVisible = false;
                 }
                 
@@ -1472,24 +1539,32 @@ public:
             return true;
         }
 
-        bool key_marks_groups_clips() {
+        bool key_marks_groups_clips()
+        {
             std::vector<std::string> displayedGroups;
-            if (filterBookmarksMode) {
+            if (filterBookmarksMode)
+            {
                 std::string lowerFilterBookmarksText = stringToLower(filterBookmarksText);
-                for (const auto& group : bookmarkGroups) {
-                    if (stringToLower(group).find(lowerFilterBookmarksText) != std::string::npos) {
+                for (const auto& group : bookmarkGroups)
+                {
+                    if (stringToLower(group).find(lowerFilterBookmarksText) != std::string::npos)
+                    {
                         displayedGroups.push_back(group);
                     }
                 }
-            } else {
+            }
+            else
+            {
                 displayedGroups = bookmarkGroups;
             }
 
-            if (selectedViewBookmarkGroup < displayedGroups.size()) {
+            if (selectedViewBookmarkGroup < displayedGroups.size())
+            {
                 // Find the actual index in the original bookmarkGroups vector
                 std::string selectedGroupName = displayedGroups[selectedViewBookmarkGroup];
                 auto it = std::find(bookmarkGroups.begin(), bookmarkGroups.end(), selectedGroupName);
-                if (it != bookmarkGroups.end()) {
+                if (it != bookmarkGroups.end())
+                {
                     selectedViewBookmarkGroup = std::distance(bookmarkGroups.begin(), it);
                     
                     viewBookmarksShowingGroups = false;
@@ -1507,9 +1582,11 @@ public:
         }
 
 
-        bool key_marks_clips_down() {
+        bool key_marks_clips_down()
+        {
             size_t currentItemCount = filterBookmarkClipsMode ? filteredBookmarkClips.size() : getBookmarkItemCount();
-            if (selectedViewBookmarkItem < currentItemCount - 1) {
+            if (selectedViewBookmarkItem < currentItemCount - 1)
+            {
                 selectedViewBookmarkItem++;
                 updateScrollOffset();
                 drawConsole();
@@ -1517,8 +1594,10 @@ public:
             return true;
         }
 
-        bool key_marks_clips_up() {
-            if (selectedViewBookmarkItem > 0) {
+        bool key_marks_clips_up()
+        {
+            if (selectedViewBookmarkItem > 0)
+            {
                 selectedViewBookmarkItem--;
                 updateScrollOffset();
                 drawConsole();
@@ -1526,16 +1605,19 @@ public:
             return true;
         }
 
-        bool key_marks_clips_top() {
+        bool key_marks_clips_top()
+        {
             selectedViewBookmarkItem = 0;
             viewBookmarksScrollOffset = 0;
             drawConsole();
             return true;
         }
 
-        bool key_marks_clips_bottom() {
+        bool key_marks_clips_bottom()
+        {
             size_t currentItemCount = filterBookmarkClipsMode ? filteredBookmarkClips.size() : getBookmarkItemCount();
-            if (currentItemCount > 0) {
+            if (currentItemCount > 0)
+            {
                 selectedViewBookmarkItem = currentItemCount - 1;
                 updateScrollOffset();
                 drawConsole();
@@ -1543,26 +1625,34 @@ public:
             return true;
         }
 
-        bool key_marks_clips_delete() {
-            if (selectedViewBookmarkGroup < bookmarkGroups.size()) {
+        bool key_marks_clips_delete()
+        {
+            if (selectedViewBookmarkGroup < bookmarkGroups.size())
+            {
                 std::string selectedGroup = bookmarkGroups[selectedViewBookmarkGroup];
                 std::string bookmarkFile = config.bookmarksDir + "/bookmarks_" + selectedGroup + ".txt";
                 std::ifstream file(bookmarkFile);
                 
-                if (file.is_open()) {
+                if (file.is_open())
+                {
                     std::string line;
                     std::vector<std::string> lines;
                     std::vector<std::string> actualBookmarkItems; // To hold decrypted items
 
                     // Read all lines and decrypt for comparison/deletion
-                    while (std::getline(file, line)) {
+                    while (std::getline(file, line))
+                    {
                         lines.push_back(line); // Store original line with timestamp
                         size_t pos = line.find('|');
-                        if (pos != std::string::npos && pos > 0) {
+                        if (pos != std::string::npos && pos > 0)
+                        {
                             std::string content = line.substr(pos + 1);
-                            try {
+                            try
+                            {
                                 actualBookmarkItems.push_back(decrypt(content, config));
-                            } catch (...) {
+                            }
+                            catch (...)
+                            {
                                 actualBookmarkItems.push_back(content);
                             }
                         }
@@ -1572,31 +1662,41 @@ public:
                     std::string itemToDeleteContent;
                     size_t actualIndexToDelete = -1;
 
-                    if (filterBookmarkClipsMode) {
-                        if (selectedViewBookmarkItem < filteredBookmarkClips.size()) {
+                    if (filterBookmarkClipsMode)
+                    {
+                        if (selectedViewBookmarkItem < filteredBookmarkClips.size())
+                        {
                             itemToDeleteContent = filteredBookmarkClips[selectedViewBookmarkItem];
                             // Find the index of this item in the original actualBookmarkItems
-                            for (size_t i = 0; i < actualBookmarkItems.size(); ++i) {
-                                if (actualBookmarkItems[i] == itemToDeleteContent) {
+                            for (size_t i = 0; i < actualBookmarkItems.size(); ++i)
+                            {
+                                if (actualBookmarkItems[i] == itemToDeleteContent)
+                                {
                                     actualIndexToDelete = i;
                                     break;
                                 }
                             }
                         }
-                    } else {
-                        if (selectedViewBookmarkItem < actualBookmarkItems.size()) {
+                    }
+                    else
+                    {
+                        if (selectedViewBookmarkItem < actualBookmarkItems.size())
+                        {
                             actualIndexToDelete = selectedViewBookmarkItem;
                         }
                     }
                     
                     // Remove the selected item if valid
-                    if (actualIndexToDelete != (size_t)-1 && actualIndexToDelete < lines.size()) {
+                    if (actualIndexToDelete != (size_t)-1 && actualIndexToDelete < lines.size())
+                    {
                         lines.erase(lines.begin() + actualIndexToDelete);
                         
                         // Write back remaining lines
                         std::ofstream outFile(bookmarkFile);
-                        if (outFile.is_open()) {
-                            for (const auto& l : lines) {
+                        if (outFile.is_open())
+                        {
+                            for (const auto& l : lines)
+                            {
                                 outFile << l << "\n";
                             }
                             outFile.close();
@@ -1604,16 +1704,19 @@ public:
                             std::cout << "Deleted bookmark item from group: " << selectedGroup << "\n";
                             
                             // Update filter if active
-                            if (filterBookmarkClipsMode) {
+                            if (filterBookmarkClipsMode)
+                            {
                                 updateFilteredBookmarkClips();
                             }
 
                             // Adjust selection
                             size_t currentItemCount = filterBookmarkClipsMode ? filteredBookmarkClips.size() : getBookmarkItemCount();
-                            if (selectedViewBookmarkItem > 0 && selectedViewBookmarkItem >= currentItemCount) {
+                            if (selectedViewBookmarkItem > 0 && selectedViewBookmarkItem >= currentItemCount)
+                            {
                                 selectedViewBookmarkItem = currentItemCount - 1;
                             }
-                            if (currentItemCount == 0) {
+                            if (currentItemCount == 0)
+                            {
                                 selectedViewBookmarkItem = 0; // Reset if list becomes empty
                             }
                             
@@ -1625,14 +1728,20 @@ public:
             return true;
         }
 
-        bool key_marks_clips_copy() {
-            if (filterBookmarkClipsMode) {
-                if (selectedViewBookmarkItem < filteredBookmarkClips.size()) {
+        bool key_marks_clips_copy()
+        {
+            if (filterBookmarkClipsMode)
+            {
+                if (selectedViewBookmarkItem < filteredBookmarkClips.size())
+                {
                     copyToClipboard(filteredBookmarkClips[selectedViewBookmarkItem]);
                     int lines = countLines(filteredBookmarkClips[selectedViewBookmarkItem]);
-                    if (lines > 1) {
+                    if (lines > 1)
+                    {
                         std::cout << "Copied " << lines << " lines from bookmark" << "\n";
-                    } else {
+                    }
+                    else
+                    {
                         std::cout << "Copied from bookmark: " << filteredBookmarkClips[selectedViewBookmarkItem].substr(0, 50) << "..." << "\n";
                     }
                     viewBookmarksDialogVisible = false;
@@ -1642,36 +1751,49 @@ public:
                 filterBookmarkClipsMode = false;
                 filterBookmarkClipsText.clear();
                 return true;
-            } else {
-                if (selectedViewBookmarkGroup < bookmarkGroups.size()) {
+            }
+            else
+            {
+                if (selectedViewBookmarkGroup < bookmarkGroups.size())
+                {
                     std::string selectedGroup = bookmarkGroups[selectedViewBookmarkGroup];
                     std::string bookmarkFile = config.bookmarksDir + "/bookmarks_" + selectedGroup + ".txt";
                     std::ifstream file(bookmarkFile);
                     
-                    if (file.is_open()) {
+                    if (file.is_open())
+                    {
                         std::string line;
                         std::vector<std::string> bookmarkItems;
                         
-                        while (std::getline(file, line)) {
+                        while (std::getline(file, line))
+                        {
                             size_t pos = line.find('|');
-                            if (pos != std::string::npos && pos > 0) {
+                            if (pos != std::string::npos && pos > 0)
+                            {
                                 std::string content = line.substr(pos + 1);
-                                try {
+                                try
+                                {
                                     std::string decryptedContent = decrypt(content, config);
                                     bookmarkItems.push_back(decryptedContent);
-                                } catch (...) {
+                                }
+                                catch (...)
+                                {
                                     bookmarkItems.push_back(content);
                                 }
                             }
                         }
                         file.close();
                         
-                        if (selectedViewBookmarkItem < bookmarkItems.size()) {
+                        if (selectedViewBookmarkItem < bookmarkItems.size())
+                        {
                             copyToClipboard(bookmarkItems[selectedViewBookmarkItem]);
                             int lines = countLines(bookmarkItems[selectedViewBookmarkItem]);
-                            if (lines > 1) {
+                            if (lines > 1)
+                            {
                                 std::cout << "Copied " << lines << " lines from bookmark" << "\n";
-                            } else {
+                            }
+                            else
+                            {
                                 std::cout << "Copied from bookmark: " << bookmarkItems[selectedViewBookmarkItem].substr(0, 50) << "..." << "\n";
                             }
                             viewBookmarksDialogVisible = false;
@@ -1683,16 +1805,19 @@ public:
             }
         }
 
-        bool key_marks_clips_groups() {
+        bool key_marks_clips_groups()
+        {
             viewBookmarksShowingGroups = true;
             drawConsole();
             return true;
         }
 
         // Pinned Clips
-        bool key_pin_down() {
+        bool key_pin_down()
+        {
             auto sortedItems = getSortedPinnedItems(config.pinnedFile);
-            if (selectedViewPinnedItem < sortedItems.size() - 1) {
+            if (selectedViewPinnedItem < sortedItems.size() - 1)
+            {
                 selectedViewPinnedItem++;
                 updatePinnedScrollOffset();
                 drawConsole();
@@ -1700,8 +1825,10 @@ public:
             return true;
         }
 
-        bool key_pin_up() {
-            if (selectedViewPinnedItem > 0) {
+        bool key_pin_up()
+        {
+            if (selectedViewPinnedItem > 0)
+            {
                 selectedViewPinnedItem--;
                 updatePinnedScrollOffset();
                 drawConsole();
@@ -1709,16 +1836,19 @@ public:
             return true;
         }
 
-        bool key_pin_top() {
+        bool key_pin_top()
+        {
             selectedViewPinnedItem = 0;
             viewPinnedScrollOffset = 0;
             drawConsole();
             return true;
         }
 
-        bool key_pin_bottom() {
+        bool key_pin_bottom()
+        {
             auto sortedItems = getSortedPinnedItems(config.pinnedFile);
-            if (!sortedItems.empty()) {
+            if (!sortedItems.empty())
+            {
                 selectedViewPinnedItem = sortedItems.size() - 1;
                 updatePinnedScrollOffset();
                 drawConsole();
@@ -1726,17 +1856,21 @@ public:
             return true;
         }
 
-        bool key_pin_delete() {
+        bool key_pin_delete()
+        {
             auto sortedItems = getSortedPinnedItems(config.pinnedFile);
             
             // Remove the selected item if valid
-            if (selectedViewPinnedItem < sortedItems.size()) {
+            if (selectedViewPinnedItem < sortedItems.size())
+            {
                 sortedItems.erase(sortedItems.begin() + selectedViewPinnedItem);
 
                 // Write back remaining lines
                 std::ofstream outFile(config.pinnedFile);
-                if (outFile.is_open()) {
-                    for (const auto& item : sortedItems) {
+                if (outFile.is_open())
+                {
+                    for (const auto& item : sortedItems)
+                    {
                         outFile << item << "\n";
                     }
                     outFile.close();
@@ -1744,12 +1878,14 @@ public:
                     std::cout << "Deleted pinned clip\n";
                     
                     // Adjust selection
-                    if (selectedViewPinnedItem > 0 && selectedViewPinnedItem >= sortedItems.size()) {
+                    if (selectedViewPinnedItem > 0 && selectedViewPinnedItem >= sortedItems.size())
+                    {
                         selectedViewPinnedItem = sortedItems.size() - 1;
                     }
                     
                     // Close dialog if no pinned clips left
-                    if (sortedItems.empty()) {
+                    if (sortedItems.empty())
+                    {
                         pinnedDialogVisible = false;
                     }
                     
@@ -1759,27 +1895,36 @@ public:
             return true;
         }
 
-        bool key_pin_copy() {
+        bool key_pin_copy()
+        {
             auto sortedItems = getSortedPinnedItems(config.pinnedFile);
 
-            if (selectedViewPinnedItem < sortedItems.size()) {
+            if (selectedViewPinnedItem < sortedItems.size())
+            {
                 std::string selectedLine = sortedItems[selectedViewPinnedItem];
                 size_t pos = selectedLine.find('|');
-                if (pos != std::string::npos) {
+                if (pos != std::string::npos)
+                {
                     std::string contentToCopy;
                     std::string contentToSave = selectedLine.substr(pos + 1);
-                    try {
+                    try
+                    {
                         contentToCopy = decrypt(contentToSave, config);
-                    } catch (...) {
+                    }
+                    catch (...)
+                    {
                         contentToCopy = contentToSave;
                     }
 
                     copyToClipboard(contentToCopy);
 
                     int lineCount = countLines(contentToCopy);
-                    if (lineCount > 1) {
+                    if (lineCount > 1)
+                    {
                         std::cout << "Copied " << lineCount << " lines from pinned clips\n";
-                    } else {
+                    }
+                    else
+                    {
                         std::cout << "Copied from pinned clips: " << contentToCopy.substr(0, 50) << "...\n";
                     }
 
@@ -1793,7 +1938,8 @@ public:
                     
                     // Write the updated lines back to the file
                     std::ofstream outFile(config.pinnedFile);
-                    for (const auto& l : sortedItems) {
+                    for (const auto& l : sortedItems)
+                    {
                         outFile << l << std::endl;
                     }
                     outFile.close();
@@ -1806,23 +1952,31 @@ public:
         }
 
         // Add Bookmarks
-        bool key_addmarks_add() {
+        bool key_addmarks_add()
+        {
             std::vector<std::string> displayedGroups;
-            if (filterAddBookmarksMode) {
-                for (const auto& group : bookmarkGroups) {
-                    if (group.find(filterAddBookmarksText) != std::string::npos) {
+            if (filterAddBookmarksMode)
+            {
+                for (const auto& group : bookmarkGroups)
+                {
+                    if (group.find(filterAddBookmarksText) != std::string::npos)
+                    {
                         displayedGroups.push_back(group);
                     }
                 }
-            } else {
+            }
+            else
+            {
                 displayedGroups = bookmarkGroups;
             }
 
-            if (!displayedGroups.empty() && selectedAddBookmarkGroup < displayedGroups.size()) {
+            if (!displayedGroups.empty() && selectedAddBookmarkGroup < displayedGroups.size())
+            {
                 std::string selectedGroup = displayedGroups[selectedAddBookmarkGroup];
                 
                 // Check if current clip is already in this group
-                if (!items.empty() && selectedItem < getDisplayItemCount()) {
+                if (!items.empty() && selectedItem < getDisplayItemCount())
+                {
                     size_t actualIndex = getActualItemIndex(selectedItem);
                     std::string clipContent = items[actualIndex].content;
                     
@@ -1832,19 +1986,24 @@ public:
                     std::string line;
                     bool alreadyExists = false;
                     
-                    while (std::getline(file, line)) {
+                    while (std::getline(file, line))
+                    {
                         std::string decrypted = decrypt(line, config);
-                        if (decrypted == clipContent) {
+                        if (decrypted == clipContent)
+                        {
                             alreadyExists = true;
                             break;
                         }
                     }
                     file.close();
                     
-                    if (!alreadyExists) {
+                    if (!alreadyExists)
+                    {
                         addClipToBookmarkGroup(selectedGroup, clipContent);
                         std::cout << "Added clip to bookmark group: " << selectedGroup << "\n";
-                    } else {
+                    }
+                    else
+                    {
                         std::cout << "Clip already exists in bookmark group: " << selectedGroup << "\n";
                     }
                 }
@@ -1857,8 +2016,10 @@ public:
             return true;
         }
 
-        bool key_addmarks_down() {
-            if (!bookmarkGroups.empty() && selectedAddBookmarkGroup < bookmarkGroups.size() - 1) {
+        bool key_addmarks_down()
+        {
+            if (!bookmarkGroups.empty() && selectedAddBookmarkGroup < bookmarkGroups.size() - 1)
+            {
                 selectedAddBookmarkGroup++;
                 updateAddBookmarkScrollOffset();
                 drawConsole();
@@ -1866,8 +2027,10 @@ public:
             return true;
         }
 
-        bool key_addmarks_up() {
-            if (selectedAddBookmarkGroup > 0) {
+        bool key_addmarks_up()
+        {
+            if (selectedAddBookmarkGroup > 0)
+            {
                 selectedAddBookmarkGroup--;
                 updateAddBookmarkScrollOffset();
                 drawConsole();
@@ -1875,15 +2038,18 @@ public:
             return true;
         }
 
-        bool key_addmarks_top() {
+        bool key_addmarks_top()
+        {
             selectedAddBookmarkGroup = 0;
             addBookmarkScrollOffset = 0;
             drawConsole();
             return true;
         }
 
-        bool key_addmarks_bottom() {
-            if (!bookmarkGroups.empty()) {
+        bool key_addmarks_bottom()
+        {
+            if (!bookmarkGroups.empty())
+            {
                 selectedAddBookmarkGroup = bookmarkGroups.size() - 1;
                 updateAddBookmarkScrollOffset();
                 drawConsole();
@@ -1892,8 +2058,10 @@ public:
         }
 
         // Filter Mode
-        bool key_filter_delete() {
-            if (!items.empty() && selectedItem < getDisplayItemCount()) {
+        bool key_filter_delete()
+        {
+            if (!items.empty() && selectedItem < getDisplayItemCount())
+            {
                 size_t actualIndex = getActualItemIndex(selectedItem);
                 items.erase(items.begin() + actualIndex);
                 
@@ -1901,7 +2069,8 @@ public:
                 updateFilteredItems();
                 
                 // Adjust selection if needed
-                if (selectedItem >= getDisplayItemCount() && selectedItem > 0) {
+                if (selectedItem >= getDisplayItemCount() && selectedItem > 0)
+                {
                     selectedItem--;
                 }
                 
@@ -1912,14 +2081,19 @@ public:
             return true;
         }
 
-        bool key_filter_copy() {
-            if (!items.empty() && selectedItem < getDisplayItemCount()) {
+        bool key_filter_copy()
+        {
+            if (!items.empty() && selectedItem < getDisplayItemCount())
+            {
                 size_t actualIndex = getActualItemIndex(selectedItem);
                 copyToClipboard(items[actualIndex].content);
                 int lines = countLines(items[actualIndex].content);
-                if (lines > 1) {
+                if (lines > 1)
+                {
                     std::cout << "Copied " << lines << " lines to clipboard" << "\n";
-                } else {
+                }
+                else
+                {
                     std::cout << "Copied to clipboard: " << items[actualIndex].content.substr(0, 50) << "...\n";
                 }
                 filterMode = false;
@@ -1930,9 +2104,11 @@ public:
             return true;
         }
 
-        bool key_filter_down() {
+        bool key_filter_down()
+        {
             size_t displayCount = getDisplayItemCount();
-            if (selectedItem < displayCount - 1) {
+            if (selectedItem < displayCount - 1)
+            {
                 selectedItem++;
                 updateConsoleScrollOffset();
                 drawConsole();
@@ -1940,8 +2116,10 @@ public:
             return true;
         }
 
-        bool key_filter_up() {
-            if (selectedItem > 0) {
+        bool key_filter_up()
+        {
+            if (selectedItem > 0)
+            {
                 selectedItem--;
                 updateConsoleScrollOffset();
                 drawConsole();
@@ -1950,8 +2128,10 @@ public:
         }
 
         // Command
-        bool key_command_execute() {
-            if (!commandText.empty()) {
+        bool key_command_execute()
+        {
+            if (!commandText.empty())
+            {
                 executeCommand(commandText);
             }
             commandMode = false;
@@ -1960,9 +2140,11 @@ public:
             return true;
         }
 
-        bool key_command_down() {
+        bool key_command_down()
+        {
             size_t displayCount = getDisplayItemCount();
-            if (selectedItem < displayCount - 1) {
+            if (selectedItem < displayCount - 1)
+            {
                 selectedItem++;
                 updateConsoleScrollOffset();
                 drawConsole();
@@ -1970,8 +2152,10 @@ public:
             return true;
         }
 
-        bool key_command_up() {
-            if (selectedItem > 0) {
+        bool key_command_up()
+        {
+            if (selectedItem > 0)
+            {
                 selectedItem--;
                 updateConsoleScrollOffset();
                 drawConsole();
@@ -1979,14 +2163,17 @@ public:
             return true;
         }
 
-        bool key_command_detect() {
-            if (commandText == "theme") {
+        bool key_command_detect()
+        {
+            if (commandText == "theme")
+            {
                 // Enter theme selection mode
                 commandMode = false;
                 cmd_themeSelectMode = true;
                 availableThemes = config.discoverThemes();
                 // Store original theme and apply first theme for preview
-                if (!availableThemes.empty()) {
+                if (!availableThemes.empty())
+                {
                     config.originalTheme = config.theme;
                     selectedTheme = 0;
                     config.switchTheme(availableThemes[0]);
@@ -1994,7 +2181,8 @@ public:
                 drawConsole();
                 return true;
             }
-            if (commandText == "config") {
+            if (commandText == "config")
+            {
                 // Enter config selection mode
                 commandMode = false;
                 cmd_configSelectMode = true;
@@ -2011,8 +2199,10 @@ public:
         }
 
         // Theme Command
-        bool key_theme_cancel() {
-            if (!config.originalTheme.empty()) {
+        bool key_theme_cancel()
+        {
+            if (!config.originalTheme.empty())
+            {
                 config.switchTheme(config.originalTheme);
             }
             cmd_themeSelectMode = false;
@@ -2023,8 +2213,10 @@ public:
             return true;
         }
 
-        bool key_theme_apply() {
-            if (selectedTheme < availableThemes.size()) {
+        bool key_theme_apply()
+        {
+            if (selectedTheme < availableThemes.size())
+            {
                 config.switchTheme(availableThemes[selectedTheme]);
                 // Save to config
                 config.saveConfig();
@@ -2037,12 +2229,15 @@ public:
             return true;
         }
 
-        bool key_theme_down() {
-            if (selectedTheme < availableThemes.size() - 1) {
+        bool key_theme_down()
+        {
+            if (selectedTheme < availableThemes.size() - 1)
+            {
                 selectedTheme++;
                 updateThemeSelectScrollOffset();
                 // Apply live preview
-                if (selectedTheme < availableThemes.size()) {
+                if (selectedTheme < availableThemes.size())
+                {
                     config.switchTheme(availableThemes[selectedTheme]);
                 }
                 drawConsole();
@@ -2050,12 +2245,15 @@ public:
             return true;
         }
 
-        bool key_theme_up() {
-            if (selectedTheme > 0) {
+        bool key_theme_up()
+        {
+            if (selectedTheme > 0)
+            {
                 selectedTheme--;
                 updateThemeSelectScrollOffset();
                 // Apply live preview
-                if (selectedTheme < availableThemes.size()) {
+                if (selectedTheme < availableThemes.size())
+                {
                     config.switchTheme(availableThemes[selectedTheme]);
                 }
                 drawConsole();
@@ -2063,7 +2261,8 @@ public:
             return true;
         }
 
-        bool key_theme_top() {
+        bool key_theme_top()
+        {
             selectedTheme = 0;
             themeSelectScrollOffset = 0;
             drawConsole();
@@ -2071,8 +2270,10 @@ public:
             return true;
         }
 
-        bool key_theme_bottom() {
-            if (!availableThemes.empty()) {
+        bool key_theme_bottom()
+        {
+            if (!availableThemes.empty())
+            {
                 selectedTheme = availableThemes.size() - 1;
                 updateThemeSelectScrollOffset();
                 drawConsole();
@@ -2081,7 +2282,8 @@ public:
         }
 
         // Config Command
-        bool key_config_cancel() {
+        bool key_config_cancel()
+        {
             cmd_configSelectMode = false;
             commandMode = true;
             commandText = "";
@@ -2091,8 +2293,10 @@ public:
             return true;
         }
 
-        bool key_config_select() {
-            if (selectedConfig < availableConfigs.size()) {
+        bool key_config_select()
+        {
+            if (selectedConfig < availableConfigs.size())
+            {
                 std::string configKey = availableConfigs[selectedConfig];
                 std::string currentValue = config.getConfigValue(configKey);
                 cmd_configSelectMode = false;
@@ -2104,8 +2308,10 @@ public:
             return true;
         }
 
-        bool key_config_down() {
-            if (selectedConfig < availableConfigs.size() - 1) {
+        bool key_config_down()
+        {
+            if (selectedConfig < availableConfigs.size() - 1)
+            {
                 selectedConfig++;
                 updateConfigSelectScrollOffset();
                 drawConsole();
@@ -2113,8 +2319,10 @@ public:
             return true;
         }
 
-        bool key_config_up() {
-            if (selectedConfig > 0) {
+        bool key_config_up()
+        {
+            if (selectedConfig > 0)
+            {
                 selectedConfig--;
                 updateConfigSelectScrollOffset();
                 drawConsole();
@@ -2122,15 +2330,18 @@ public:
             return true;
         }
 
-        bool key_config_top() {
+        bool key_config_top()
+        {
             selectedConfig = 0;
             configSelectScrollOffset = 0;
             drawConsole();
             return true;
         }
 
-        bool key_config_bottom() {
-            if (!availableConfigs.empty()) {
+        bool key_config_bottom()
+        {
+            if (!availableConfigs.empty())
+            {
                 selectedConfig = availableConfigs.size() - 1;
                 updateConfigSelectScrollOffset();
                 drawConsole();
@@ -2139,9 +2350,11 @@ public:
         }
 
         // Main Clips List
-        bool key_main_down() {
+        bool key_main_down()
+        {
             size_t displayCount = getDisplayItemCount();
-            if (selectedItem < displayCount - 1) {
+            if (selectedItem < displayCount - 1)
+            {
                 selectedItem++;
                 updateConsoleScrollOffset();
                 drawConsole();
@@ -2149,8 +2362,10 @@ public:
             return true;
         }
 
-        bool key_main_up() {
-            if (selectedItem > 0) {
+        bool key_main_up()
+        {
+            if (selectedItem > 0)
+            {
                 selectedItem--;
                 updateConsoleScrollOffset();
                 drawConsole();
@@ -2158,7 +2373,8 @@ public:
             return true;
         }
 
-        bool key_main_top() {
+        bool key_main_top()
+        {
             selectedItem = 0;
             updateConsoleScrollOffset();
             drawConsole();
@@ -2166,9 +2382,11 @@ public:
             return true;
         }
 
-        bool key_main_bottom() {
+        bool key_main_bottom()
+        {
             size_t displayCount = getDisplayItemCount();
-            if (displayCount > 0) {
+            if (displayCount > 0)
+            {
                 selectedItem = displayCount - 1;
                 updateConsoleScrollOffset();
                 drawConsole();
@@ -2176,19 +2394,23 @@ public:
             return true;
         }
 
-        bool key_main_delete() {
-            if (!items.empty() && selectedItem < getDisplayItemCount()) {
+        bool key_main_delete()
+        {
+            if (!items.empty() && selectedItem < getDisplayItemCount())
+            {
                 size_t actualIndex = getActualItemIndex(selectedItem);
                 items.erase(items.begin() + actualIndex);
                 
                 // Adjust selection
                 size_t displayCount = getDisplayItemCount();
-                if (selectedItem >= displayCount && selectedItem > 0) {
+                if (selectedItem >= displayCount && selectedItem > 0)
+                {
                     selectedItem--;
                 }
                 
                 // Update filtered items if in filter mode
-                if (filterMode) {
+                if (filterMode)
+                {
                     updateFilteredItems();
                 }
                 
@@ -2198,7 +2420,8 @@ public:
             return true;
         }
 
-        bool key_main_filter_start() {
+        bool key_main_filter_start()
+        {
             filterMode = true;
             filterText = "";
             updateFilteredItems();
@@ -2208,7 +2431,8 @@ public:
             return true;
         }
 
-        bool key_main_command_start() {
+        bool key_main_command_start()
+        {
             commandMode = true;
             commandText = "";
             selectedItem = 0;
@@ -2217,15 +2441,18 @@ public:
             return true;
         }
 
-        bool key_main_copy() {
-            if (!items.empty() && selectedItem < getDisplayItemCount()) {
+        bool key_main_copy()
+        {
+            if (!items.empty() && selectedItem < getDisplayItemCount())
+            {
                 size_t actualIndex = getActualItemIndex(selectedItem);
                 std::string clipContent = items[actualIndex].content;
 
                 copyToClipboard(clipContent);
 
                 // Update timestamp and move to top if not already at top
-                if (actualIndex != 0) {
+                if (actualIndex != 0)
+                {
                     // Remove from current position
                     items.erase(items.begin() + actualIndex);
 
@@ -2236,7 +2463,8 @@ public:
                     selectedItem = 0;
 
                     // Update filtered items if in filter mode
-                    if (filterMode) {
+                    if (filterMode)
+                    {
                         updateFilteredItems();
                     }
 
@@ -2248,9 +2476,12 @@ public:
 
                 int lines = countLines(clipContent);
 
-                if (lines > 1) {
+                if (lines > 1)
+                {
                     std::cout << "Copied " << lines << " lines to clipboard\n";
-                } else {
+                }
+                else
+                {
                     std::cout << "Copied to clipboard: " << clipContent.substr(0, 50) << "...\n";
                 }
                 hideWindow();
@@ -2258,7 +2489,8 @@ public:
             return true;
         }
 
-        bool key_main_addgroup_start() {
+        bool key_main_addgroup_start()
+        {
             bookmarkDialogVisible = true;
             bookmarkDialogInput = "";
             selectedBookmarkGroup = 0;
@@ -2268,8 +2500,10 @@ public:
             return true;
         }
 
-        bool key_main_addclip_start() {
-            if (!bookmarkGroups.empty()) {
+        bool key_main_addclip_start()
+        {
+            if (!bookmarkGroups.empty())
+            {
                 addToBookmarkDialogVisible = true;
                 selectedAddBookmarkGroup = 0;
                 addBookmarkScrollOffset = 0; // Reset scroll when opening
@@ -2278,7 +2512,8 @@ public:
             return true;
         }
 
-        bool key_main_help_start() {
+        bool key_main_help_start()
+        {
             helpDialogVisible = true;
             helpDialogScrollOffset = 0;
             helpFilterMode = true;
@@ -2288,8 +2523,10 @@ public:
             return true;
         }
 
-        bool key_main_accessmarks_start() {
-            if (!bookmarkGroups.empty()) {
+        bool key_main_accessmarks_start()
+        {
+            if (!bookmarkGroups.empty())
+            {
                 viewBookmarksDialogVisible = true;
                 viewBookmarksShowingGroups = true; // Start with group selection
                 selectedViewBookmarkGroup = 0;
@@ -2300,8 +2537,10 @@ public:
             return true;
         }
 
-        bool key_main_pin_clip() {
-            if (!items.empty() && selectedItem < getDisplayItemCount()) {
+        bool key_main_pin_clip()
+        {
+            if (!items.empty() && selectedItem < getDisplayItemCount())
+            {
                 size_t actualIndex = getActualItemIndex(selectedItem);
                 std::string clipContent = items[actualIndex].content;
                 
@@ -2310,26 +2549,32 @@ public:
                 std::string line;
                 bool alreadyExists = false;
                 
-                while (std::getline(file, line)) {
+                while (std::getline(file, line))
+                {
                     std::string decrypted = decrypt(line, config);
-                    if (decrypted == clipContent) {
+                    if (decrypted == clipContent)
+                    {
                         alreadyExists = true;
                         break;
                     }
                 }
                 file.close();
                 
-                if (!alreadyExists) {
+                if (!alreadyExists)
+                {
                     addClipToPinned(clipContent);
                     std::cout << "Added clip to pinned\n";
-                } else {
+                }
+                else
+                {
                     std::cout << "Clip is already pinned\n";
                 }
             }
             return true;
         }
 
-        bool key_main_pins_start() {
+        bool key_main_pins_start()
+        {
             pinnedDialogVisible = true;
             selectedViewPinnedItem = 0;
             viewPinnedScrollOffset = 0; // Reset scroll when opening
@@ -2338,8 +2583,10 @@ public:
             return true;
         }
 
-        bool key_main_edit_start() {
-            if (!items.empty() && selectedItem < getDisplayItemCount()) {
+        bool key_main_edit_start()
+        {
+            if (!items.empty() && selectedItem < getDisplayItemCount())
+            {
                 size_t actualIndex = getActualItemIndex(selectedItem);
                 editDialogInput = items[actualIndex].content;
                 editDialogVisible = true;
@@ -2349,11 +2596,15 @@ public:
                 editDialogCursorLine = 0;
                 editDialogCursorPos = 0;
                 std::string lastLine;
-                for (char c : editDialogInput) {
-                    if (c == '\n') {
+                for (char c : editDialogInput)
+                {
+                    if (c == '\n')
+                    {
                         editDialogCursorLine++;
                         lastLine.clear();
-                    } else {
+                    }
+                    else
+                    {
                         lastLine += c;
                     }
                 }
@@ -2365,37 +2616,46 @@ public:
             return true;
         }
 
-        bool key_edit_cursor_left() {
-            if (editDialogCursorPos > 0) {
+        bool key_edit_cursor_left()
+        {
+            if (editDialogCursorPos > 0)
+            {
                 editDialogCursorPos--;
                 drawConsole();
             }
             return true;
         }
 
-        bool key_edit_cursor_right() {
+        bool key_edit_cursor_right()
+        {
             std::string currentLine = "";
             std::istringstream iss(editDialogInput);
-            for (size_t i = 0; i <= editDialogCursorLine; ++i) {
+            for (size_t i = 0; i <= editDialogCursorLine; ++i)
+            {
                 std::getline(iss, currentLine);
             }
 
-            if (editDialogCursorPos < currentLine.length()) {
+            if (editDialogCursorPos < currentLine.length())
+            {
                 editDialogCursorPos++;
                 drawConsole();
             }
             return true;
         }
 
-        bool key_edit_cursor_up() {
-            if (editDialogCursorLine > 0) {
+        bool key_edit_cursor_up()
+        {
+            if (editDialogCursorLine > 0)
+            {
                 editDialogCursorLine--;
                 std::string currentLine = "";
                 std::istringstream iss(editDialogInput);
-                for (size_t i = 0; i <= editDialogCursorLine; ++i) {
+                for (size_t i = 0; i <= editDialogCursorLine; ++i)
+                {
                     std::getline(iss, currentLine);
                 }
-                if (editDialogCursorPos > currentLine.length()) {
+                if (editDialogCursorPos > currentLine.length())
+                {
                     editDialogCursorPos = currentLine.length();
                 }
                 updateEditDialogScrollOffset();
@@ -2404,19 +2664,24 @@ public:
             return true;
         }
 
-        bool key_edit_cursor_down() {
+        bool key_edit_cursor_down()
+        {
             size_t totalLines = 1;
-            for (char c : editDialogInput) {
+            for (char c : editDialogInput)
+            {
                 if (c == '\n') totalLines++;
             }
-            if (editDialogCursorLine < totalLines - 1) {
+            if (editDialogCursorLine < totalLines - 1)
+            {
                 editDialogCursorLine++;
                 std::string currentLine = "";
                 std::istringstream iss(editDialogInput);
-                for (size_t i = 0; i <= editDialogCursorLine; ++i) {
+                for (size_t i = 0; i <= editDialogCursorLine; ++i)
+                {
                     std::getline(iss, currentLine);
                 }
-                if (editDialogCursorPos > currentLine.length()) {
+                if (editDialogCursorPos > currentLine.length())
+                {
                     editDialogCursorPos = currentLine.length();
                 }
                 updateEditDialogScrollOffset();
@@ -2425,17 +2690,20 @@ public:
             return true;
         }
 
-        bool key_edit_home() {
+        bool key_edit_home()
+        {
             editDialogCursorPos = 0;
             updateEditDialogScrollOffset();
             drawConsole();
             return true;
         }
 
-        bool key_edit_end() {
+        bool key_edit_end()
+        {
             std::string currentLine = "";
             std::istringstream iss(editDialogInput);
-            for (size_t i = 0; i <= editDialogCursorLine; ++i) {
+            for (size_t i = 0; i <= editDialogCursorLine; ++i)
+            {
                 std::getline(iss, currentLine);
             }
             editDialogCursorPos = currentLine.length();
@@ -2455,14 +2723,17 @@ public:
 
 
     // Dynamic window and layout management functions
-    void updateWindowDimensions(int newWidth, int newHeight) {
+    void updateWindowDimensions(int newWidth, int newHeight)
+    {
 
 #ifdef __linux__
         // Enforce minimum window size constraints
-        if (newWidth < MIN_WINDOW_WIDTH) {
+        if (newWidth < MIN_WINDOW_WIDTH)
+        {
             newWidth = MIN_WINDOW_WIDTH;
         }
-        if (newHeight < MIN_WINDOW_HEIGHT) {
+        if (newHeight < MIN_WINDOW_HEIGHT)
+        {
             newHeight = MIN_WINDOW_HEIGHT;
         }
 #endif
@@ -2475,12 +2746,14 @@ public:
         updateConsoleScrollOffset();
     }
     
-    void updateClipListWidth() {
+    void updateClipListWidth()
+    {
         // Calculate clip list width with margins (10px on each side)
         clipListWidth = windowWidth - 20;
         
         // Ensure minimum width for usability
-        if (clipListWidth < 200) {
+        if (clipListWidth < 200)
+        {
             clipListWidth = 200;
         }
     }
@@ -2489,21 +2762,24 @@ public:
 
 
 
-    void run() {
+    void run()
+    {
         running = true;
         visible = false;
         
         // Initialize X11
 #ifdef __linux__
         display = XOpenDisplay(nullptr);
-        if (!display) {
+        if (!display)
+        {
             std::cerr << "Cannot open display" << std::endl;
             return;
         }
         screen = DefaultScreen(display);
         root = RootWindow(display, screen);
 
-        if (!XFixesQueryExtension(display, &xfixes_event_base, &xfixes_error_base)) {
+        if (!XFixesQueryExtension(display, &xfixes_event_base, &xfixes_error_base))
+        {
             std::cerr << "XFixes extension not available" << std::endl;
             // Fallback to polling or exit? For now, we exit.
             XCloseDisplay(display);
@@ -2526,7 +2802,8 @@ public:
         config.loadConfig();
         config.loadTheme();
 #ifdef __linux__
-        if (gc) {
+        if (gc)
+        {
             XSetForeground(display, gc, config.textColor);
         }
 #endif
@@ -2544,7 +2821,8 @@ public:
             std::string dir = std::string(getenv("HOME")) + "/.config/autostart";
             std::string filePath = dir + "/mmry.desktop";
 
-            if (config.autoStart) {
+            if (config.autoStart)
+            {
                 std::string appName = "mmry";
                 std::string appLabel = "Mmry";
 
@@ -2556,10 +2834,13 @@ public:
 
                 char result[PATH_MAX];
                 ssize_t count = readlink("/proc/self/exe", result, PATH_MAX);
-                if (count != -1) {
+                if (count != -1)
+                {
                     result[count] = '\0'; // Null-terminate the string
                     std::cout << "Full path: " << result << "\n";
-                } else {
+                }
+                else
+                {
                     std::cerr << "Error getting path" << "\n";
                 }
 
@@ -2575,10 +2856,15 @@ Name=)" << appLabel << R"(
 Comment=Autostart for )" << appLabel << R"(
 )";
                 file.close();
-            } else {
-                if (remove(filePath.c_str()) != 0) {
+            }
+            else
+            {
+                if (remove(filePath.c_str()) != 0)
+                {
                     std::cout << "Autostart already disabled\n";
-                } else {
+                }
+                else
+                {
                     std::cout << "Autostart disabled\n";
                 }
             }
@@ -2595,8 +2881,10 @@ Comment=Autostart for )" << appLabel << R"(
         
 #ifdef __linux__
         // --- Reliable X11 global hotkey setup for Ctrl+Alt+C ----------
-        auto grab_global_hotkey = [&](Display* dpy, Window rootWin, KeySym keysym) {
-            if (!dpy) {
+        auto grab_global_hotkey = [&](Display* dpy, Window rootWin, KeySym keysym)
+        {
+            if (!dpy)
+            {
                 std::cout << "!dpy - returning\n";
                 return;
             }
@@ -2606,7 +2894,8 @@ Comment=Autostart for )" << appLabel << R"(
 
             KeyCode kc = XKeysymToKeycode(dpy, keysym);
 
-            const unsigned int baseMods[] = {
+            const unsigned int baseMods[] =
+            {
                 ControlMask | Mod1Mask,                 // Ctrl + Alt
                 ControlMask | Mod1Mask | Mod2Mask,     // + NumLock
                 ControlMask | Mod1Mask | LockMask,     // + CapsLock
@@ -2617,7 +2906,8 @@ Comment=Autostart for )" << appLabel << R"(
                 ControlMask | Mod1Mask | Mod2Mask | LockMask | Mod5Mask
             };
 
-            for (unsigned int m : baseMods) {
+            for (unsigned int m : baseMods)
+            {
                 // Passive grabs on the root window
                 XGrabKey(dpy, kc, m, rootWin, True, GrabModeAsync, GrabModeAsync);
                 // Also grab with NumLock explicitly OR'd (sometimes necessary)
@@ -2626,10 +2916,12 @@ Comment=Autostart for )" << appLabel << R"(
             XFlush(dpy);
         };
 
-        auto ungrab_global_hotkey = [&](Display* dpy, Window rootWin, KeySym keysym) {
+        auto ungrab_global_hotkey = [&](Display* dpy, Window rootWin, KeySym keysym)
+        {
             if (!dpy) return;
             KeyCode kc = XKeysymToKeycode(dpy, keysym);
-            const unsigned int baseMods[] = {
+            const unsigned int baseMods[] =
+            {
                 ControlMask | Mod1Mask,
                 ControlMask | Mod1Mask | Mod2Mask,
                 ControlMask | Mod1Mask | LockMask,
@@ -2639,7 +2931,8 @@ Comment=Autostart for )" << appLabel << R"(
                 ControlMask | Mod1Mask | LockMask | Mod5Mask,
                 ControlMask | Mod1Mask | Mod2Mask | LockMask | Mod5Mask
             };
-            for (unsigned int m : baseMods) {
+            for (unsigned int m : baseMods)
+            {
                 XUngrabKey(dpy, kc, m, rootWin);
                 XUngrabKey(dpy, kc, m | Mod2Mask, rootWin);
             }
@@ -2656,28 +2949,34 @@ Comment=Autostart for )" << appLabel << R"(
         XFixesSelectSelectionInput(display, root, clipboardAtom, XFixesSetSelectionOwnerNotifyMask);
         
         // --- Event loop: blocking, waits for next event -----------
-        while (running) {
+        while (running)
+        {
             XEvent event;
             XNextEvent(display, &event);
 
             // Handle clipboard change event
-            if (event.type == xfixes_event_base + XFixesSelectionNotify) {
+            if (event.type == xfixes_event_base + XFixesSelectionNotify)
+            {
                 XFixesSelectionNotifyEvent *selection_event = (XFixesSelectionNotifyEvent*)&event;
-                if (selection_event->selection == clipboardAtom) {
+                if (selection_event->selection == clipboardAtom)
+                {
                     requestClipboardContent();
                 }
                 continue;
             }
 
             // Handle clipboard content arrival
-            if (event.type == SelectionNotify) {
+            if (event.type == SelectionNotify)
+            {
                 handleSelectionNotify(&event);
                 continue;
             }
             
             // Handle global hotkey
-            if (event.type == KeyPress && event.xkey.keycode == grabbed_keycode) {
-                if ((event.xkey.state & ControlMask) && (event.xkey.state & Mod1Mask)) {
+            if (event.type == KeyPress && event.xkey.keycode == grabbed_keycode)
+            {
+                if ((event.xkey.state & ControlMask) && (event.xkey.state & Mod1Mask))
+                {
                     // Hotkey triggered
                     std::cout << "Hotkey triggered: Ctrl+Alt+C\n";
                     showWindow();
@@ -2686,8 +2985,10 @@ Comment=Autostart for )" << appLabel << R"(
             }
 
             // Events for the application window
-            if (event.xany.window == window) {
-                switch (event.type) {
+            if (event.xany.window == window)
+            {
+                switch (event.type)
+                {
                     case Expose:
                         drawConsole();
                         break;
@@ -2713,7 +3014,8 @@ Comment=Autostart for )" << appLabel << R"(
         std::cout << "Windows: registering global hotkey Ctrl+Alt+C...\n" << std::endl;
 
         // Register Ctrl+Alt+C (ID: 1)
-        if (!RegisterHotKey(NULL, 1, MOD_CONTROL | MOD_ALT, 'C')) {
+        if (!RegisterHotKey(NULL, 1, MOD_CONTROL | MOD_ALT, 'C'))
+        {
             std::cerr << "Failed to register global hotkey." << std::endl;
         }
 
@@ -2731,13 +3033,16 @@ Comment=Autostart for )" << appLabel << R"(
 
         // --- Windows Message Loop ---
         MSG msg;
-        while (running) {
+        while (running)
+        {
             BOOL result = GetMessage(&msg, NULL, 0, 0);
             if (result <= 0) break;
             
-            if (msg.message == WM_HOTKEY && msg.wParam == 1) {
+            if (msg.message == WM_HOTKEY && msg.wParam == 1)
+            {
                 // Hotkey handling
-                if (!hwnd) {
+                if (!hwnd)
+                {
                     // Create window with proper styles for keyboard input
                     hwnd = CreateWindowEx(
                         WS_EX_CLIENTEDGE,
@@ -2749,7 +3054,8 @@ Comment=Autostart for )" << appLabel << R"(
                         NULL, NULL, GetModuleHandle(NULL), 
                         this); // Pass 'this' as lpParam
                     
-                    if (hwnd) {
+                    if (hwnd)
+                    {
                         AddClipboardFormatListener(hwnd);
 
                         // Create and select a font
@@ -2786,11 +3092,13 @@ Comment=Autostart for )" << appLabel << R"(
 #endif
     }
     
-    void setRunning(bool state) {
+    void setRunning(bool state)
+    {
         running = state;
     }
     
-    void stop() {
+    void stop()
+    {
         running = false;
         
         // Join threads to prevent memory leaks
@@ -2799,15 +3107,18 @@ Comment=Autostart for )" << appLabel << R"(
         
 #ifdef __linux__
         // Clean up X11 resources
-        if (font) {
+        if (font)
+        {
             XFreeFont(display, font);
             font = nullptr;
         }
-        if (gc) {
+        if (gc)
+        {
             XFreeGC(display, gc);
             gc = nullptr;
         }
-        if (display) {
+        if (display)
+        {
             XCloseDisplay(display);
             display = nullptr;
         }
@@ -2818,7 +3129,8 @@ Comment=Autostart for )" << appLabel << R"(
     HWND hwnd = nullptr;
     HFONT font = nullptr;
 
-    char getCharFromMsg(MSG* msg) {
+    char getCharFromMsg(MSG* msg)
+    {
         // Get the scan code from lParam
         UINT scanCode = (msg->lParam >> 16) & 0xFF;
 
@@ -2830,7 +3142,8 @@ Comment=Autostart for )" << appLabel << R"(
         char charBuffer[2]; // Needs space for null terminator
         int result = ToAscii(msg->wParam, scanCode, keyboardState, (LPWORD)charBuffer, 0);
 
-        if (result == 1) {
+        if (result == 1)
+        {
             return charBuffer[0];
         }
         return 0; // Return null character if conversion fails
@@ -2842,90 +3155,121 @@ Comment=Autostart for )" << appLabel << R"(
     
     // Helper methods
 
-    size_t getDisplayItemCount() {
-        if (filterMode) {
+    size_t getDisplayItemCount()
+    {
+        if (filterMode)
+        {
             return filteredItems.size();
         }
         return items.size();
     }
     
-    size_t getActualItemIndex(size_t displayIndex) {
-        if (filterMode && displayIndex < filteredItems.size()) {
+    size_t getActualItemIndex(size_t displayIndex)
+    {
+        if (filterMode && displayIndex < filteredItems.size())
+        {
             return filteredItems[displayIndex];
         }
         return displayIndex;
     }
     
-    void updateFilteredItems() {
+    void updateFilteredItems()
+    {
         selectedItem = 0;
         consoleScrollOffset = 0;
         filteredItems.clear();
 
-        if (filterText.empty()) {
-            for (size_t i = 0; i < items.size(); ++i) {
+        if (filterText.empty())
+        {
+            for (size_t i = 0; i < items.size(); ++i)
+            {
                 filteredItems.push_back(i);
             }
-        } else if (filterText[0] == '!') {
+        }
+        else if (filterText[0] == '!')
+        {
             // Explicit regex search (after '!' prefix)
             std::string regex_pattern = filterText.substr(1);
-            if (!regex_pattern.empty()) {
-                try {
+            if (!regex_pattern.empty())
+            {
+                try
+                {
                     std::regex rgx(regex_pattern, std::regex_constants::icase | std::regex_constants::multiline);
 
-                    for (size_t i = 0; i < items.size(); ++i) {
+                    for (size_t i = 0; i < items.size(); ++i)
+                    {
                         if (!items[i].lowercase_content.empty() && 
-                            std::regex_search(items[i].lowercase_content, rgx)) {
+                            std::regex_search(items[i].lowercase_content, rgx))
+                        {
                             filteredItems.push_back(i);
                         }
                     }
-                } catch (const std::regex_error& e) {
+                }
+                catch (const std::regex_error& e)
+                {
                     writeLog(std::string(__FUNCTION__) + std::string(e.what()));
                 }
             }
-        } else {
+        }
+        else
+        {
             // Fast path: simple substring search (most common case)
             if (filterText.find('*') == std::string::npos && 
                 filterText.find('?') == std::string::npos &&
                 filterText.find('.') == std::string::npos &&
-                filterText.find('+') == std::string::npos) {
+                filterText.find('+') == std::string::npos)
+            {
                 
                 std::string lower_filter = filterText;
                 std::transform(lower_filter.begin(), lower_filter.end(), lower_filter.begin(),
                                [](unsigned char c){ return std::tolower(c); });
 
-                for (size_t i = 0; i < items.size(); ++i) {
-                    if (items[i].lowercase_content.find(lower_filter) != std::string::npos) {
+                for (size_t i = 0; i < items.size(); ++i)
+                {
+                    if (items[i].lowercase_content.find(lower_filter) != std::string::npos)
+                    {
                         filteredItems.push_back(i);
                     }
                 }
-            } else {
+            }
+            else
+            {
                 // Slow path: regex search for wildcard patterns
-                try {
+                try
+                {
                     std::string regex_str = wildcardToRegex(filterText);
                     std::regex rgx(regex_str, std::regex_constants::icase);
                     
-                    for (size_t i = 0; i < items.size(); ++i) {
-                        if (std::regex_search(items[i].content, rgx)) {
+                    for (size_t i = 0; i < items.size(); ++i)
+                    {
+                        if (std::regex_search(items[i].content, rgx))
+                        {
                             filteredItems.push_back(i);
                         }
                     }
-                } catch (const std::regex_error& e) {
+                }
+                catch (const std::regex_error& e)
+                {
                     // Handle invalid regex patterns gracefully
                     writeLog("Regex error: " + std::string(e.what()));
                 }
             }
         }
         
-            // Reset selection if no items match
-            if (filteredItems.empty()) {
-                selectedItem = 0;
-            } else if (selectedItem >= filteredItems.size()) {
-                selectedItem = filteredItems.size() - 1;
-            }
+        // Reset selection if no items match
+        if (filteredItems.empty())
+        {
+            selectedItem = 0;
         }
+        else if (selectedItem >= filteredItems.size())
+        {
+            selectedItem = filteredItems.size() - 1;
+        }
+    }
         
                     
-    void updateScrollOffset() {
+    void updateScrollOffset()
+    {
         DialogDimensions dims = calculateDialogDimensions(windowWidth, windowHeight, 600, 500);
         const int ITEM_LINE_HEIGHT = 25; // Now uses LINE_HEIGHT
         
@@ -2939,33 +3283,46 @@ Comment=Autostart for )" << appLabel << R"(
         
         int dynamicVisibleItems = std::max(1, availableHeightForScrollableItems / ITEM_LINE_HEIGHT);
 
-        if (viewBookmarksShowingGroups) {
+        if (viewBookmarksShowingGroups)
+        {
             // Scrolling for groups
-            if (selectedViewBookmarkGroup < viewBookmarksScrollOffset) {
+            if (selectedViewBookmarkGroup < viewBookmarksScrollOffset)
+            {
                 viewBookmarksScrollOffset = selectedViewBookmarkGroup;
-            } else if (selectedViewBookmarkGroup >= viewBookmarksScrollOffset + dynamicVisibleItems) {
+            }
+            else if (selectedViewBookmarkGroup >= viewBookmarksScrollOffset + dynamicVisibleItems)
+            {
                 viewBookmarksScrollOffset = selectedViewBookmarkGroup - dynamicVisibleItems + 1;
             }
-        } else {
+        }
+        else
+        {
             // Scrolling for clips
             size_t currentItemCount = filterBookmarkClipsMode ? filteredBookmarkClips.size() : getBookmarkItemCount();
             
-            if (selectedViewBookmarkItem < viewBookmarksScrollOffset) {
+            if (selectedViewBookmarkItem < viewBookmarksScrollOffset)
+            {
                 viewBookmarksScrollOffset = selectedViewBookmarkItem;
-            } else if (selectedViewBookmarkItem >= viewBookmarksScrollOffset + dynamicVisibleItems) {
+            }
+            else if (selectedViewBookmarkItem >= viewBookmarksScrollOffset + dynamicVisibleItems)
+            {
                 viewBookmarksScrollOffset = selectedViewBookmarkItem - dynamicVisibleItems + 1;
             }
 
             // Ensure scroll offset does not exceed available items
-            if (currentItemCount == 0) {
+            if (currentItemCount == 0)
+            {
                 viewBookmarksScrollOffset = 0;
-            } else if (viewBookmarksScrollOffset + dynamicVisibleItems > currentItemCount) {
+            }
+            else if (viewBookmarksScrollOffset + dynamicVisibleItems > currentItemCount)
+            {
                 viewBookmarksScrollOffset = std::max(0, (int)currentItemCount - dynamicVisibleItems);
             }
         }
     }
     
-    void updateEditDialogScrollOffset() {
+    void updateEditDialogScrollOffset()
+    {
         DialogDimensions dims = calculateDialogDimensions(windowWidth, windowHeight, 600, 400);
         const int lineHeight = 15;
         const int charWidth = 8;
@@ -2976,11 +3333,15 @@ Comment=Autostart for )" << appLabel << R"(
         int cursorVisualLine = 0;
         std::istringstream iss(editDialogInput);
         std::string logicalLine;
-        for (int i = 0; i < (int)editDialogCursorLine; ++i) {
+        for (int i = 0; i < (int)editDialogCursorLine; ++i)
+        {
             if (!std::getline(iss, logicalLine)) break;
-            if (logicalLine.empty()) {
+            if (logicalLine.empty())
+            {
                 cursorVisualLine++;
-            } else {
+            }
+            else
+            {
                 cursorVisualLine += (logicalLine.length() + maxCharsPerLine - 1) / maxCharsPerLine;
             }
         }
@@ -2992,19 +3353,24 @@ Comment=Autostart for )" << appLabel << R"(
         if (maxVisibleLines < 1) maxVisibleLines = 1;
 
         // Adjust scroll offset
-        if (cursorVisualLine < editDialogScrollOffset) {
+        if (cursorVisualLine < editDialogScrollOffset)
+        {
             editDialogScrollOffset = cursorVisualLine;
-        } else if (cursorVisualLine >= editDialogScrollOffset + maxVisibleLines) {
+        }
+        else if (cursorVisualLine >= editDialogScrollOffset + maxVisibleLines)
+        {
             editDialogScrollOffset = cursorVisualLine - maxVisibleLines + 1;
         }
 
         // Clamp scroll offset
-        if (editDialogScrollOffset < 0) {
+        if (editDialogScrollOffset < 0)
+        {
             editDialogScrollOffset = 0;
         }
     }
     
-    void updateConsoleScrollOffset() {
+    void updateConsoleScrollOffset()
+    {
         const int SCROLL_INDICATOR_HEIGHT = 15; // Height reserved for scroll indicator
         
         // Calculate starting Y position (accounting for filter, command, or theme selection mode)
@@ -3020,7 +3386,8 @@ Comment=Autostart for )" << appLabel << R"(
         // logfile << "updateConsoleScrollOffset: windowHeight=" << windowHeight << ", availableHeight=" << availableHeight << ", LINE_HEIGHT=" << LINE_HEIGHT << ", maxVisibleItems (initial)=" << maxVisibleItems << std::endl;
         
         // If we have more items than fit, reserve space for scroll indicator
-        if (static_cast<int>(displayCount) > maxVisibleItems) {
+        if (static_cast<int>(displayCount) > maxVisibleItems)
+        {
             availableHeight -= SCROLL_INDICATOR_HEIGHT;
             maxVisibleItems = availableHeight / LINE_HEIGHT;
         }
@@ -3028,76 +3395,103 @@ Comment=Autostart for )" << appLabel << R"(
         if (maxVisibleItems > 0) maxVisibleItems += 1;
         
         // Ensure we show at least 1 item
-        if (maxVisibleItems < 1) {
+        if (maxVisibleItems < 1)
+        {
             maxVisibleItems = 1;
         }
         // logfile << "updateConsoleScrollOffset: displayCount=" << displayCount << ", maxVisibleItems (final)=" << maxVisibleItems << ", selectedItem=" << selectedItem << ", consoleScrollOffset=" << consoleScrollOffset << std::endl;
         
         // Update scroll offset to keep selected item visible
-        if (selectedItem < consoleScrollOffset) {
+        if (selectedItem < consoleScrollOffset)
+        {
             consoleScrollOffset = selectedItem;
-        } else if (selectedItem >= consoleScrollOffset + maxVisibleItems) {
+        }
+        else if (selectedItem >= consoleScrollOffset + maxVisibleItems)
+        {
             consoleScrollOffset = selectedItem - maxVisibleItems + 1;
         }
     }
     
-    void updateBookmarkMgmtScrollOffset() {
+    void updateBookmarkMgmtScrollOffset()
+    {
         const int VISIBLE_ITEMS = 10; // Number of groups visible in bookmark management dialog
         
         // Filter groups for scroll calculation
         std::vector<std::string> filteredGroups;
-        for (const auto& group : bookmarkGroups) {
-            if (bookmarkDialogInput.empty() || group.find(bookmarkDialogInput) != std::string::npos) {
+        for (const auto& group : bookmarkGroups)
+        {
+            if (bookmarkDialogInput.empty() || group.find(bookmarkDialogInput) != std::string::npos)
+            {
                 filteredGroups.push_back(group);
             }
         }
         
-        if (selectedBookmarkGroup < bookmarkMgmtScrollOffset) {
+        if (selectedBookmarkGroup < bookmarkMgmtScrollOffset)
+        {
             bookmarkMgmtScrollOffset = selectedBookmarkGroup;
-        } else if (selectedBookmarkGroup >= bookmarkMgmtScrollOffset + VISIBLE_ITEMS) {
+        }
+        else if (selectedBookmarkGroup >= bookmarkMgmtScrollOffset + VISIBLE_ITEMS)
+        {
             bookmarkMgmtScrollOffset = selectedBookmarkGroup - VISIBLE_ITEMS + 1;
         }
     }
 
-    void updatePinnedScrollOffset() {
-        if (selectedViewPinnedItem < viewPinnedScrollOffset) {
+    void updatePinnedScrollOffset()
+    {
+        if (selectedViewPinnedItem < viewPinnedScrollOffset)
+        {
             viewPinnedScrollOffset = selectedViewPinnedItem;
-        } else if (selectedViewPinnedItem >= viewPinnedScrollOffset + m_maxVisiblePinnedItems) {
+        }
+        else if (selectedViewPinnedItem >= viewPinnedScrollOffset + m_maxVisiblePinnedItems)
+        {
             viewPinnedScrollOffset = selectedViewPinnedItem - m_maxVisiblePinnedItems + 1;
         }
     }
     
-    void updateAddBookmarkScrollOffset() {
+    void updateAddBookmarkScrollOffset()
+    {
         const int VISIBLE_ITEMS = 10; // Number of groups visible in add bookmark dialog
         
-        if (selectedAddBookmarkGroup < addBookmarkScrollOffset) {
+        if (selectedAddBookmarkGroup < addBookmarkScrollOffset)
+        {
             addBookmarkScrollOffset = selectedAddBookmarkGroup;
-        } else if (selectedAddBookmarkGroup >= addBookmarkScrollOffset + VISIBLE_ITEMS) {
+        }
+        else if (selectedAddBookmarkGroup >= addBookmarkScrollOffset + VISIBLE_ITEMS)
+        {
             addBookmarkScrollOffset = selectedAddBookmarkGroup - VISIBLE_ITEMS + 1;
         }
-}
+    }
     
-    void updateThemeSelectScrollOffset() {
+    void updateThemeSelectScrollOffset()
+    {
         const int VISIBLE_ITEMS = 10; // Number of themes visible in theme selection
         
-        if (selectedTheme < themeSelectScrollOffset) {
+        if (selectedTheme < themeSelectScrollOffset)
+        {
             themeSelectScrollOffset = selectedTheme;
-        } else if (selectedTheme >= themeSelectScrollOffset + VISIBLE_ITEMS) {
+        }
+        else if (selectedTheme >= themeSelectScrollOffset + VISIBLE_ITEMS)
+        {
             themeSelectScrollOffset = selectedTheme - VISIBLE_ITEMS + 1;
         }
     }
     
-    void updateConfigSelectScrollOffset() {
+    void updateConfigSelectScrollOffset()
+    {
         const int VISIBLE_ITEMS = 10; // Number of configs visible in config selection
         
-        if (selectedConfig < configSelectScrollOffset) {
+        if (selectedConfig < configSelectScrollOffset)
+        {
             configSelectScrollOffset = selectedConfig;
-        } else if (selectedConfig >= configSelectScrollOffset + VISIBLE_ITEMS) {
+        }
+        else if (selectedConfig >= configSelectScrollOffset + VISIBLE_ITEMS)
+        {
             configSelectScrollOffset = selectedConfig - VISIBLE_ITEMS + 1;
         }
     }
     
-    void updateHelpDialogScrollOffset(int adjustment) {
+    void updateHelpDialogScrollOffset(int adjustment)
+    {
         const int STEP = 10;
        
         helpDialogScrollOffset = helpDialogScrollOffset + (adjustment * STEP);
@@ -3110,15 +3504,18 @@ Comment=Autostart for )" << appLabel << R"(
     
 
     
-    int getClipListWidth() const {
+    int getClipListWidth() const
+    {
         return clipListWidth;
     }
     
-    int getWindowWidth() const {
+    int getWindowWidth() const
+    {
         return windowWidth;
     }
     
-    int getWindowHeight() const {
+    int getWindowHeight() const
+    {
         return windowHeight;
     }
     
@@ -3127,31 +3524,39 @@ Comment=Autostart for )" << appLabel << R"(
     // Dialog positioning and sizing structure
 
     
-    void executeCommand(const std::string& command) {
+    void executeCommand(const std::string& command)
+    {
         // Parse command and arguments
         std::istringstream iss(command);
         std::string cmd;
         std::string args;
         
-        if (iss >> cmd) {
+        if (iss >> cmd)
+        {
             std::getline(iss, args);
             // Trim leading whitespace from args
-            if (!args.empty() && args[0] == ' ') {
+            if (!args.empty() && args[0] == ' ')
+            {
                 args = args.substr(1);
             }
         }
         
-        if (cmd == "theme") {
-            if (!args.empty()) {
+        if (cmd == "theme")
+        {
+            if (!args.empty())
+            {
                 // Direct theme switch: "theme dracula"
                 config.switchTheme(args);
-            } else {
+            }
+            else
+            {
                 // Enter theme selection mode: "theme"
                 commandMode = false;
                 cmd_themeSelectMode = true;
                 availableThemes = config.discoverThemes();
                 // Store original theme and apply first theme for preview
-                if (!availableThemes.empty()) {
+                if (!availableThemes.empty())
+                {
                     config.originalTheme = config.theme;
                     selectedTheme = 0;
                     config.switchTheme(availableThemes[0]);
@@ -3161,18 +3566,22 @@ Comment=Autostart for )" << appLabel << R"(
             return;
         }
         
-        if (cmd == "config") {
-            if (!args.empty()) {
+        if (cmd == "config")
+        {
+            if (!args.empty())
+            {
                 std::cout << "DEBUG: Processing config command with args: '" << args << "'\n";
                 // Parse "config key value" format
                 std::istringstream configIss(args);
                 std::string configKey, configValue;
                 
-                if (configIss >> configKey) {
+                if (configIss >> configKey)
+                {
                     std::string remaining;
                     std::getline(configIss, remaining);
                     // Trim leading whitespace from config value
-                    if (!remaining.empty() && remaining[0] == ' ') {
+                    if (!remaining.empty() && remaining[0] == ' ')
+                    {
                         remaining = remaining.substr(1);
                     }
                     configValue = remaining;
@@ -3180,18 +3589,25 @@ Comment=Autostart for )" << appLabel << R"(
                     std::cout << "DEBUG: Parsed configKey='" << configKey << "', configValue='" << configValue << "'\n";
                     
                         // Validate and update config based on type
-                    if (config.updateConfigValue(configKey, configValue)) {
+                    if (config.updateConfigValue(configKey, configValue))
+                    {
                         std::cout << "DEBUG: updateConfigValue returned true, calling saveConfig()\n";
                         config.saveConfig();
                         std::cout << "Updated " << configKey << " = " << configValue << "\n";
-                    } else {
+                    }
+                    else
+                    {
                         std::cout << "DEBUG: updateConfigValue returned false\n";
                         std::cout << "Invalid value for " << configKey << ". Expected type: " << config.getConfigType(configKey) << "\n";
                     }
-                } else {
+                }
+                else
+                {
                     std::cout << "DEBUG: Failed to parse config key from args\n";
                 }
-            } else {
+            }
+            else
+            {
                 // Enter config selection mode: "config"
                 commandMode = false;
                 cmd_configSelectMode = true;
@@ -3212,7 +3628,8 @@ Comment=Autostart for )" << appLabel << R"(
         // - "export" - export clipboard history
     }
     
-    void loadBookmarkGroups() {
+    void loadBookmarkGroups()
+    {
         // Cross-platform path separator
 #ifdef _WIN32
         const char pathSep = '\\';
@@ -3224,13 +3641,17 @@ Comment=Autostart for )" << appLabel << R"(
         std::ifstream file(bookmarkFile);
         bookmarkGroups.clear();
         
-        if (file.is_open()) {
+        if (file.is_open())
+        {
             std::string line;
-            while (std::getline(file, line)) {
-                if (!line.empty() && line.find('|') != std::string::npos) {
+            while (std::getline(file, line))
+            {
+                if (!line.empty() && line.find('|') != std::string::npos)
+                {
                     size_t pos = line.find('|');
                     std::string groupName = line.substr(0, pos);
-                    if (!groupName.empty()) {
+                    if (!groupName.empty())
+                    {
                         bookmarkGroups.push_back(groupName);
                     }
                 }
@@ -3239,28 +3660,34 @@ Comment=Autostart for )" << appLabel << R"(
         }
         
         // Always ensure we have at least one group
-        if (bookmarkGroups.empty()) {
+        if (bookmarkGroups.empty())
+        {
             bookmarkGroups.push_back("default");
         }
     }
     
-    void saveBookmarkGroups() {
+    void saveBookmarkGroups()
+    {
         std::string bookmarkFile = config.bookmarksDir + "/bookmarks.txt";
         std::ofstream file(bookmarkFile);
         
-        if (file.is_open()) {
-            for (const auto& group : bookmarkGroups) {
+        if (file.is_open())
+        {
+            for (const auto& group : bookmarkGroups)
+            {
                 file << group << "|0\n"; // Group name | clip count
             }
             file.close();
         }
     }
     
-    void addClipToBookmarkGroup(const std::string& groupName, const std::string& content) {
+    void addClipToBookmarkGroup(const std::string& groupName, const std::string& content)
+    {
         std::string bookmarkFile = config.bookmarksDir + "/bookmarks_" + groupName + ".txt";
         std::ofstream file(bookmarkFile, std::ios::app);
         
-        if (file.is_open()) {
+        if (file.is_open())
+        {
             auto timestamp = std::chrono::system_clock::now().time_since_epoch().count();
             std::string contentToSave = encrypt(content, config);
             file << timestamp << "|" << contentToSave << "\n";
@@ -3268,10 +3695,12 @@ Comment=Autostart for )" << appLabel << R"(
         }
     }
 
-    void addClipToPinned(const std::string& content) {
+    void addClipToPinned(const std::string& content)
+    {
         std::ofstream file(config.pinnedFile, std::ios::app);
         
-        if (file.is_open()) {
+        if (file.is_open())
+        {
             auto timestamp = std::chrono::system_clock::now().time_since_epoch().count();
             std::string contentToSave = encrypt(content, config);
             file << timestamp << "|" << contentToSave << "\n";
@@ -3279,7 +3708,8 @@ Comment=Autostart for )" << appLabel << R"(
         }
     }
 
-    void createWindow() {
+    void createWindow()
+    {
 #ifdef __linux__
         // Create window with theme colors
         window = XCreateSimpleWindow(display, root, 
@@ -3304,10 +3734,12 @@ Comment=Autostart for )" << appLabel << R"(
         
         // Load font (try to find a monospace font)
         font = XLoadQueryFont(display, "-*-fixed-medium-r-*-*-13-*-*-*-*-*-*-*");
-        if (!font) {
+        if (!font)
+        {
             font = XLoadQueryFont(display, "fixed");
         }
-        if (font) {
+        if (font)
+        {
             XSetFont(display, gc, font->fid);
         }
         
@@ -3334,7 +3766,8 @@ Comment=Autostart for )" << appLabel << R"(
 #endif
     }
     
-    void setupHotkeys() {
+    void setupHotkeys()
+    {
 #ifdef __linux__
         // First, ensure X11 is fully synchronized
         XSync(display, False);
@@ -3342,7 +3775,8 @@ Comment=Autostart for )" << appLabel << R"(
         
         // Install X11 error handler to catch grab failures
         auto oldHandler = XSetErrorHandler([](Display* /*d*/, XErrorEvent* e) -> int {
-            if (e->error_code == BadAccess) {
+            if (e->error_code == BadAccess)
+            {
                 std::cerr << "X11 Error: BadAccess when trying to grab key\n";
                 return 0;
             }
@@ -3353,8 +3787,10 @@ Comment=Autostart for )" << appLabel << R"(
         const int MAX_RETRIES = 5;
         bool success = false;
         
-        for (int retry = 0; retry < MAX_RETRIES && !success; retry++) {
-            if (retry > 0) {
+        for (int retry = 0; retry < MAX_RETRIES && !success; retry++)
+        {
+            if (retry > 0)
+            {
                 std::cerr << "Retry " << retry << " of " << MAX_RETRIES << "...\n";
                 std::this_thread::sleep_for(std::chrono::milliseconds(500 * retry));
             }
@@ -3369,7 +3805,8 @@ Comment=Autostart for )" << appLabel << R"(
             
             // Grab with all possible combinations of NumLock and CapsLock
             // since these can interfere with modifier detection
-            unsigned int modifiers[] = {
+            unsigned int modifiers[] =
+            {
                 ControlMask | Mod1Mask,                    // Ctrl+Alt
                 ControlMask | Mod1Mask | Mod2Mask,         // Ctrl+Alt+NumLock
                 ControlMask | Mod1Mask | LockMask,         // Ctrl+Alt+CapsLock
@@ -3377,20 +3814,23 @@ Comment=Autostart for )" << appLabel << R"(
             };
             
             bool grabFailed = false;
-            for (unsigned int mod : modifiers) {
+            for (unsigned int mod : modifiers)
+            {
                 int result = XGrabKey(display, keycode, mod, root, True, 
                                      GrabModeAsync, GrabModeAsync);
                 
                 // Force synchronization to detect errors immediately
                 XSync(display, False);
                 
-                if (result == BadAccess) {
+                if (result == BadAccess)
+                {
                     grabFailed = true;
                     break;
                 }
             }
             
-            if (!grabFailed) {
+            if (!grabFailed)
+            {
                 success = true;
                 hotkeyGrabbed = true;
                 std::cout << "Successfully grabbed Ctrl+Alt+C hotkey\n";
@@ -3400,7 +3840,8 @@ Comment=Autostart for )" << appLabel << R"(
         // Restore old error handler
         XSetErrorHandler(oldHandler);
         
-        if (!success) {
+        if (!success)
+        {
             std::cerr << "CRITICAL: Failed to grab Ctrl+Alt+C hotkey after " 
                       << MAX_RETRIES << " attempts!" << std::endl;
             std::cerr << "Another application may be using this hotkey." << std::endl;
@@ -3414,10 +3855,12 @@ Comment=Autostart for )" << appLabel << R"(
     }
 
     
-    void showWindow() {
+    void showWindow()
+    {
         std::cout << "Visible: " << visible << "\n";
 
-        if (!visible) {
+        if (!visible)
+        {
 #ifdef __linux__
             XMapWindow(display, window);
 #endif
@@ -3429,16 +3872,21 @@ Comment=Autostart for )" << appLabel << R"(
         }
     }
     
-    void hideWindow() {
-        if (visible) {
+    void hideWindow()
+    {
+        if (visible)
+        {
 #ifdef __linux__
             XUnmapWindow(display, window);
 #endif
 #ifdef _WIN32
-            if (hwnd) {
+            if (hwnd)
+            {
                 std::cout << "Calling ShowWindow(SW_HIDE)\n";
                 ShowWindow(hwnd, SW_HIDE);
-            } else {
+            }
+            else
+            {
                 std::cout << "hwnd is null!\n";
             }
 #endif
@@ -3459,7 +3907,8 @@ public:
     // Linux UI Methods
     // !@!
 #ifdef __linux__
-        void drawConsole() {
+        void drawConsole()
+        {
             if (!visible) return;
             
             // Clear window with theme background
@@ -3475,12 +3924,14 @@ public:
             data.themeSelectMode = cmd_themeSelectMode;
             data.configSelectMode = cmd_configSelectMode;
             
-            if (cmd_themeSelectMode) {
+            if (cmd_themeSelectMode)
+            {
                 data.themeItems = availableThemes;
                 data.selectedTheme = selectedTheme;
                 data.themeScrollOffset = themeSelectScrollOffset;
             }
-            if (cmd_configSelectMode) {
+            if (cmd_configSelectMode)
+            {
                 data.configItems = availableConfigs;
                 data.selectedConfig = selectedConfig;
                 data.configScrollOffset = configSelectScrollOffset;
@@ -3496,7 +3947,8 @@ public:
             data.selColor = config.selectionColor;
             
             // Build clip display lines
-            if (!cmd_themeSelectMode && !cmd_configSelectMode) {
+            if (!cmd_themeSelectMode && !cmd_configSelectMode)
+            {
                 size_t displayCount = filterMode ? filteredItems.size() : items.size();
                 data.totalClipCount = displayCount;
                 data.selectedItem = selectedItem;
@@ -3505,7 +3957,8 @@ public:
                 int availableHeight = windowHeight - data.startY - 10;
                 const int SCROLL_INDICATOR_HEIGHT = 15;
                 
-                if (static_cast<int>(displayCount) > (availableHeight / LINE_HEIGHT)) {
+                if (static_cast<int>(displayCount) > (availableHeight / LINE_HEIGHT))
+                {
                     availableHeight -= SCROLL_INDICATOR_HEIGHT;
                 }
                 
@@ -3515,18 +3968,23 @@ public:
                 
                 size_t endIdx = std::min(consoleScrollOffset + maxItems, displayCount);
                 
-                for (size_t i = consoleScrollOffset; i < endIdx; ++i) {
+                for (size_t i = consoleScrollOffset; i < endIdx; ++i)
+                {
                     size_t actualIndex = filterMode ? filteredItems[i] : i;
                     const auto& item = items[actualIndex];
                     
                     std::string line;
-                    if (i == selectedItem) {
+                    if (i == selectedItem)
+                    {
                         line = "> ";
-                    } else {
+                    }
+                    else
+                    {
                         line = "  ";
                     }
                     
-                    if (config.verboseMode) {
+                    if (config.verboseMode)
+                    {
                         auto time_t = std::chrono::system_clock::to_time_t(item.timestamp);
                         auto tm = *std::localtime(&time_t);
                         
@@ -3534,7 +3992,8 @@ public:
                         timeStream << std::put_time(&tm, "%H:%M:%S");
                         
                         size_t lineCount = 1;
-                        for (char c : item.content) {
+                        for (char c : item.content)
+                        {
                             if (c == '\n') lineCount++;
                         }
                         
@@ -3542,34 +4001,42 @@ public:
                         
                         std::string content = item.content;
                         int maxContentLength = calculateMaxContentLength(clipListWidth, true);
-                        if (static_cast<int>(content.length()) > maxContentLength) {
+                        if (static_cast<int>(content.length()) > maxContentLength)
+                        {
                             content = smartTrim(content, maxContentLength);
                         }
                         
-                        for (char& c : content) {
+                        for (char& c : content)
+                        {
                             if (c == '\n' || c == '\r') c = ' ';
                         }
                         
                         line += content;
-                    } else {
+                    }
+                    else
+                    {
                         size_t lineCount = 1;
-                        for (char c : item.content) {
+                        for (char c : item.content)
+                        {
                             if (c == '\n') lineCount++;
                         }
                         
                         std::string content = item.content;
                         int maxContentLength = calculateMaxContentLength(clipListWidth, false);
-                        if (static_cast<int>(content.length()) > maxContentLength) {
+                        if (static_cast<int>(content.length()) > maxContentLength)
+                        {
                             content = smartTrim(content, maxContentLength);
                         }
                         
-                        for (char& c : content) {
+                        for (char& c : content)
+                        {
                             if (c == '\n' || c == '\r') c = ' ';
                         }
                         
                         line += content;
                         
-                        if (lineCount > 1) {
+                        if (lineCount > 1)
+                        {
                             line += " (" + std::to_string(lineCount) + " lines)";
                         }
                     }
@@ -3581,11 +4048,14 @@ public:
             ::drawConsole(display, window, gc, data);
             
             // Draw dialogs if visible
-            if (bookmarkDialogVisible) {
+            if (bookmarkDialogVisible)
+            {
                 DialogDimensions dims = calculateDialogDimensions(windowWidth, windowHeight, 400, 300);
                 std::vector<std::string> filteredGroups;
-                for (const auto& group : bookmarkGroups) {
-                    if (bookmarkDialogInput.empty() || group.find(bookmarkDialogInput) != std::string::npos) {
+                for (const auto& group : bookmarkGroups)
+                {
+                    if (bookmarkDialogInput.empty() || group.find(bookmarkDialogInput) != std::string::npos)
+                    {
                         filteredGroups.push_back(group);
                     }
                 }
@@ -3594,29 +4064,38 @@ public:
                                  selectedBookmarkGroup, bookmarkMgmtScrollOffset,
                                  config.backgroundColor, config.textColor, config.selectionColor, config.borderColor);
             }
-            if (addToBookmarkDialogVisible) {
+            if (addToBookmarkDialogVisible)
+            {
                 DialogDimensions dims = calculateDialogDimensions(windowWidth, windowHeight, 400, 300);
                 std::vector<std::string> displayedGroups;
-                if (filterAddBookmarksMode) {
+                if (filterAddBookmarksMode)
+                {
                     std::string lowerFilterText = stringToLower(filterAddBookmarksText);
-                    for (const auto& group : bookmarkGroups) {
-                        if (stringToLower(group).find(lowerFilterText) != std::string::npos) {
+                    for (const auto& group : bookmarkGroups)
+                    {
+                        if (stringToLower(group).find(lowerFilterText) != std::string::npos)
+                        {
                             displayedGroups.push_back(group);
                         }
                     }
-                } else {
+                }
+                else
+                {
                     displayedGroups = bookmarkGroups;
                 }
-                if (selectedAddBookmarkGroup >= displayedGroups.size() && !displayedGroups.empty()) {
+                if (selectedAddBookmarkGroup >= displayedGroups.size() && !displayedGroups.empty())
+                {
                     selectedAddBookmarkGroup = displayedGroups.size() - 1;
                 }
+
                 drawAddToBookmarkDialog(display, window, gc, font, dims,
                                       displayedGroups,
                                       selectedAddBookmarkGroup, addBookmarkScrollOffset,
                                       filterAddBookmarksMode, filterAddBookmarksText,
                                       config.backgroundColor, config.textColor, config.selectionColor, config.borderColor);
             }
-            if (viewBookmarksDialogVisible) {
+            if (viewBookmarksDialogVisible)
+            {
                 DialogDimensions dims = calculateDialogDimensions(windowWidth, windowHeight, 600, 500);
                 std::string title;
                 std::vector<std::string> items;
@@ -3626,49 +4105,71 @@ public:
                 std::string filterTxt;
                 int itemLH = 18;
                 std::string emptyMsg;
-                if (viewBookmarksShowingGroups) {
+                if (viewBookmarksShowingGroups)
+                {
                     title = "Select Bookmark Group";
-                    if (filterBookmarksMode) {
+                    if (filterBookmarksMode)
+                    {
                         std::string lowerFilter = stringToLower(filterBookmarksText);
-                        for (const auto& group : bookmarkGroups) {
-                            if (stringToLower(group).find(lowerFilter) != std::string::npos) {
+                        for (const auto& group : bookmarkGroups)
+                        {
+                            if (stringToLower(group).find(lowerFilter) != std::string::npos)
+                            {
                                 items.push_back(group);
                             }
                         }
                         filterActive = true;
                         filterTxt = filterBookmarksText;
-                    } else {
+                    }
+                    else
+                    {
                         items = bookmarkGroups;
                     }
-                    if (selectedViewBookmarkGroup >= items.size() && !items.empty()) {
+                    if (selectedViewBookmarkGroup >= items.size() && !items.empty())
+                    {
                         selectedViewBookmarkGroup = items.size() - 1;
                     }
                     selItem = selectedViewBookmarkGroup;
                     scrollOff = viewBookmarksScrollOffset;
-                } else {
-                    if (selectedViewBookmarkGroup < bookmarkGroups.size()) {
+                }
+                else
+                {
+                    if (selectedViewBookmarkGroup < bookmarkGroups.size())
+                    {
                         title = "View Bookmarks: " + bookmarkGroups[selectedViewBookmarkGroup];
-                    } else {
+                    }
+                    else
+                    {
                         title = "View Bookmarks";
                     }
-                    if (filterBookmarkClipsMode) {
+                    if (filterBookmarkClipsMode)
+                    {
                         items = filteredBookmarkClips;
                         filterActive = true;
                         filterTxt = filterBookmarkClipsText;
-                    } else {
-                        if (selectedViewBookmarkGroup < bookmarkGroups.size()) {
+                    }
+                    else
+                    {
+                        if (selectedViewBookmarkGroup < bookmarkGroups.size())
+                        {
                             std::string selectedGroup = bookmarkGroups[selectedViewBookmarkGroup];
                             std::string bookmarkFile = config.bookmarksDir + "/bookmarks_" + selectedGroup + ".txt";
                             std::ifstream file(bookmarkFile);
-                            if (file.is_open()) {
+                            if (file.is_open())
+                            {
                                 std::string line;
-                                while (std::getline(file, line)) {
+                                while (std::getline(file, line))
+                                {
                                     size_t pos = line.find('|');
-                                    if (pos != std::string::npos && pos > 0) {
+                                    if (pos != std::string::npos && pos > 0)
+                                    {
                                         std::string content = line.substr(pos + 1);
-                                        try {
+                                        try
+                                        {
                                             items.push_back(decrypt(content, config));
-                                        } catch (...) {
+                                        }
+                                        catch (...)
+                                        {
                                             items.push_back(content);
                                         }
                                     }
@@ -3678,15 +4179,19 @@ public:
                         }
                     }
                     int maxContentLength = calculateDialogContentLength(dims);
-                    for (auto& item : items) {
-                        if (static_cast<int>(item.length()) > maxContentLength) {
+                    for (auto& item : items)
+                    {
+                        if (static_cast<int>(item.length()) > maxContentLength)
+                        {
                             item = smartTrim(item, maxContentLength);
                         }
-                        for (char& c : item) {
+                        for (char& c : item)
+                        {
                             if (c == '\n' || c == '\r') c = ' ';
                         }
                     }
-                    if (selectedViewBookmarkItem >= items.size() && !items.empty()) {
+                    if (selectedViewBookmarkItem >= items.size() && !items.empty())
+                    {
                         selectedViewBookmarkItem = items.size() - 1;
                     }
                     selItem = selectedViewBookmarkItem;
@@ -3694,28 +4199,38 @@ public:
                     itemLH = LINE_HEIGHT;
                     emptyMsg = "No bookmarks in this group";
                 }
+
                 drawViewBookmarksDialog(display, window, gc, font, dims,
                                       title, items, selItem, scrollOff,
                                       filterActive, filterTxt, itemLH, emptyMsg,
                                       config.backgroundColor, config.textColor, config.selectionColor, config.borderColor);
             }
-            if (pinnedDialogVisible) {
+            if (pinnedDialogVisible)
+            {
                 auto sortedItems = getSortedPinnedItems(config.pinnedFile);
                 std::vector<std::pair<long long, std::string>> displayItems;
-                for (const auto& line : sortedItems) {
+                for (const auto& line : sortedItems)
+                {
                     size_t pos = line.find('|');
-                    if (pos != std::string::npos && pos > 0) {
+                    if (pos != std::string::npos && pos > 0)
+                    {
                         std::string timestampStr = line.substr(0, pos);
                         std::string content = line.substr(pos + 1);
-                        try {
+                        try
+                        {
                             std::string decryptedContent = decrypt(content, config);
                             long long timestamp = std::stoll(timestampStr);
                             displayItems.push_back({timestamp, decryptedContent});
-                        } catch (...) {
-                            try {
+                        }
+                        catch (...)
+                        {
+                            try
+                            {
                                 long long timestamp = std::stoll(timestampStr);
                                 displayItems.push_back({timestamp, content});
-                            } catch (...) {
+                            }
+                            catch (...)
+                            {
                                 long long timestamp = std::chrono::system_clock::now().time_since_epoch().count();
                                 displayItems.push_back({timestamp, content});
                             }
@@ -3726,26 +4241,34 @@ public:
                 int preferredHeight = (numItems * LINE_HEIGHT) + 80;
                 DialogDimensions dims = calculateDialogDimensions(windowWidth, windowHeight, windowWidth - 40, preferredHeight);
                 int maxContentLength = calculateDialogContentLength(dims);
-                for (auto& entry : displayItems) {
-                    if (static_cast<int>(entry.second.length()) > maxContentLength) {
+                for (auto& entry : displayItems)
+                {
+                    if (static_cast<int>(entry.second.length()) > maxContentLength)
+                    {
                         entry.second = smartTrim(entry.second, maxContentLength);
                     }
-                    for (char& c : entry.second) {
+                    for (char& c : entry.second)
+                    {
                         if (c == '\n' || c == '\r') c = ' ';
                     }
                 }
+
                 drawPinnedDialog(display, window, gc, font, displayItems, dims,
                                  selectedViewPinnedItem, viewPinnedScrollOffset, m_maxVisiblePinnedItems,
                                  config.backgroundColor, config.textColor, config.selectionColor, config.borderColor, LINE_HEIGHT);
             }
-            if (helpDialogVisible) {
+            if (helpDialogVisible)
+            {
                 DialogDimensions dims = calculateDialogDimensions(windowWidth, windowHeight, 600, 500);
+
                 drawHelpDialog(display, window, gc, dims,
                                helpFilterMode, helpFilterText, helpDialogScrollOffset,
                                config.backgroundColor, config.textColor, config.borderColor);
             }
-            if (editDialogVisible) {
+            if (editDialogVisible)
+            {
                 DialogDimensions dims = calculateDialogDimensions(windowWidth, windowHeight, 600, 400);
+
                 drawEditDialog(display, window, gc, font, dims,
                                editDialogInput, editDialogCursorLine, editDialogCursorPos,
                                editDialogScrollOffset,
@@ -3761,7 +4284,8 @@ public:
 
     // Windows UI Methods
 #ifdef _WIN32
-        void drawConsole() {
+        void drawConsole()
+        {
             if (!visible) return;
             
             HDC hdc = GetDC(hwnd);
@@ -3793,12 +4317,14 @@ public:
             data.themeSelectMode = cmd_themeSelectMode;
             data.configSelectMode = cmd_configSelectMode;
             
-            if (cmd_themeSelectMode) {
+            if (cmd_themeSelectMode)
+            {
                 data.themeItems = availableThemes;
                 data.selectedTheme = selectedTheme;
                 data.themeScrollOffset = themeSelectScrollOffset;
             }
-            if (cmd_configSelectMode) {
+            if (cmd_configSelectMode)
+            {
                 data.configItems = availableConfigs;
                 data.selectedConfig = selectedConfig;
                 data.configScrollOffset = configSelectScrollOffset;
@@ -3814,7 +4340,8 @@ public:
             data.selColor = config.selectionColor;
             
             // Build clip display lines
-            if (!cmd_themeSelectMode && !cmd_configSelectMode) {
+            if (!cmd_themeSelectMode && !cmd_configSelectMode)
+            {
                 size_t displayCount = filterMode ? filteredItems.size() : items.size();
                 data.totalClipCount = displayCount;
                 data.selectedItem = selectedItem;
@@ -3823,7 +4350,8 @@ public:
                 int availableHeight = windowHeight - data.startY - 10;
                 const int SCROLL_INDICATOR_HEIGHT = 15;
                 
-                if (static_cast<int>(displayCount) > (availableHeight / LINE_HEIGHT)) {
+                if (static_cast<int>(displayCount) > (availableHeight / LINE_HEIGHT))
+                {
                     availableHeight -= SCROLL_INDICATOR_HEIGHT;
                 }
                 
@@ -3833,18 +4361,23 @@ public:
                 
                 size_t endIdx = std::min(consoleScrollOffset + maxItems, displayCount);
                 
-                for (size_t i = consoleScrollOffset; i < endIdx; ++i) {
+                for (size_t i = consoleScrollOffset; i < endIdx; ++i)
+                {
                     size_t actualIndex = filterMode ? filteredItems[i] : i;
                     const auto& item = items[actualIndex];
                     
                     std::string line;
-                    if (i == selectedItem) {
+                    if (i == selectedItem)
+                    {
                         line = "> ";
-                    } else {
+                    }
+                    else
+                    {
                         line = "  ";
                     }
                     
-                    if (config.verboseMode) {
+                    if (config.verboseMode)
+                    {
                         auto time_t = std::chrono::system_clock::to_time_t(item.timestamp);
                         auto tm = *std::localtime(&time_t);
                         
@@ -3852,7 +4385,8 @@ public:
                         timeStream << std::put_time(&tm, "%H:%M:%S");
                         
                         size_t lineCount = 1;
-                        for (char c : item.content) {
+                        for (char c : item.content)
+                        {
                             if (c == '\n') lineCount++;
                         }
                         
@@ -3860,34 +4394,42 @@ public:
                         
                         std::string content = item.content;
                         int maxContentLength = calculateMaxContentLength(clipListWidth, true);
-                        if (static_cast<int>(content.length()) > maxContentLength) {
+                        if (static_cast<int>(content.length()) > maxContentLength)
+                        {
                             content = smartTrim(content, maxContentLength);
                         }
                         
-                        for (char& c : content) {
+                        for (char& c : content)
+                        {
                             if (c == '\n' || c == '\r') c = ' ';
                         }
                         
                         line += content;
-                    } else {
+                    }
+                    else
+                    {
                         size_t lineCount = 1;
-                        for (char c : item.content) {
+                        for (char c : item.content)
+                        {
                             if (c == '\n') lineCount++;
                         }
                         
                         std::string content = item.content;
                         int maxContentLength = calculateMaxContentLength(clipListWidth, false);
-                        if (static_cast<int>(content.length()) > maxContentLength) {
+                        if (static_cast<int>(content.length()) > maxContentLength)
+                        {
                             content = smartTrim(content, maxContentLength);
                         }
                         
-                        for (char& c : content) {
+                        for (char& c : content)
+                        {
                             if (c == '\n' || c == '\r') c = ' ';
                         }
                         
                         line += content;
                         
-                        if (lineCount > 1) {
+                        if (lineCount > 1)
+                        {
                             line += " (" + std::to_string(lineCount) + " lines)";
                         }
                     }
@@ -3899,36 +4441,49 @@ public:
             ::drawConsole(hdc, data, WIN_SEL_RECT_HEIGHT, WIN_SEL_RECT_OFFSET_Y);
             
             // Draw dialogs if visible
-            if (bookmarkDialogVisible) {
+            if (bookmarkDialogVisible)
+            {
                 DialogDimensions dims = calculateDialogDimensions(windowWidth, windowHeight, 400, 300);
                 std::vector<std::string> filteredGroups;
-                for (const auto& group : bookmarkGroups) {
-                    if (bookmarkDialogInput.empty() || group.find(bookmarkDialogInput) != std::string::npos) {
+                for (const auto& group : bookmarkGroups)
+                {
+                    if (bookmarkDialogInput.empty() || group.find(bookmarkDialogInput) != std::string::npos)
+                    {
                         filteredGroups.push_back(group);
                     }
                 }
+
                 drawBookmarkDialog(hdc, dims,
                                  bookmarkDialogInput, filteredGroups,
                                  selectedBookmarkGroup, bookmarkMgmtScrollOffset,
                                  config.backgroundColor, config.textColor, config.selectionColor, config.borderColor,
                                  WIN_SEL_RECT_HEIGHT, WIN_SEL_RECT_OFFSET_Y);
             }
-            if (addToBookmarkDialogVisible) {
+
+            if (addToBookmarkDialogVisible)
+            {
                 DialogDimensions dims = calculateDialogDimensions(windowWidth, windowHeight, 400, 300);
                 std::vector<std::string> displayedGroups;
-                if (filterAddBookmarksMode) {
+                if (filterAddBookmarksMode)
+                {
                     std::string lowerFilterText = stringToLower(filterAddBookmarksText);
-                    for (const auto& group : bookmarkGroups) {
-                        if (stringToLower(group).find(lowerFilterText) != std::string::npos) {
+                    for (const auto& group : bookmarkGroups)
+                    {
+                        if (stringToLower(group).find(lowerFilterText) != std::string::npos)
+                        {
                             displayedGroups.push_back(group);
                         }
                     }
-                } else {
+                }
+                else
+                {
                     displayedGroups = bookmarkGroups;
                 }
-                if (selectedAddBookmarkGroup >= displayedGroups.size() && !displayedGroups.empty()) {
+                if (selectedAddBookmarkGroup >= displayedGroups.size() && !displayedGroups.empty())
+                {
                     selectedAddBookmarkGroup = displayedGroups.size() - 1;
                 }
+
                 drawAddToBookmarkDialog(hdc, dims,
                                       displayedGroups,
                                       selectedAddBookmarkGroup, addBookmarkScrollOffset,
@@ -3936,7 +4491,9 @@ public:
                                       config.backgroundColor, config.textColor, config.selectionColor, config.borderColor,
                                       WIN_SEL_RECT_HEIGHT, WIN_SEL_RECT_OFFSET_Y);
             }
-            if (viewBookmarksDialogVisible) {
+
+            if (viewBookmarksDialogVisible)
+            {
                 DialogDimensions dims = calculateDialogDimensions(windowWidth, windowHeight, 600, 500);
                 std::string title;
                 std::vector<std::string> items;
@@ -3946,49 +4503,71 @@ public:
                 std::string filterTxt;
                 int itemLH = LINE_HEIGHT;
                 std::string emptyMsg;
-                if (viewBookmarksShowingGroups) {
+                if (viewBookmarksShowingGroups)
+                {
                     title = "Select Bookmark Group";
-                    if (filterBookmarksMode) {
+                    if (filterBookmarksMode)
+                    {
                         std::string lowerFilter = stringToLower(filterBookmarksText);
-                        for (const auto& group : bookmarkGroups) {
-                            if (stringToLower(group).find(lowerFilter) != std::string::npos) {
+                        for (const auto& group : bookmarkGroups)
+                        {
+                            if (stringToLower(group).find(lowerFilter) != std::string::npos)
+                            {
                                 items.push_back(group);
                             }
                         }
                         filterActive = true;
                         filterTxt = filterBookmarksText;
-                    } else {
+                    }
+                    else
+                    {
                         items = bookmarkGroups;
                     }
-                    if (selectedViewBookmarkGroup >= items.size() && !items.empty()) {
+                    if (selectedViewBookmarkGroup >= items.size() && !items.empty())
+                    {
                         selectedViewBookmarkGroup = items.size() - 1;
                     }
                     selItem = selectedViewBookmarkGroup;
                     scrollOff = viewBookmarksScrollOffset;
-                } else {
-                    if (selectedViewBookmarkGroup < bookmarkGroups.size()) {
+                }
+                else
+                {
+                    if (selectedViewBookmarkGroup < bookmarkGroups.size())
+                    {
                         title = "View Bookmarks: " + bookmarkGroups[selectedViewBookmarkGroup];
-                    } else {
+                    }
+                    else
+                    {
                         title = "View Bookmarks";
                     }
-                    if (filterBookmarkClipsMode) {
+                    if (filterBookmarkClipsMode)
+                    {
                         items = filteredBookmarkClips;
                         filterActive = true;
                         filterTxt = filterBookmarkClipsText;
-                    } else {
-                        if (selectedViewBookmarkGroup < bookmarkGroups.size()) {
+                    }
+                    else
+                    {
+                        if (selectedViewBookmarkGroup < bookmarkGroups.size())
+                        {
                             std::string selectedGroup = bookmarkGroups[selectedViewBookmarkGroup];
                             std::string bookmarkFile = config.bookmarksDir + "/bookmarks_" + selectedGroup + ".txt";
                             std::ifstream file(bookmarkFile);
-                            if (file.is_open()) {
+                            if (file.is_open())
+                            {
                                 std::string line;
-                                while (std::getline(file, line)) {
+                                while (std::getline(file, line))
+                                {
                                     size_t pos = line.find('|');
-                                    if (pos != std::string::npos && pos > 0) {
+                                    if (pos != std::string::npos && pos > 0)
+                                    {
                                         std::string content = line.substr(pos + 1);
-                                        try {
+                                        try
+                                        {
                                             items.push_back(decrypt(content, config));
-                                        } catch (...) {
+                                        }
+                                        catch (...)
+                                        {
                                             items.push_back(content);
                                         }
                                     }
@@ -3998,44 +4577,59 @@ public:
                         }
                     }
                     int maxContentLength = calculateDialogContentLength(dims);
-                    for (auto& item : items) {
-                        if (static_cast<int>(item.length()) > maxContentLength) {
+                    for (auto& item : items)
+                    {
+                        if (static_cast<int>(item.length()) > maxContentLength)
+                        {
                             item = smartTrim(item, maxContentLength);
                         }
-                        for (char& c : item) {
+                        for (char& c : item)
+                        {
                             if (c == '\n' || c == '\r') c = ' ';
                         }
                     }
-                    if (selectedViewBookmarkItem >= items.size() && !items.empty()) {
+                    if (selectedViewBookmarkItem >= items.size() && !items.empty())
+                    {
                         selectedViewBookmarkItem = items.size() - 1;
                     }
                     selItem = selectedViewBookmarkItem;
                     scrollOff = viewBookmarksScrollOffset;
                     emptyMsg = "No bookmarks in this group";
                 }
+
                 drawViewBookmarksDialog(hdc, dims,
                                       title, items, selItem, scrollOff,
                                       filterActive, filterTxt, itemLH, emptyMsg,
                                       config.backgroundColor, config.textColor, config.selectionColor, config.borderColor,
                                       WIN_SEL_RECT_HEIGHT, WIN_SEL_RECT_OFFSET_Y);
             }
-            if (pinnedDialogVisible) {
+
+            if (pinnedDialogVisible)
+            {
                 auto sortedItems = getSortedPinnedItems(config.pinnedFile);
                 std::vector<std::pair<long long, std::string>> displayItems;
-                for (const auto& line : sortedItems) {
+                for (const auto& line : sortedItems)
+                {
                     size_t pos = line.find('|');
-                    if (pos != std::string::npos && pos > 0) {
+                    if (pos != std::string::npos && pos > 0)
+                    {
                         std::string timestampStr = line.substr(0, pos);
                         std::string content = line.substr(pos + 1);
-                        try {
+                        try
+                        {
                             std::string decryptedContent = decrypt(content, config);
                             long long timestamp = std::stoll(timestampStr);
                             displayItems.push_back({timestamp, decryptedContent});
-                        } catch (...) {
-                            try {
+                        }
+                        catch (...)
+                        {
+                            try
+                            {
                                 long long timestamp = std::stoll(timestampStr);
                                 displayItems.push_back({timestamp, content});
-                            } catch (...) {
+                            }
+                            catch (...)
+                            {
                                 long long timestamp = std::chrono::system_clock::now().time_since_epoch().count();
                                 displayItems.push_back({timestamp, content});
                             }
@@ -4046,27 +4640,37 @@ public:
                 int preferredHeight = (numItems * LINE_HEIGHT) + 80;
                 DialogDimensions dims = calculateDialogDimensions(windowWidth, windowHeight, windowWidth - 40, preferredHeight);
                 int maxContentLength = calculateDialogContentLength(dims);
-                for (auto& entry : displayItems) {
-                    if (static_cast<int>(entry.second.length()) > maxContentLength) {
+                for (auto& entry : displayItems)
+                {
+                    if (static_cast<int>(entry.second.length()) > maxContentLength)
+                    {
                         entry.second = smartTrim(entry.second, maxContentLength);
                     }
-                    for (char& c : entry.second) {
+                    for (char& c : entry.second)
+                    {
                         if (c == '\n' || c == '\r') c = ' ';
                     }
                 }
+
                 drawPinnedDialog(hdc, displayItems, dims,
                                  selectedViewPinnedItem, viewPinnedScrollOffset, m_maxVisiblePinnedItems,
                                  config.backgroundColor, config.textColor, config.selectionColor, config.borderColor,
                                  LINE_HEIGHT, WIN_SEL_RECT_HEIGHT, WIN_SEL_RECT_OFFSET_Y);
             }
-            if (helpDialogVisible) {
+
+            if (helpDialogVisible)
+            {
                 DialogDimensions dims = calculateDialogDimensions(windowWidth, windowHeight, 600, 500);
+
                 drawHelpDialog(hdc, dims,
                                helpFilterMode, helpFilterText, helpDialogScrollOffset,
                                config.backgroundColor, config.textColor, config.borderColor);
             }
-            if (editDialogVisible) {
+
+            if (editDialogVisible)
+            {
                 DialogDimensions dims = calculateDialogDimensions(windowWidth, windowHeight, 600, 400);
+
                 drawEditDialog(hdc, dims,
                                editDialogInput, editDialogCursorLine, editDialogCursorPos,
                                editDialogScrollOffset,
@@ -4095,22 +4699,26 @@ public:
 
     
 #ifdef __linux__
-    void requestClipboardContent() {
+    void requestClipboardContent()
+    {
         // Request clipboard content as UTF8_STRING
         XConvertSelection(display, clipboardAtom, utf8Atom, clipboardAtom, window, CurrentTime);
     }
 #endif
 
 #ifdef __linux__
-    void handleSelectionNotify(XEvent* event) {
-        if (event->xselection.property == None) {
+    void handleSelectionNotify(XEvent* event)
+    {
+        if (event->xselection.property == None)
+        {
             // If UTF8_STRING is not available, try plain TEXT
             XConvertSelection(display, clipboardAtom, XA_STRING, clipboardAtom, window, CurrentTime);
             return;
         }
 
         Atom target = event->xselection.target;
-        if (target != utf8Atom && target != XA_STRING) {
+        if (target != utf8Atom && target != XA_STRING)
+        {
             // We are not interested in other formats
             return;
         }
@@ -4123,7 +4731,8 @@ public:
         XGetWindowProperty(display, window, clipboardAtom, 0, LONG_MAX, False, AnyPropertyType,
                            &type, &format, &nitems, &bytes_after, &data);
 
-        if (data) {
+        if (data)
+        {
             std::string content(reinterpret_cast<char*>(data), nitems);
             XFree(data);
             processClipboardContent(content);
@@ -4131,14 +4740,17 @@ public:
     }
 #endif
 
-    void processClipboardContent(const std::string& content) {
+    void processClipboardContent(const std::string& content)
+    {
         // Trim trailing newlines
         std::string trimmed_content = content;
-        while (!trimmed_content.empty() && (trimmed_content.back() == '\n' || trimmed_content.back() == '\r')) {
+        while (!trimmed_content.empty() && (trimmed_content.back() == '\n' || trimmed_content.back() == '\r'))
+        {
             trimmed_content.pop_back();
         }
 
-        if (trimmed_content.empty() || trimmed_content == lastClipboardContent) {
+        if (trimmed_content.empty() || trimmed_content == lastClipboardContent)
+        {
             return;
         }
 
@@ -4149,15 +4761,18 @@ public:
         
         // Check for duplicates and move to top if found
         bool isDuplicate = false;
-        for (size_t i = 0; i < items.size(); i++) {
-            if (items[i].content == trimmed_content) {
+        for (size_t i = 0; i < items.size(); i++)
+        {
+            if (items[i].content == trimmed_content)
+            {
                 isDuplicate = true;
                 duplicateIndex = i;
                 break;
             }
         }
       
-        if (isDuplicate) {
+        if (isDuplicate)
+        {
             // Move existing clip to top
             std::string clipContent = items[duplicateIndex].content;
             items.erase(items.begin() + duplicateIndex);
@@ -4167,7 +4782,8 @@ public:
             selectedItem = 0;
 
             // Update filtered items if in filter mode
-            if (filterMode) {
+            if (filterMode)
+            {
                 updateFilteredItems();
             }
 
@@ -4176,7 +4792,8 @@ public:
             std::cout << "Existing clip moved to top\n";
 
             // Refresh display if window is visible
-            if (visible) {
+            if (visible)
+            {
                 drawConsole();
             }
 
@@ -4184,7 +4801,8 @@ public:
         }
 
         items.emplace(items.begin(), trimmed_content);
-        while (items.size() > config.maxClips) {
+        while (items.size() > config.maxClips)
+        {
             items.pop_back();
         }
         
@@ -4192,7 +4810,8 @@ public:
         selectedItem = 0;
         
         // Update filtered items if in filter mode
-        if (filterMode) {
+        if (filterMode)
+        {
             updateFilteredItems();
         }
         
@@ -4201,16 +4820,19 @@ public:
         std::cout << "New clipboard item added\n";
         
         // Refresh display if window is visible
-        if (visible) {
+        if (visible)
+        {
             drawConsole();
         }
     }
     
-    void copyToClipboard(const std::string& content) {
+    void copyToClipboard(const std::string& content)
+    {
 #ifdef __linux__
         // Use xclip to copy to clipboard
         FILE* pipe = popen("xclip -selection clipboard", "w");
-        if (pipe) {
+        if (pipe)
+        {
             fwrite(content.c_str(), 1, content.length(), pipe);
             pclose(pipe);
         }
@@ -4218,10 +4840,12 @@ public:
 
 #ifdef _WIN32
         // Windows clipboard
-        if (OpenClipboard(nullptr)) {
+        if (OpenClipboard(nullptr))
+        {
             EmptyClipboard();
             HGLOBAL hMem = GlobalAlloc(GMEM_MOVEABLE, content.length() + 1);
-            if (hMem) {
+            if (hMem)
+            {
                 memcpy(GlobalLock(hMem), content.c_str(), content.length() + 1);
                 GlobalUnlock(hMem);
                 SetClipboardData(CF_TEXT, hMem);
@@ -4233,17 +4857,21 @@ public:
 #ifdef __APPLE__
         // macOS clipboard using pbcopy
         FILE* pipe = popen("pbcopy", "w");
-        if (pipe) {
+        if (pipe)
+        {
             fwrite(content.c_str(), 1, content.length(), pipe);
             pclose(pipe);
         }
 #endif
     }
     
-    void saveToFile() {
+    void saveToFile()
+    {
         std::ofstream file(config.dataFile);
-        if (file.is_open()) {
-            for (const auto& item : items) {
+        if (file.is_open())
+        {
+            for (const auto& item : items)
+            {
                 // Store timestamp and content (encrypted if enabled)
                 auto timestamp = std::chrono::duration_cast<std::chrono::seconds>(
                     item.timestamp.time_since_epoch()).count();
@@ -4254,36 +4882,47 @@ public:
         }
     }
     
-    void loadFromFile() {
+    void loadFromFile()
+    {
         std::ifstream file(config.dataFile);
-        if (file.is_open()) {
+        if (file.is_open())
+        {
             std::string line;
-            while (std::getline(file, line)) {
+            while (std::getline(file, line))
+            {
                 size_t pos = line.find('|');
-                if (pos != std::string::npos && pos > 0) {
+                if (pos != std::string::npos && pos > 0)
+                {
                     std::string timestampStr = line.substr(0, pos);
                     std::string content = line.substr(pos + 1);
                     
-                    try {
+                    try
+                    {
                         std::string decryptedContent;
                         
                         // Try to decrypt first
-                        try {
+                        try
+                        {
                             decryptedContent = decrypt(content, config);
                             // Check if decryption produced reasonable results (no control characters)
                             bool hasControlChars = false;
-                            for (char c : decryptedContent) {
-                                if (c < 32 && c != '\n' && c != '\r' && c != '\t') {
+                            for (char c : decryptedContent)
+                            {
+                                if (c < 32 && c != '\n' && c != '\r' && c != '\t')
+                                {
                                     hasControlChars = true;
                                     break;
                                 }
                             }
                             
                             // If decryption produced garbage, assume the content was never encrypted
-                            if (hasControlChars || decryptedContent.empty()) {
+                            if (hasControlChars || decryptedContent.empty())
+                            {
                                 decryptedContent = content;
                             }
-                        } catch (...) {
+                        }
+                        catch (...)
+                        {
                             // If decryption fails, assume content was never encrypted
                             decryptedContent = content;
                         }
@@ -4293,420 +4932,392 @@ public:
                         item.timestamp = std::chrono::system_clock::time_point(timestamp);
                         
                         items.push_back(item);
-                    } catch (const std::exception& e) {
+                    }
+                    catch (const std::exception& e)
+                    {
                         // Skip invalid entries
                         continue;
                     }
                 }
             }
             file.close();
-        } else {
+        }
+        else
+        {
             // Create empty clips.txt file if it doesn't exist
             std::ofstream outFile(config.dataFile);
-            if (outFile.is_open()) {
+            if (outFile.is_open())
+            {
                 outFile.close();
                 std::cout << "Created empty clips file: " << config.dataFile << "\n";
-            } else {
+            }
+            else
+            {
                 std::cerr << "Failed to create clips file: " << config.dataFile << "\n";
             }
         }
     }
 };
 
-void ClipboardManager::moveCursorWordLeft() {
+void ClipboardManager::moveCursorWordLeft()
+{
     std::string currentLine = "";
     std::istringstream iss(editDialogInput);
-    for (size_t i = 0; i <= editDialogCursorLine; ++i) {
+    for (size_t i = 0; i <= editDialogCursorLine; ++i)
+    {
         std::getline(iss, currentLine);
     }
 
-    if (editDialogCursorPos > 0) {
+    if (editDialogCursorPos > 0)
+    {
         size_t pos = editDialogCursorPos;
-        while (pos > 0 && isspace(currentLine[pos - 1])) {
+        while (pos > 0 && isspace(currentLine[pos - 1]))
+        {
             pos--;
         }
-        while (pos > 0 && !isspace(currentLine[pos - 1])) {
+        while (pos > 0 && !isspace(currentLine[pos - 1]))
+        {
             pos--;
         }
         editDialogCursorPos = pos;
     }
 }
 
-void ClipboardManager::moveCursorWordRight() {
+void ClipboardManager::moveCursorWordRight()
+{
     std::string currentLine = "";
     std::istringstream iss(editDialogInput);
-    for (size_t i = 0; i <= editDialogCursorLine; ++i) {
+    for (size_t i = 0; i <= editDialogCursorLine; ++i)
+    {
         std::getline(iss, currentLine);
     }
 
-    if (editDialogCursorPos < currentLine.length()) {
+    if (editDialogCursorPos < currentLine.length())
+    {
         size_t pos = editDialogCursorPos;
-        while (pos < currentLine.length() && !isspace(currentLine[pos])) {
+        while (pos < currentLine.length() && !isspace(currentLine[pos]))
+        {
             pos++;
         }
-        while (pos < currentLine.length() && isspace(currentLine[pos])) {
+        while (pos < currentLine.length() && isspace(currentLine[pos]))
+        {
             pos++;
         }
         editDialogCursorPos = pos;
     }
 }
 
-void ClipboardManager::updateFilteredBookmarkClips() {
-
+void ClipboardManager::updateFilteredBookmarkClips()
+{
     filteredBookmarkClips.clear();
-
     std::string selectedGroup = bookmarkGroups[selectedViewBookmarkGroup];
-
     std::string bookmarkFile = config.bookmarksDir + "/bookmarks_" + selectedGroup + ".txt";
-
     std::ifstream file(bookmarkFile);
 
-
-
-    if (file.is_open()) {
-
+    if (file.is_open())
+    {
         std::string line;
 
-        while (std::getline(file, line)) {
-
+        while (std::getline(file, line))
+        {
             size_t pos = line.find('|');
 
-            if (pos != std::string::npos && pos > 0) {
-
+            if (pos != std::string::npos && pos > 0)
+            {
                 std::string content = line.substr(pos + 1);
 
-                try {
-
+                try
+                {
                     std::string decryptedContent = decrypt(content, config);
-
                     // Perform case-insensitive search
-
                     std::string lower_decrypted_content = decryptedContent;
-
                     std::transform(lower_decrypted_content.begin(), lower_decrypted_content.end(), lower_decrypted_content.begin(),
-
                                    [](unsigned char c){ return std::tolower(c); });
-
-
 
                     std::string lower_filter_text = filterBookmarkClipsText;
-
                     std::transform(lower_filter_text.begin(), lower_filter_text.end(), lower_filter_text.begin(),
-
                                    [](unsigned char c){ return std::tolower(c); });
 
-
-
-                    if (lower_decrypted_content.find(lower_filter_text) != std::string::npos) {
-
+                    if (lower_decrypted_content.find(lower_filter_text) != std::string::npos)
+                    {
                         filteredBookmarkClips.push_back(decryptedContent);
-
                     }
-
-                } catch (...) {
-
+                }
+                catch (...)
+                {
                     // Fallback to non-decrypted content if decryption fails
-
                     std::string lower_content = content;
-
                     std::transform(lower_content.begin(), lower_content.end(), lower_content.begin(),
-
                                    [](unsigned char c){ return std::tolower(c); });
-
-
 
                     std::string lower_filter_text = filterBookmarkClipsText;
-
                     std::transform(lower_filter_text.begin(), lower_filter_text.end(), lower_filter_text.begin(),
-
                                    [](unsigned char c){ return std::tolower(c); });
 
-
-
-                    if (lower_content.find(lower_filter_text) != std::string::npos) {
-
+                    if (lower_content.find(lower_filter_text) != std::string::npos)
+                    {
                         filteredBookmarkClips.push_back(content);
-
                     }
-
                 }
-
             }
-
         }
 
         file.close();
-
     }
 
     // Reset selection if no items match
 
-    if (filteredBookmarkClips.empty()) {
-
+    if (filteredBookmarkClips.empty())
+    {
         selectedViewBookmarkItem = 0;
-
-    } else if (selectedViewBookmarkItem >= filteredBookmarkClips.size()) {
-
+    }
+    else if (selectedViewBookmarkItem >= filteredBookmarkClips.size())
+    {
         selectedViewBookmarkItem = filteredBookmarkClips.size() - 1;
     }
 }
 
+size_t ClipboardManager::getBookmarkItemCount()
+{
+    if (selectedViewBookmarkGroup >= bookmarkGroups.size())
+    {
+        return 0;
+    }
 
-
-size_t ClipboardManager::getBookmarkItemCount() {
-        if (selectedViewBookmarkGroup >= bookmarkGroups.size()) {
-            return 0;
-        }
-
-        std::string selectedGroup = bookmarkGroups[selectedViewBookmarkGroup];
-        std::string bookmarkFile = config.bookmarksDir + "/bookmarks_" + selectedGroup + ".txt";
-        std::ifstream file(bookmarkFile);
+    std::string selectedGroup = bookmarkGroups[selectedViewBookmarkGroup];
+    std::string bookmarkFile = config.bookmarksDir + "/bookmarks_" + selectedGroup + ".txt";
+    std::ifstream file(bookmarkFile);
         
-            size_t itemCount = 0;
-                if (file.is_open()) {
-                    std::string line;
+    size_t itemCount = 0;
 
-                    while (std::getline(file, line)) {
-                        size_t pos = line.find('|');
+    if (file.is_open())
+    {
+        std::string line;
 
-                        if (pos != std::string::npos && pos > 0) {
-                            itemCount++;
-                        }
-                    }
+        while (std::getline(file, line))
+        {
+            size_t pos = line.find('|');
 
-                    file.close();
-                }
-
-                return itemCount;
+            if (pos != std::string::npos && pos > 0)
+            {
+                itemCount++;
             }
-
-        std::string stringToLower(const std::string& str) {
-            std::string lower_str;
-
-            lower_str.reserve(str.length());
-
-            std::transform(str.begin(), str.end(), std::back_inserter(lower_str),
-                           [](unsigned char c){ return std::tolower(c); });
-
-            return lower_str;
         }
 
-        // Global pointer for signal handling
-        ClipboardManager* g_manager = nullptr;
+        file.close();
+    }
 
-        #include <signal.h>
+    return itemCount;
+}
 
-        void signal_handler(int signal) {
-            std::cout << "\nReceived signal " << signal << ", cleaning up...\n";
+std::string stringToLower(const std::string& str)
+{
+    std::string lower_str;
 
-            if (g_manager) {
-                // Just set running to false, don't join in signal handler
-                g_manager->setRunning(false);
-            }
-            exit(0);
-        }
+    lower_str.reserve(str.length());
+
+    std::transform(str.begin(), str.end(), std::back_inserter(lower_str),
+                   [](unsigned char c){ return std::tolower(c); });
+
+    return lower_str;
+}
+
+// Global pointer for signal handling
+ClipboardManager* g_manager = nullptr;
+
+#include <signal.h>
+
+void signal_handler(int signal)
+{
+    std::cout << "\nReceived signal " << signal << ", cleaning up...\n";
+
+    if (g_manager)
+    {
+        // Just set running to false, don't join in signal handler
+        g_manager->setRunning(false);
+    }
+    exit(0);
+}
 
 
 
 
 
 #ifdef _WIN32
-
-LRESULT CALLBACK MMRYWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
-
+LRESULT CALLBACK MMRYWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
+{
     // Get the ClipboardManager instance
-
     ClipboardManager* manager = nullptr;
 
-    
-
-    if (msg == WM_NCCREATE) {
-
+    if (msg == WM_NCCREATE)
+    {
         // Store instance pointer
-
         CREATESTRUCT* pCreate = (CREATESTRUCT*)lParam;
-
         manager = (ClipboardManager*)pCreate->lpCreateParams;
-
         SetWindowLongPtr(hwnd, GWLP_USERDATA, (LONG_PTR)manager);
-
-    } else {
-
-        manager = (ClipboardManager*)GetWindowLongPtr(hwnd, GWLP_USERDATA);
-
     }
-
+    else
+    {
+        manager = (ClipboardManager*)GetWindowLongPtr(hwnd, GWLP_USERDATA);
+    }
     
-
-    switch (msg) {
-
+    switch (msg)
+    {
         case WM_SIZE:
-
-            if (manager) {
-
+            if (manager)
+            {
                 int newWidth = LOWORD(lParam);
-
                 int newHeight = HIWORD(lParam);
-
                 manager->updateWindowDimensions(newWidth, newHeight);
-
                 manager->drawConsole();
-
             }
-
             return 0;
 
         case WM_KEYDOWN:
-
             // Process WM_KEYDOWN only - this prevents double processing
-
-            if (manager) {
-
+            if (manager)
+            {
                 MSG winMsg = {hwnd, msg, wParam, lParam, 0, 0, 0};
-
                 manager->handleKeyPressCommon(&winMsg);
-
             }
-
             return 0;
 
         case WM_CHAR:
-
             // Skip WM_CHAR to prevent double processing
-
             // All key handling is done via WM_KEYDOWN
-
             return 0;
 
         case WM_PAINT:
-
-            if (manager) {
-
+            if (manager)
+            {
                 PAINTSTRUCT ps;
-
                 BeginPaint(hwnd, &ps);
-
                 manager->drawConsole();
-
                 EndPaint(hwnd, &ps);
-
             }
-
             return 0;
 
         case WM_ERASEBKGND:
-
             // Return 1 to indicate we handled background erasing
-
             // This prevents Windows from erasing to white
-
             return 1;
 
         case WM_CLIPBOARDUPDATE:
-
-            if (manager) {
-
-                if (OpenClipboard(hwnd)) {
-
-                    if (IsClipboardFormatAvailable(CF_TEXT)) {
-
+            if (manager)
+            {
+                if (OpenClipboard(hwnd))
+                {
+                    if (IsClipboardFormatAvailable(CF_TEXT))
+                    {
                         HANDLE hData = GetClipboardData(CF_TEXT);
-
-                        if (hData) {
-
+                        if (hData)
+                        {
                             char* pszText = static_cast<char*>(GlobalLock(hData));
-
-                            if (pszText) {
-
+                            if (pszText)
+                            {
                                 manager->processClipboardContent(pszText);
-
                                 GlobalUnlock(hData);
-
                             }
-
                         }
-
                     }
-
                     CloseClipboard();
-
                 }
-
             }
-
             return 0;
 
         case WM_DESTROY:
-
-            if (manager) {
-
+            if (manager)
+            {
                 RemoveClipboardFormatListener(hwnd);
-
             }
-
             PostQuitMessage(0);
-
             return 0;
 
         default:
-
             return DefWindowProc(hwnd, msg, wParam, lParam);
-
     }
-
 }
 
 #endif
 
-int main() {
+
+
+int main_linux()
+{
 #ifdef __linux__
-    // Install signal handlers for graceful shutdown
-    signal(SIGTERM, signal_handler);
-    signal(SIGINT, signal_handler);
+        // Install signal handlers for graceful shutdown
+        signal(SIGTERM, signal_handler);
+        signal(SIGINT, signal_handler);
 
-    SingleInstance guard("Mmry");
-    if (guard.isAnotherInstanceRunning()) {
-        std::cerr << "Another instance is already running. Exiting.\n";
-        return 1;
-    }
-    
-    // Install temporary error handler
-    XErrorHandler oldHandler = XSetErrorHandler(ignore_x11_errors);
-    (void)oldHandler; // Suppress unused variable warning
+        SingleInstance guard("Mmry");
+        if (guard.isAnotherInstanceRunning())
+        {
+            std::cerr << "Another instance is already running. Exiting.\n";
+            return 1;
+        }
+        
+        // Install temporary error handler
+        XErrorHandler oldHandler = XSetErrorHandler(ignore_x11_errors);
+        (void)oldHandler; // Suppress unused variable warning
 
-    ClipboardManager manager;
-    g_manager = &manager;
-    manager.run();
-    g_manager = nullptr;
+        ClipboardManager manager;
+        g_manager = &manager;
+        manager.run();
+        g_manager = nullptr;
 #endif
 
+    return 0;
+}
+
+int main_windows()
+{
 #ifdef _WIN32
-    // Check for another instance using a named mutex
-    HANDLE hMutex = CreateMutexA(NULL, TRUE, "Global\\MmryClipboardManager");
-    if (GetLastError() == ERROR_ALREADY_EXISTS) {
-        std::cerr << "Another instance is already running. Exiting.\n";
-        if (hMutex) {
+        // Check for another instance using a named mutex
+        HANDLE hMutex = CreateMutexA(NULL, TRUE, "Global\\MmryClipboardManager");
+        if (GetLastError() == ERROR_ALREADY_EXISTS)
+        {
+            std::cerr << "Another instance is already running. Exiting.\n";
+            if (hMutex)
+            {
+                CloseHandle(hMutex);
+            }
+            MessageBoxA(NULL, "MMRY is already running.", "MMRY", MB_OK | MB_ICONINFORMATION);
+            return 1;
+        }
+
+        // Install signal handlers for graceful shutdown
+        signal(SIGTERM, signal_handler);
+        signal(SIGINT, signal_handler);
+
+        ClipboardManager manager;
+        g_manager = &manager;
+        manager.run();
+        g_manager = nullptr;
+
+        // Clean up mutex
+        if (hMutex)
+        {
+            ReleaseMutex(hMutex);
             CloseHandle(hMutex);
         }
-        MessageBoxA(NULL, "MMRY is already running.", "MMRY", MB_OK | MB_ICONINFORMATION);
+#endif
+
+    return 0;
+}
+
+
+
+int main()
+{
+    if (main_linux())
+    {
         return 1;
     }
 
-    // Install signal handlers for graceful shutdown
-    signal(SIGTERM, signal_handler);
-    signal(SIGINT, signal_handler);
-
-    ClipboardManager manager;
-    g_manager = &manager;
-    manager.run();
-    g_manager = nullptr;
-
-    // Clean up mutex
-    if (hMutex) {
-        ReleaseMutex(hMutex);
-        CloseHandle(hMutex);
+    if (main_windows())
+    {
+        return 1;
     }
-#endif
 
     return 0;
 }
