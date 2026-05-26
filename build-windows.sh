@@ -16,7 +16,7 @@ echo "Building MMRY for Windows..."
 # Determine build type
 BUILD_TYPE_FLAGS=""
 BUILD_MESSAGE="DEBUG"
-if [ "$1" == "y" ]; then
+if [ "$1" == "r" ]; then
     BUILD_TYPE_FLAGS="-s" # Strip all symbol tables
     BUILD_MESSAGE="RELEASE"
 fi
@@ -59,6 +59,11 @@ x86_64-w64-mingw32-g++ -std=c++17 \
     -mwindows \
     -o mmry.exe \
     ../src/main.cpp \
+    ../src/config.cpp \
+    ../src/utils.cpp \
+    ../src/key_translation.cpp \
+    ../src/help.cpp \
+    ../src/ui_win32.cpp \
     -luser32 \
     -lgdi32 \
     -lkernel32 \

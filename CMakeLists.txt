@@ -7,7 +7,17 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 # Create executable
 add_executable(mmry
     src/main.cpp
+    src/config.cpp
+    src/key_translation.cpp
+    src/help.cpp
+    src/utils.cpp
 )
+
+if(UNIX AND NOT APPLE)
+    target_sources(mmry PRIVATE src/ui_linux.cpp)
+elseif(WIN32)
+    target_sources(mmry PRIVATE src/ui_win32.cpp)
+endif()
 
 # Platform-specific libraries
 if(UNIX AND NOT APPLE)

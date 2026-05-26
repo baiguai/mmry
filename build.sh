@@ -9,7 +9,7 @@ echo "Building MMRY Clipboard Manager..."
 
 # Determine build type
 BUILD_TYPE="Debug"
-if [ "$1" == "y" ]; then
+if [ "$1" == "r" ]; then
     BUILD_TYPE="Release"
     echo "Performing RELEASE build."
 else
