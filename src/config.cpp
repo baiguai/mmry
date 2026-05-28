@@ -8,6 +8,13 @@
 #include <cstring>
 #include <cerrno>
 
+#ifdef __linux__
+#include <unistd.h>
+#endif
+#ifdef __APPLE__
+#include <mach-o/dyld.h>
+#endif
+
 #ifdef _WIN32
 #include <windows.h>
 #endif
@@ -212,26 +219,44 @@ std::vector<std::string> ConfigManager::discoverConfigs() {
 }
 
 void ConfigManager::setupConfigDir() {
-    const char* home = nullptr;
+    std::string exePath;
     
 #ifdef _WIN32
-    home = getenv("USERPROFILE");
-    if (!home) home = getenv("APPDATA");
-#elif __APPLE__
-    home = getenv("HOME");
+    char buf[MAX_PATH];
+    if (GetModuleFileNameA(NULL, buf, MAX_PATH)) {
+        exePath = buf;
+    }
 #elif __linux__
-    home = getenv("HOME");
+    char buf[4096];
+    ssize_t len = readlink("/proc/self/exe", buf, sizeof(buf) - 1);
+    if (len != -1) {
+        buf[len] = '\0';
+        exePath = buf;
+    }
+#elif __APPLE__
+    uint32_t size = 0;
+    _NSGetExecutablePath(nullptr, &size);
+    std::string path(size, '\0');
+    if (_NSGetExecutablePath(&path[0], &size) == 0) {
+        path.resize(strlen(path.c_str()));
+        exePath = path;
+    }
 #endif
     
-    if (!home) home = ".";
-    
+    if (exePath.empty()) {
+        configDir = "./data";
+    } else {
 #ifdef _WIN32
-    configDir = std::string(home) + "\\mmry";
-#elif __APPLE__
-    configDir = std::string(home) + "/Library/Application Support/mmry";
-#elif __linux__
-    configDir = std::string(home) + "/.config/mmry";
+        size_t pos = exePath.find_last_of("\\");
+#else
+        size_t pos = exePath.find_last_of("/");
 #endif
+        if (pos != std::string::npos) {
+            configDir = exePath.substr(0, pos) + "/data";
+        } else {
+            configDir = "./data";
+        }
+    }
     
     auto createDirectory = [](const std::string& path) {
 #ifdef _WIN32
