@@ -5,7 +5,8 @@
 #include <vector>
 #include <map>
 
-class ConfigManager {
+class ConfigManager
+{
 public:
     std::string configDir;
     std::string bookmarksDir;
