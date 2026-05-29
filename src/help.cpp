@@ -13,16 +13,20 @@ std::string helpFilterText;
 
 
 #ifdef __linux__
-void drawHelpTopic(HDC /*hdc*/, int x, int y, int contentTop, int contentBottom, const std::string& topic) {
-    if (y >= contentTop && y < contentBottom) {
+void drawHelpTopic(HDC /*hdc*/, int x, int y, int contentTop, int contentBottom, const std::string& topic)
+{
+    if (y >= contentTop && y < contentBottom)
+    {
         XDrawString(display, window, gc, x, y, topic.c_str(), topic.length());
     }
 }
 #endif
 
 #ifdef _WIN32
-void drawHelpTopic(HDC hdc, int x, int y, int contentTop, int contentBottom, const std::string& topic) {
-    if (hdc && y >= contentTop && y < contentBottom) {
+void drawHelpTopic(HDC hdc, int x, int y, int contentTop, int contentBottom, const std::string& topic)
+{
+    if (hdc && y >= contentTop && y < contentBottom)
+    {
         RECT rc;
         rc.left   = x;
         rc.top    = y - 12;     // baseline to bounding box adjustment
@@ -41,52 +45,69 @@ void drawHelpTopic(HDC hdc, int x, int y, int contentTop, int contentBottom, con
 #endif
 
 #ifdef __APPLE__
-        // (If you eventually implement macOS)
+        // (If we eventually implement macOS)
 #endif
 
-void drawAllHelpTopics(HDC hdc, int titleLeft, int topicLeft, int lineHeight, int gap, int y, int contentTop, int contentBottom) {
-    if (helpTopicsCache.empty()) {
+void drawAllHelpTopics(HDC hdc, int titleLeft, int topicLeft, int lineHeight, int gap, int y, int contentTop, int contentBottom)
+{
+    if (helpTopicsCache.empty())
+    {
         buildHelpTopicsCache();
     }
 
     std::string filterQuery = helpFilterText;
     bool keysOnly = false;
-    if (!filterQuery.empty() && filterQuery[0] == ':') {
+    if (!filterQuery.empty() && filterQuery[0] == ':')
+    {
         keysOnly = true;
         filterQuery = filterQuery.substr(1);
     }
     std::string lowerQuery = stringToLower(filterQuery);
 
     std::vector<HelpTopic> filtered;
-    for (const auto& topic : helpTopicsCache) {
-        if (topic.isHeader) {
+    for (const auto& topic : helpTopicsCache)
+    {
+        if (topic.isHeader)
+        {
             filtered.push_back(topic);
-        } else {
+        }
+        else
+        {
             std::string keyLower = stringToLower(topic.key);
             std::string descLower = stringToLower(topic.description);
-            if (keysOnly) {
-                if (keyLower.find(lowerQuery) != std::string::npos) {
+            if (keysOnly)
+            {
+                if (keyLower.find(lowerQuery) != std::string::npos)
+                {
                     filtered.push_back(topic);
                 }
-            } else {
-                if (keyLower.find(lowerQuery) != std::string::npos || descLower.find(lowerQuery) != std::string::npos) {
+            }
+            else
+            {
+                if (keyLower.find(lowerQuery) != std::string::npos || descLower.find(lowerQuery) != std::string::npos)
+                {
                     filtered.push_back(topic);
                 }
             }
         }
     }
 
-    for (const auto& topic : filtered) {
+    for (const auto& topic : filtered)
+    {
         std::string displayText;
-        if (topic.isHeader) {
+        if (topic.isHeader)
+        {
             displayText = topic.key;
             drawHelpTopic(hdc, titleLeft, y, contentTop, contentBottom, displayText);
-        } else {
+        }
+        else
+        {
             displayText = topic.key + "  -  " + topic.description;
             drawHelpTopic(hdc, topicLeft, y, contentTop, contentBottom, displayText);
         }
         y += lineHeight;
-        if (topic.isHeader) {
+        if (topic.isHeader)
+        {
             y += gap;
         }
     }
@@ -97,7 +118,8 @@ void drawAllHelpTopics(HDC hdc, int titleLeft, int topicLeft, int lineHeight, in
     drawHelpTopic(hdc, topicLeft, y, contentTop, contentBottom, "Ctrl+Alt+C     - Show/hide window");
 }
 
-void buildHelpTopicsCache() {
+void buildHelpTopicsCache()
+{
     helpTopicsCache.clear();
 
     helpTopicsCache.push_back({"Main Window:", "", true});

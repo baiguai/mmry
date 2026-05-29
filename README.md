@@ -4,7 +4,7 @@ A fast, lightweight clipboard manager written in C++ with X11 support.
 
 ## Building
 
-### Option 1: Using Make (Recommended)
+### Option 1: Using Make
 ```bash
 # Build the project
 make
@@ -25,7 +25,13 @@ make test
 make help
 ```
 
-### Option 2: Using Build Script
+### Option 2: Using Build Script (Recommended)
+
+**Note!**\
+If you get:\
+CMake Error: The source directory "/home/baiguai/documents/development/cpp/mmry" does not appear to contain CMakeLists.txt.\
+Try deleting the build directories and try again.
+
 ```bash
 # Build using the script
 ./build.sh
@@ -33,9 +39,16 @@ make help
 # Build Windows executable
 ./build-windows.sh
 
+# Release Build using the script
+./build.sh r
+
+# Release Build Windows executable
+./build-windows.sh r
+
 # Build and run
 ./run.sh
 ```
+
 
 ### Option 3: Using CMake directly
 ```bash
@@ -75,7 +88,7 @@ mmry_cpp
 - `Shift+Q` - Quit application
 
 ### Configuration
-Configuration files are stored in `~/.config/mmry/`
+Configuration files are stored in 'data' inside the MMRY directory.
 
 ## Testing
 

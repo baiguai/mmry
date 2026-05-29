@@ -10,7 +10,8 @@
 typedef void* HDC;
 #endif
 
-struct HelpTopic {
+struct HelpTopic
+{
     std::string key;
     std::string description;
     bool isHeader;
