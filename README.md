@@ -4,7 +4,7 @@ A fast, lightweight clipboard manager written in C++ with X11 support.
 
 ## Building
 
-### Option 1: Using Make (Recommended)
+### Option 1: Using Make
 ```bash
 # Build the project
 make
@@ -25,7 +25,7 @@ make test
 make help
 ```
 
-### Option 2: Using Build Script
+### Option 2: Using Build Script (Recommended)
 ```bash
 # Build using the script
 ./build.sh
