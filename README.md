@@ -88,7 +88,7 @@ mmry_cpp
 - `Shift+Q` - Quit application
 
 ### Configuration
-Configuration files are stored in `~/.config/mmry/`
+Configuration files are stored in 'data' inside the MMRY directory.
 
 ## Testing
 
