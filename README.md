@@ -26,6 +26,12 @@ make help
 ```
 
 ### Option 2: Using Build Script (Recommended)
+
+**Note!**
+If you get:
+CMake Error: The source directory "/home/baiguai/documents/development/cpp/mmry" does not appear to contain CMakeLists.txt.
+Try deleting the build directories and try again.
+
 ```bash
 # Build using the script
 ./build.sh
@@ -43,10 +49,6 @@ make help
 ./run.sh
 ```
 
-**Note!**
-If you get:
-CMake Error: The source directory "/home/baiguai/documents/development/cpp/mmry" does not appear to contain CMakeLists.txt.
-Try deleting the build directories and try again.
 
 ### Option 3: Using CMake directly
 ```bash
