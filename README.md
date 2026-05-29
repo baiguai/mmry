@@ -33,9 +33,20 @@ make help
 # Build Windows executable
 ./build-windows.sh
 
+# Release Build using the script
+./build.sh r
+
+# Release Build Windows executable
+./build-windows.sh r
+
 # Build and run
 ./run.sh
 ```
+
+**Note!**
+If you get:
+CMake Error: The source directory "/home/baiguai/documents/development/cpp/mmry" does not appear to contain CMakeLists.txt.
+Try deleting the build directories and try again.
 
 ### Option 3: Using CMake directly
 ```bash
