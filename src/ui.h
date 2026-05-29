@@ -6,7 +6,8 @@
 #include <algorithm>
 #include <utility>
 
-struct ConsoleDrawData {
+struct ConsoleDrawData
+{
     bool filterMode;
     bool commandMode;
     bool themeSelectMode;
@@ -38,7 +39,8 @@ struct ConsoleDrawData {
     unsigned long selColor;
 };
 
-struct DialogDimensions {
+struct DialogDimensions
+{
     int width;
     int height;
     int x;
