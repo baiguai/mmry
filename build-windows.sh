@@ -63,9 +63,8 @@ x86_64-w64-mingw32-g++ -std=c++17 \
 
 
 # Add any custom cp's or other actions here
-mkdir "./build-windows/data"
-mkdir "./build-windows/data/themes"
-cp ./themes/* "./build-windows/data/themes/"
+mkdir -p "./build-windows/data/themes"
+cp -r ./themes/* "./build-windows/data/themes/" 2>/dev/null || true
 
 
 
