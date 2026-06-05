@@ -1,11 +1,9 @@
 #!/bin/bash
 
-# MMRY Clipboard Manager Build Script
-# This script builds the C++ version of MMRY
+# Build Script
 
 set -e  # Exit on any error
-
-echo "Building MMRY Clipboard Manager..."
+source ./config.sh
 
 # Determine build type
 BUILD_TYPE="Debug"
@@ -28,26 +26,54 @@ echo "Building Windows EXE..."
 # Navigate to build directory
 cd build
 
-# Configure with CMake if needed
-if [ ! -f "Makefile" ]; then
-    echo "Configuring with CMake..."
-    cmake -DCMAKE_BUILD_TYPE=$BUILD_TYPE ..
-fi
+# Generate CMakeLists.txt from template using config.sh values
+echo "Generating CMakeLists.txt..."
+cp ../CMakeLists.txt.in ../CMakeLists.txt
+
+# Inject app name
+sed -i "s/<<TARGET_NAME>>/$APP_NAME/g" ../CMakeLists.txt
+
+# Inject source files
+SOURCES_TMP=$(mktemp)
+for s in "${SOURCES[@]}"; do
+    echo "    $s" >> "$SOURCES_TMP"
+done
+sed -i "/^<<SOURCES>>$/{
+    r $SOURCES_TMP
+    d
+}" ../CMakeLists.txt
+rm -f "$SOURCES_TMP"
+
+# Configure with CMake
+echo "Configuring with CMake..."
+cmake -DCMAKE_BUILD_TYPE=$BUILD_TYPE ..
 
 # Build the project
 echo "Compiling..."
 make
 
 # Check if build was successful
-if [ -f "bin/mmry" ]; then
+if [ -f "bin/$APP_NAME" ]; then
+
+
+
+    # Add any custom cp's or other actions here
+    mkdir "./bin/data"
+    mkdir "./bin/data/themes"
+    cp ../themes/* "./bin/data/themes/"
+
+
+
+
+
     echo "-- Build successful --"
-    echo "Executable: $(pwd)/bin/mmry"
+    echo "Executable: $(pwd)/bin/$APP_NAME"
     echo ""
-    echo "To run MMRY:"
-    echo "  ./bin/mmry"
+    echo "To run $APP_NAME:"
+    echo "  ./bin/$APP_NAME"
     echo ""
     echo "Or from the parent directory:"
-    echo "  ./build/bin/mmry"
+    echo "  ./build/bin/$APP_NAME"
 else
     echo "! failed !"
     exit 1
