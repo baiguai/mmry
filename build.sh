@@ -58,9 +58,8 @@ if [ -f "bin/$APP_NAME" ]; then
 
 
     # Add any custom cp's or other actions here
-    mkdir "./bin/data"
-    mkdir "./bin/data/themes"
-    cp ../themes/* "./bin/data/themes/"
+    mkdir -p "./bin/data/themes"
+    cp -r ../themes/* "./bin/data/themes/" 2>/dev/null || true
 
 
 
