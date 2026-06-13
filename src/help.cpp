@@ -56,6 +56,51 @@ void drawAllHelpTopics(HDC hdc, int titleLeft, int topicLeft, int lineHeight, in
     }
 
     std::string filterQuery = helpFilterText;
+
+    // Show REGEX examples when filter starts with '!'
+    if (!filterQuery.empty() && filterQuery[0] == '!')
+    {
+        const std::vector<std::pair<std::string, std::string>> regexExamples = {
+            {"REGEX Examples (type after /! in main window):", ""},
+            {R"(!hello)", "Clips containing \"hello\""},
+            {R"(!^hello)", "Clips starting with \"hello\""},
+            {R"(!hello$)", "Clips ending with \"hello\""},
+            {R"(!^hello$)", "Clips exactly equal to \"hello\""},
+            {R"(![Hh]ello)", "Clips with \"Hello\" or \"hello\""},
+            {R"(!\bhello\b)", "Clips where \"hello\" is a whole word"},
+            {R"(!hello.*world)", "Clips with \"hello\" then \"world\""},
+            {R"(!hello|world)", "Clips with \"hello\" or \"world\""},
+            {R"(!(?=.*hello)(?=.*world))", "Clips with both \"hello\" and \"world\""},
+            {R"(!^(?=.*hello)(?=.*world).*$)", "Clips with both (any order)"},
+            {R"(!^.{100,}$)", "Clips with 100+ characters"},
+            {R"(!^.{0,10}$)", "Clips with 10 or fewer characters"},
+            {R"(!\d+)", "Clips containing digits"},
+            {R"(!\d{3}-\d{3}-\d{4})", "Clips matching phone number pattern"},
+            {R"(!\w+@\w+\.\w+)", "Clips with email-like patterns"},
+            {R"(!http\S+)", "Clips containing URLs"},
+            {R"(!\s+)", "Clips with whitespace"},
+            {R"(!^[ \t]*$)", "Clips that are blank/whitespace-only"},
+            {R"(!^\- )", "Clips starting with \"- \" (list items)"},
+        };
+
+        for (size_t i = 0; i < regexExamples.size(); ++i)
+        {
+            const auto& [text, desc] = regexExamples[i];
+            if (i == 0)
+            {
+                drawHelpTopic(hdc, titleLeft, y, contentTop, contentBottom, text);
+                y += lineHeight;
+                y += gap;
+            }
+            else
+            {
+                drawHelpTopic(hdc, topicLeft, y, contentTop, contentBottom, text + "  -  " + desc);
+                y += lineHeight;
+            }
+        }
+        return;
+    }
+
     bool keysOnly = false;
     if (!filterQuery.empty() && filterQuery[0] == ':')
     {
