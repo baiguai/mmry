@@ -3227,22 +3227,29 @@ Comment=Autostart for )" << appLabel << R"(
             std::string regex_pattern = filterText.substr(1);
             if (!regex_pattern.empty())
             {
-                try
+                if (!isRegexPatternSafe(regex_pattern))
                 {
-                    std::regex rgx(regex_pattern, std::regex_constants::icase | std::regex_constants::multiline);
-
-                    for (size_t i = 0; i < items.size(); ++i)
+                    writeLog(std::string(__FUNCTION__) + " Regex pattern contains unsafe constructs (lookaheads, lookbehinds, etc.)");
+                }
+                else
+                {
+                    try
                     {
-                        if (!items[i].lowercase_content.empty() && 
-                            std::regex_search(items[i].lowercase_content, rgx))
+                        std::regex rgx(regex_pattern, std::regex_constants::icase | std::regex_constants::multiline);
+
+                        for (size_t i = 0; i < items.size(); ++i)
                         {
-                            filteredItems.push_back(i);
+                            if (!items[i].lowercase_content.empty() && 
+                                std::regex_search(items[i].lowercase_content, rgx))
+                            {
+                                filteredItems.push_back(i);
+                            }
                         }
                     }
-                }
-                catch (const std::regex_error& e)
-                {
-                    writeLog(std::string(__FUNCTION__) + std::string(e.what()));
+                    catch (const std::exception& e)
+                    {
+                        writeLog(std::string(__FUNCTION__) + " Regex error: " + std::string(e.what()));
+                    }
                 }
             }
         }
@@ -3270,23 +3277,29 @@ Comment=Autostart for )" << appLabel << R"(
             else
             {
                 // Slow path: regex search for wildcard patterns
-                try
+                std::string regex_str = wildcardToRegex(filterText);
+                if (!isRegexPatternSafe(regex_str))
                 {
-                    std::string regex_str = wildcardToRegex(filterText);
-                    std::regex rgx(regex_str, std::regex_constants::icase);
-                    
-                    for (size_t i = 0; i < items.size(); ++i)
+                    writeLog("Regex error: generated pattern contains unsafe constructs");
+                }
+                else
+                {
+                    try
                     {
-                        if (std::regex_search(items[i].content, rgx))
+                        std::regex rgx(regex_str, std::regex_constants::icase);
+                        
+                        for (size_t i = 0; i < items.size(); ++i)
                         {
-                            filteredItems.push_back(i);
+                            if (std::regex_search(items[i].content, rgx))
+                            {
+                                filteredItems.push_back(i);
+                            }
                         }
                     }
-                }
-                catch (const std::regex_error& e)
-                {
-                    // Handle invalid regex patterns gracefully
-                    writeLog("Regex error: " + std::string(e.what()));
+                    catch (const std::exception& e)
+                    {
+                        writeLog("Regex error: " + std::string(e.what()));
+                    }
                 }
             }
         }

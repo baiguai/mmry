@@ -15,6 +15,7 @@ std::string smartTrim(const std::string& text, size_t maxLength);
 std::string trimMiddle(const std::string& text, size_t maxLength);
 
 std::string wildcardToRegex(const std::string& pattern);
+bool isRegexPatternSafe(const std::string& pattern);
 
 int countLines(const std::string& content);
 

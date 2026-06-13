@@ -485,6 +485,27 @@ std::string wildcardToRegex(const std::string& pattern)
     return regex_pattern;
 }
 
+bool isRegexPatternSafe(const std::string& pattern)
+{
+    if (pattern.empty()) return true;
+
+    for (size_t i = 0; i + 1 < pattern.size(); ++i)
+    {
+        if (pattern[i] == '(' && pattern[i + 1] == '?')
+        {
+            if (i + 2 >= pattern.size()) return false;
+            // Only allow (?: non-capturing groups.
+            // Reject lookaheads (?=, (?!), lookbehinds (?<=, (?<!),
+            // atomic groups (?>), recursion (?R, (?0, etc.), conditionals,
+            // and any other (? extension, as libstdc++'s std::regex
+            // can crash (segfault) on these constructs.
+            if (pattern[i + 2] != ':')
+                return false;
+        }
+    }
+    return true;
+}
+
 int countLines(const std::string& content)
 {
     if (content.empty()) return 0;
