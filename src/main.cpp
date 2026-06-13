@@ -764,8 +764,15 @@ public:
                 if (!filterText.empty())
                 {
                     filterText.pop_back();
-                    updateFilteredItems();
-                    selectedItem = 0;
+                    if (filterText.empty() || filterText[0] != '!')
+                    {
+                        updateFilteredItems();
+                        selectedItem = 0;
+                    }
+                    else
+                    {
+                        regexSubmitted = false;
+                    }
                     drawConsole();
                 }
                 return;
@@ -778,6 +785,19 @@ public:
 
             if (key_value == "RETURN")
             {
+                if (!filterText.empty() && filterText[0] == '!')
+                {
+                    if (!regexSubmitted)
+                    {
+                        // First Enter: execute the regex search
+                        updateFilteredItems();
+                        regexSubmitted = true;
+                        drawConsole();
+                        return;
+                    }
+                    // Second Enter: copy the selected item
+                    if (key_filter_copy()) return;
+                }
                 if (key_filter_copy()) return;
             }
 
@@ -807,8 +827,15 @@ public:
                     else
                     {
                         filterText += typedChar;
-                        updateFilteredItems();
-                        selectedItem = 0;
+                        if (filterText[0] != '!')
+                        {
+                            updateFilteredItems();
+                            selectedItem = 0;
+                        }
+                        else
+                        {
+                            regexSubmitted = false;
+                        }
                         drawConsole();
                     }
                 }
@@ -817,8 +844,15 @@ public:
                 char buffer[10];
                 int count = XLookupString(keyEvent, buffer, sizeof(buffer), nullptr, nullptr);
                 filterText += std::string(buffer, count);
-                updateFilteredItems();
-                selectedItem = 0;
+                if (filterText[0] != '!')
+                {
+                    updateFilteredItems();
+                    selectedItem = 0;
+                }
+                else
+                {
+                    regexSubmitted = false;
+                }
                 drawConsole();
 #endif
             // End Free Text
@@ -2424,6 +2458,7 @@ public:
         {
             filterMode = true;
             filterText = "";
+            regexSubmitted = false;
             updateFilteredItems();
             selectedItem = 0;
             drawConsole();
