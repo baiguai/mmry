@@ -3227,11 +3227,7 @@ Comment=Autostart for )" << appLabel << R"(
             std::string regex_pattern = filterText.substr(1);
             if (!regex_pattern.empty())
             {
-                if (!isRegexPatternSafe(regex_pattern))
-                {
-                    writeLog(std::string(__FUNCTION__) + " Regex pattern contains unsafe constructs (lookaheads, lookbehinds, etc.)");
-                }
-                else
+                if (isRegexPatternSafe(regex_pattern))
                 {
                     try
                     {
@@ -3249,6 +3245,46 @@ Comment=Autostart for )" << appLabel << R"(
                     catch (const std::exception& e)
                     {
                         writeLog(std::string(__FUNCTION__) + " Regex error: " + std::string(e.what()));
+                    }
+                }
+                else
+                {
+                    // Fallback: try to extract terms from common lookahead patterns
+                    std::vector<std::string> required, forbidden;
+                    if (extractLookaheadTerms(regex_pattern, required, forbidden))
+                    {
+                        for (size_t i = 0; i < items.size(); ++i)
+                        {
+                            if (items[i].lowercase_content.empty())
+                                continue;
+
+                            bool match = true;
+                            for (const auto& term : required)
+                            {
+                                if (items[i].lowercase_content.find(term) == std::string::npos)
+                                {
+                                    match = false;
+                                    break;
+                                }
+                            }
+                            if (match)
+                            {
+                                for (const auto& term : forbidden)
+                                {
+                                    if (items[i].lowercase_content.find(term) != std::string::npos)
+                                    {
+                                        match = false;
+                                        break;
+                                    }
+                                }
+                            }
+                            if (match)
+                                filteredItems.push_back(i);
+                        }
+                    }
+                    else
+                    {
+                        writeLog(std::string(__FUNCTION__) + " Regex pattern contains unsafe constructs");
                     }
                 }
             }

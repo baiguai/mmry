@@ -506,6 +506,72 @@ bool isRegexPatternSafe(const std::string& pattern)
     return true;
 }
 
+// Try to extract search terms from common lookahead patterns like:
+//   (?=.*term)           -> required: {"term"}
+//   (?=.*t1)(?=.*t2)     -> required: {"t1", "t2"}
+//   (?!.*bad)            -> forbidden: {"bad"}
+//   ^(?=.*t1)(?=.*t2).*$ -> same as above with anchors
+// Returns false if the pattern doesn't match a simple lookahead structure.
+bool extractLookaheadTerms(const std::string& pattern,
+                           std::vector<std::string>& required,
+                           std::vector<std::string>& forbidden)
+{
+    required.clear();
+    forbidden.clear();
+    if (pattern.empty()) return false;
+
+    size_t i = 0;
+    // Skip leading ^ and (?: if present
+    while (i < pattern.size() && pattern[i] == '^')
+        ++i;
+
+    while (i + 3 < pattern.size())
+    {
+        // Skip (?: if present between lookaheads
+        if (pattern[i] == '(' && i + 2 < pattern.size() && pattern[i + 1] == '?' && pattern[i + 2] == ':')
+        {
+            i += 3;
+            continue;
+        }
+
+        if (pattern[i] != '(' || pattern[i + 1] != '?')
+            break;
+
+        if (i + 2 >= pattern.size()) break;
+
+        char type = pattern[i + 2]; // '=' for positive, '!' for negative
+        if (type != '=' && type != '!')
+            break;
+
+        // Expect .* after (?= or (?!
+        size_t pos = i + 3;
+        if (pos >= pattern.size() || pattern[pos] != '.')
+            break;
+        ++pos;
+        if (pos >= pattern.size() || pattern[pos] != '*')
+            break;
+        ++pos;
+
+        // Extract the term up to the closing )
+        size_t start = pos;
+        while (pos < pattern.size() && pattern[pos] != ')')
+            ++pos;
+        if (pos >= pattern.size()) break;
+
+        std::string term = pattern.substr(start, pos - start);
+        if (term.empty()) break;
+
+        if (type == '=')
+            required.push_back(term);
+        else
+            forbidden.push_back(term);
+
+        i = pos + 1;
+    }
+
+    return !required.empty() || !forbidden.empty();
+}
+
 int countLines(const std::string& content)
 {
     if (content.empty()) return 0;

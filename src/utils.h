@@ -16,6 +16,9 @@ std::string trimMiddle(const std::string& text, size_t maxLength);
 
 std::string wildcardToRegex(const std::string& pattern);
 bool isRegexPatternSafe(const std::string& pattern);
+bool extractLookaheadTerms(const std::string& pattern,
+                           std::vector<std::string>& required,
+                           std::vector<std::string>& forbidden);
 
 int countLines(const std::string& content);
 
