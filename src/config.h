@@ -13,19 +13,19 @@ public:
     std::string dataFile;
     std::string pinnedFile;
 
-    size_t maxClips = 500;
-    bool encrypted = false;
+    size_t maxClips { 500 };
+    bool encrypted { false };
     std::string encryptionKey;
-    std::string theme = "console";
+    std::string theme { "console" };
     std::string originalTheme;
-    bool autoStart = false;
-    bool verboseMode = false;
-    bool m_debugging = true;
+    bool autoStart { false };
+    bool verboseMode { false };
+    bool m_debugging { true };
 
-    unsigned long backgroundColor = 0;
-    unsigned long textColor = 0;
-    unsigned long selectionColor = 0;
-    unsigned long borderColor = 0;
+    unsigned long backgroundColor { 0 };
+    unsigned long textColor { 0 };
+    unsigned long selectionColor { 0 };
+    unsigned long borderColor { 0 };
 
     void setupConfigDir();
     void ensureRequiredFiles();
