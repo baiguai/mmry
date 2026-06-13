@@ -764,8 +764,11 @@ public:
                 if (!filterText.empty())
                 {
                     filterText.pop_back();
-                    updateFilteredItems();
-                    selectedItem = 0;
+                    if (filterText.empty() || filterText[0] != '!')
+                    {
+                        updateFilteredItems();
+                        selectedItem = 0;
+                    }
                     drawConsole();
                 }
                 return;
@@ -778,6 +781,13 @@ public:
 
             if (key_value == "RETURN")
             {
+                if (!filterText.empty() && filterText[0] == '!')
+                {
+                    // Regex mode: just execute the search, don't hide/copy
+                    updateFilteredItems();
+                    drawConsole();
+                    return;
+                }
                 if (key_filter_copy()) return;
             }
 
@@ -807,8 +817,11 @@ public:
                     else
                     {
                         filterText += typedChar;
-                        updateFilteredItems();
-                        selectedItem = 0;
+                        if (filterText[0] != '!')
+                        {
+                            updateFilteredItems();
+                            selectedItem = 0;
+                        }
                         drawConsole();
                     }
                 }
@@ -817,8 +830,11 @@ public:
                 char buffer[10];
                 int count = XLookupString(keyEvent, buffer, sizeof(buffer), nullptr, nullptr);
                 filterText += std::string(buffer, count);
-                updateFilteredItems();
-                selectedItem = 0;
+                if (filterText[0] != '!')
+                {
+                    updateFilteredItems();
+                    selectedItem = 0;
+                }
                 drawConsole();
 #endif
             // End Free Text
