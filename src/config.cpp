@@ -56,15 +56,15 @@ unsigned long ConfigManager::hexToRgb(const std::string& hex)
 void ConfigManager::loadTheme()
 {
 #ifdef _WIN32
-    const char pathSep = '\\';
+    const char pathSep { '\\' };
 #else
-    const char pathSep = '/';
+    const char pathSep { '/' };
 #endif
     backgroundColor = 0x000000;
     textColor = 0xFFFFFF;
     selectionColor = 0x333333;
     borderColor = 0x888888;
-    std::string themePath = configDir + pathSep + "themes" + pathSep + theme + ".json";
+    std::string themePath { configDir + pathSep + "themes" + pathSep + theme + ".json" };
     std::ifstream file(themePath);
     
     if (!file.is_open())
@@ -82,7 +82,7 @@ void ConfigManager::loadTheme()
     std::cout << "Loading theme from: " << themePath << "\n";
     
     std::string line;
-    bool inColorsSection = false;
+    bool inColorsSection { false };
     while (std::getline(file, line))
     {
         line.erase(0, line.find_first_not_of(" \t"));
@@ -108,8 +108,8 @@ void ConfigManager::loadTheme()
         {
             if (line.find("\"background\"") != std::string::npos)
             {
-                size_t start = line.find('"', line.find(':'));
-                size_t end = line.find('"', start + 1);
+                size_t start { line.find('"', line.find(':')) };
+                size_t end { line.find('"', start + 1) };
                 if (start != std::string::npos && end != std::string::npos)
                 {
                     backgroundColor = hexToRgb(line.substr(start + 1, end - start - 1));
@@ -117,8 +117,8 @@ void ConfigManager::loadTheme()
             }
             else if (line.find("\"text\"") != std::string::npos)
             {
-                size_t start = line.find('"', line.find(':'));
-                size_t end = line.find('"', start + 1);
+                size_t start { line.find('"', line.find(':')) };
+                size_t end { line.find('"', start + 1) };
                 if (start != std::string::npos && end != std::string::npos)
                 {
                     textColor = hexToRgb(line.substr(start + 1, end - start - 1));
@@ -126,8 +126,8 @@ void ConfigManager::loadTheme()
             }
             else if (line.find("\"selection\"") != std::string::npos)
             {
-                size_t start = line.find('"', line.find(':'));
-                size_t end = line.find('"', start + 1);
+                size_t start { line.find('"', line.find(':')) };
+                size_t end { line.find('"', start + 1) };
                 if (start != std::string::npos && end != std::string::npos)
                 {
                     selectionColor = hexToRgb(line.substr(start + 1, end - start - 1));
@@ -135,8 +135,8 @@ void ConfigManager::loadTheme()
             }
             else if (line.find("\"border\"") != std::string::npos)
             {
-                size_t start = line.find('"', line.find(':'));
-                size_t end = line.find('"', start + 1);
+                size_t start { line.find('"', line.find(':')) };
+                size_t end { line.find('"', start + 1) };
                 if (start != std::string::npos && end != std::string::npos)
                 {
                     borderColor = hexToRgb(line.substr(start + 1, end - start - 1));
@@ -149,7 +149,7 @@ void ConfigManager::loadTheme()
 
 void ConfigManager::createDefaultThemeFile()
 {
-    std::string themesDir = configDir + "/themes";
+    std::string themesDir { configDir + "/themes" };
     struct stat st = {};
     if (stat(themesDir.c_str(), &st) == -1)
     {
@@ -160,7 +160,7 @@ void ConfigManager::createDefaultThemeFile()
 #endif
     }
     
-    std::string themeFile = themesDir + "/console.json";
+    std::string themeFile { themesDir + "/console.json" };
     std::ofstream outFile(themeFile);
     if (outFile.is_open())
     {
@@ -189,8 +189,8 @@ void ConfigManager::switchTheme(const std::string& themeName)
 std::vector<std::string> ConfigManager::discoverThemes()
 {
     std::vector<std::string> result;
-    std::string userThemesDir = configDir + "/themes";
-    std::string localThemesDir = "themes";
+    std::string userThemesDir { configDir + "/themes" };
+    std::string localThemesDir { "themes" };
     
     auto scanThemesDir = [&](const std::string& themesDir)
     {
@@ -200,11 +200,11 @@ std::vector<std::string> ConfigManager::discoverThemes()
             struct dirent* entry;
             while ((entry = readdir(dir)) != nullptr)
             {
-                std::string filename = entry->d_name;
+                std::string filename { entry->d_name };
                 if (filename.length() > 5 && filename.substr(filename.length() - 5) == ".json" &&
                     filename != "." && filename != "..")
                 {
-                    std::string themeName = filename.substr(0, filename.length() - 5);
+                    std::string themeName { filename.substr(0, filename.length() - 5) };
                     result.push_back(themeName);
                 }
             }
@@ -224,7 +224,7 @@ std::vector<std::string> ConfigManager::discoverThemes()
 std::vector<std::string> ConfigManager::discoverConfigs()
 {
     std::vector<std::string> result;
-    std::string configFile = configDir + "/config.json";
+    std::string configFile { configDir + "/config.json" };
     std::ifstream file(configFile);
 
     if (file.is_open())
@@ -232,13 +232,13 @@ std::vector<std::string> ConfigManager::discoverConfigs()
         std::string line;
         while (std::getline(file, line))
         {
-            size_t start = line.find('"');
+            size_t start { line.find('"') };
             if (start != std::string::npos && start != line.rfind('"'))
             {
-                size_t end = line.find('"', start + 1);
+                size_t end { line.find('"', start + 1) };
                 if (end != std::string::npos)
                 {
-                    std::string configKey = line.substr(start + 1, end - start - 1);
+                    std::string configKey { line.substr(start + 1, end - start - 1) };
                     if (!configKey.empty())
                     {
                         result.push_back(configKey);
@@ -264,14 +264,14 @@ void ConfigManager::setupConfigDir()
     }
 #elif __linux__
     char buf[4096];
-    ssize_t len = readlink("/proc/self/exe", buf, sizeof(buf) - 1);
+    ssize_t len { readlink("/proc/self/exe", buf, sizeof(buf) - 1) };
     if (len != -1)
     {
         buf[len] = '\0';
         exePath = buf;
     }
 #elif __APPLE__
-    uint32_t size = 0;
+    uint32_t size { 0 };
     _NSGetExecutablePath(nullptr, &size);
     std::string path(size, '\0');
     if (_NSGetExecutablePath(&path[0], &size) == 0)
@@ -288,9 +288,9 @@ void ConfigManager::setupConfigDir()
     else
     {
 #ifdef _WIN32
-        size_t pos = exePath.find_last_of("\\");
+        size_t pos { exePath.find_last_of("\\") };
 #else
-        size_t pos = exePath.find_last_of("/");
+        size_t pos { exePath.find_last_of("/") };
 #endif
         if (pos != std::string::npos)
         {
@@ -325,12 +325,12 @@ void ConfigManager::setupConfigDir()
     }
     
 #ifdef _WIN32
-    const char pathSep = '\\';
+    const char pathSep { '\\' };
 #else
-    const char pathSep = '/';
+    const char pathSep { '/' };
 #endif
     
-    std::string themesDir = configDir + pathSep + "themes";
+    std::string themesDir { configDir + pathSep + "themes" };
     if (stat(themesDir.c_str(), &st) == -1)
     {
         if (createDirectory(themesDir))
@@ -364,20 +364,20 @@ void ConfigManager::setupConfigDir()
 
 void ConfigManager::ensureRequiredFiles()
 {
-    std::string configFile = configDir + "/config.json";
+    std::string configFile { configDir + "/config.json" };
     struct stat st = {};
     if (stat(configFile.c_str(), &st) == -1)
     {
         createDefaultConfig();
     }
     
-    std::string themeFile = configDir + "/themes/" + theme + ".json";
+    std::string themeFile { configDir + "/themes/" + theme + ".json" };
     if (stat(themeFile.c_str(), &st) == -1)
     {
         createDefaultThemeFile();
     }
     
-    std::string bookmarksFile = bookmarksDir + "/bookmarks.txt";
+    std::string bookmarksFile { bookmarksDir + "/bookmarks.txt" };
     if (stat(bookmarksFile.c_str(), &st) == -1)
     {
         std::ofstream outFile(bookmarksFile);
@@ -414,12 +414,12 @@ void ConfigManager::ensureRequiredFiles()
 void ConfigManager::loadConfig()
 {
 #ifdef _WIN32
-    const char pathSep = '\\';
+    const char pathSep { '\\' };
 #else
-    const char pathSep = '/';
+    const char pathSep { '/' };
 #endif
     
-    std::string configFile = configDir + pathSep + "config.json";
+    std::string configFile { configDir + pathSep + "config.json" };
     std::ifstream file(configFile);
 
     if (file.is_open())
@@ -433,10 +433,10 @@ void ConfigManager::loadConfig()
             }
             else if (line.find("\"max_clips\"") != std::string::npos)
             {
-                size_t colon = line.find(':');
+                size_t colon { line.find(':') };
                 if (colon != std::string::npos)
                 {
-                    std::string value = line.substr(colon + 1);
+                    std::string value { line.substr(colon + 1) };
                     value.erase(0, value.find_first_not_of(" \t"));
                     value.erase(value.find_last_not_of(" \t,") + 1);
                     maxClips = std::stoull(value);
@@ -452,8 +452,8 @@ void ConfigManager::loadConfig()
             }
             else if (line.find("\"encryption_key\"") != std::string::npos)
             {
-                size_t start = line.find('"', line.find(':'));
-                size_t end = line.find('"', start + 1);
+                size_t start { line.find('"', line.find(':')) };
+                size_t end { line.find('"', start + 1) };
                 if (start != std::string::npos && end != std::string::npos)
                 {
                     encryptionKey = line.substr(start + 1, end - start - 1);
@@ -461,8 +461,8 @@ void ConfigManager::loadConfig()
             }
             else if (line.find("\"theme\"") != std::string::npos)
             {
-                size_t start = line.find('"', line.find(':'));
-                size_t end = line.find('"', start + 1);
+                size_t start { line.find('"', line.find(':')) };
+                size_t end { line.find('"', start + 1) };
                 if (start != std::string::npos && end != std::string::npos)
                 {
                     theme = line.substr(start + 1, end - start - 1);
@@ -490,7 +490,7 @@ void ConfigManager::saveConfig()
         maxClips = 1000;
     }
     
-    std::string configFile = configDir + "/config.json";
+    std::string configFile { configDir + "/config.json" };
     std::cout << "DEBUG: Saving to " << configFile << "\n";
     std::cout << "DEBUG: maxClips before save = " << maxClips << "\n";
     
@@ -516,8 +516,8 @@ void ConfigManager::saveConfig()
     std::cout << "DEBUG: About to write max_clips = " << configValues["max_clips"] << "\n";
     
     outFile << "{\n";
-    bool first = true;
-    int writeCount = 0;
+    bool first { true };
+    int writeCount { 0 };
     for (const auto& pair : configValues)
     {
         if (!first)
@@ -552,7 +552,7 @@ void ConfigManager::saveConfig()
 // When new configuration items are created, they'll need to be added to this method
 void ConfigManager::createDefaultConfig()
 {
-    std::string configFile = configDir + "/config.json";
+    std::string configFile { configDir + "/config.json" };
     std::ofstream outFile(configFile);
     outFile << "{\n";
     outFile << "    \"debugging\": false,\n";
@@ -600,7 +600,7 @@ bool ConfigManager::updateConfigValue(const std::string& configKey, const std::s
 {
     try
     {
-        std::string currentValue = getConfigValue(configKey);
+        std::string currentValue { getConfigValue(configKey) };
         
         if (currentValue == "true" || currentValue == "false")
         {
@@ -618,7 +618,7 @@ bool ConfigManager::updateConfigValue(const std::string& configKey, const std::s
         try
         {
             std::stoull(currentValue);
-            size_t newNumValue = std::stoull(newValue);
+            size_t newNumValue { std::stoull(newValue) };
             if (newNumValue > 0)
             {
                 if (configKey == "max_clips")
