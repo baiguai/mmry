@@ -170,7 +170,7 @@ void buildHelpTopicsCache()
     helpTopicsCache.push_back({"Main Window:", "", true});
     helpTopicsCache.push_back({"j/k", "Navigate items", false});
     helpTopicsCache.push_back({"g/G", "Top/bottom", false});
-    helpTopicsCache.push_back({"/", "Filter mode (! for REGEX)", false});
+    helpTopicsCache.push_back({"/", "Filter mode (! for REGEX; ?! for examples)", false});
     helpTopicsCache.push_back({"Shift+m", "Manage bookmark groups", false});
     helpTopicsCache.push_back({"m", "Add clip to group", false});
     helpTopicsCache.push_back({"`", "View bookmarks", false});
