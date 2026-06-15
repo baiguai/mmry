@@ -62,6 +62,7 @@ void drawAllHelpTopics(HDC hdc, int titleLeft, int topicLeft, int lineHeight, in
     {
         const std::vector<std::pair<std::string, std::string>> regexExamples = {
             {"REGEX Examples (type after /! in main window):", ""},
+            {"(regex matches are multi-line)", ""},
             {R"(!hello)", "Clips containing \"hello\""},
             {R"(!^hello)", "Clips starting with \"hello\""},
             {R"(!hello$)", "Clips ending with \"hello\""},
@@ -86,7 +87,7 @@ void drawAllHelpTopics(HDC hdc, int titleLeft, int topicLeft, int lineHeight, in
         for (size_t i = 0; i < regexExamples.size(); ++i)
         {
             const auto& [text, desc] = regexExamples[i];
-            if (i == 0)
+            if (i <= 1)
             {
                 drawHelpTopic(hdc, titleLeft, y, contentTop, contentBottom, text);
                 y += lineHeight;
