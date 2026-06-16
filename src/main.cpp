@@ -148,6 +148,14 @@ public:
         //----------------------------------------------------------------------
 
 
+        //---- Repeat Tracking -------------------------------------------------
+        if (key_value.size() == 1 && key_value[0] >= '1' && key_value[0] <= '9')
+        {
+            pendingRepeatCount = std::stoi(key_value);
+        }
+        //----------------------------------------------------------------------
+
+
         //---- Help Dialog -----------------------------------------------------
         if (helpDialogVisible)
         {
@@ -1000,14 +1008,37 @@ public:
 
         // General keys - main clips list
         //
+        int count = pendingRepeatCount > 0 ? pendingRepeatCount : 1;
+        bool doReturn { false };
+
+
         if (key_value == "j" || key_value == "DOWN")
         {
-            if (key_main_down()) return;
+            doReturn = false;
+            std::cout << "count: " << count << "\n";
+            for (int i = 0; i < count; i++)
+            {
+                if (key_main_down()) doReturn = true;
+            }
+            if (doReturn)
+            {
+                pendingRepeatCount = 0;
+                return;
+            }
         }
 
         if (key_value == "k" || key_value == "UP")
         {
-            if (key_main_up()) return;
+            doReturn = false;
+            for (int i = 0; i < count; i++)
+            {
+                if (key_main_up()) doReturn = true;
+            }
+            if (doReturn)
+            {
+                pendingRepeatCount = 0;
+                return;
+            }
         }
 
         if (key_value == "g")
