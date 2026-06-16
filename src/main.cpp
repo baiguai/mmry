@@ -148,6 +148,14 @@ public:
         //----------------------------------------------------------------------
 
 
+        //---- Repeat Tracking -------------------------------------------------
+        if (key_value.size() == 1 && key_value[0] >= '1' && key_value[0] <= '9')
+        {
+            pendingRepeatCount = std::stoi(key_value);
+        }
+        //----------------------------------------------------------------------
+
+
         //---- Help Dialog -----------------------------------------------------
         if (helpDialogVisible)
         {
@@ -764,8 +772,15 @@ public:
                 if (!filterText.empty())
                 {
                     filterText.pop_back();
-                    updateFilteredItems();
-                    selectedItem = 0;
+                    if (filterText.empty() || filterText[0] != '!')
+                    {
+                        updateFilteredItems();
+                        selectedItem = 0;
+                    }
+                    else
+                    {
+                        regexSubmitted = false;
+                    }
                     drawConsole();
                 }
                 return;
@@ -778,6 +793,19 @@ public:
 
             if (key_value == "RETURN")
             {
+                if (!filterText.empty() && filterText[0] == '!')
+                {
+                    if (!regexSubmitted)
+                    {
+                        // First Enter: execute the regex search
+                        updateFilteredItems();
+                        regexSubmitted = true;
+                        drawConsole();
+                        return;
+                    }
+                    // Second Enter: copy the selected item
+                    if (key_filter_copy()) return;
+                }
                 if (key_filter_copy()) return;
             }
 
@@ -807,8 +835,15 @@ public:
                     else
                     {
                         filterText += typedChar;
-                        updateFilteredItems();
-                        selectedItem = 0;
+                        if (filterText[0] != '!')
+                        {
+                            updateFilteredItems();
+                            selectedItem = 0;
+                        }
+                        else
+                        {
+                            regexSubmitted = false;
+                        }
                         drawConsole();
                     }
                 }
@@ -817,8 +852,15 @@ public:
                 char buffer[10];
                 int count = XLookupString(keyEvent, buffer, sizeof(buffer), nullptr, nullptr);
                 filterText += std::string(buffer, count);
-                updateFilteredItems();
-                selectedItem = 0;
+                if (filterText[0] != '!')
+                {
+                    updateFilteredItems();
+                    selectedItem = 0;
+                }
+                else
+                {
+                    regexSubmitted = false;
+                }
                 drawConsole();
 #endif
             // End Free Text
@@ -966,14 +1008,37 @@ public:
 
         // General keys - main clips list
         //
+        int count = pendingRepeatCount > 0 ? pendingRepeatCount : 1;
+        bool doReturn { false };
+
+
         if (key_value == "j" || key_value == "DOWN")
         {
-            if (key_main_down()) return;
+            doReturn = false;
+            std::cout << "count: " << count << "\n";
+            for (int i = 0; i < count; i++)
+            {
+                if (key_main_down()) doReturn = true;
+            }
+            if (doReturn)
+            {
+                pendingRepeatCount = 0;
+                return;
+            }
         }
 
         if (key_value == "k" || key_value == "UP")
         {
-            if (key_main_up()) return;
+            doReturn = false;
+            for (int i = 0; i < count; i++)
+            {
+                if (key_main_up()) doReturn = true;
+            }
+            if (doReturn)
+            {
+                pendingRepeatCount = 0;
+                return;
+            }
         }
 
         if (key_value == "g")
@@ -2424,6 +2489,7 @@ public:
         {
             filterMode = true;
             filterText = "";
+            regexSubmitted = false;
             updateFilteredItems();
             selectedItem = 0;
             drawConsole();
@@ -3192,22 +3258,65 @@ Comment=Autostart for )" << appLabel << R"(
             std::string regex_pattern = filterText.substr(1);
             if (!regex_pattern.empty())
             {
-                try
+                if (isRegexPatternSafe(regex_pattern))
                 {
-                    std::regex rgx(regex_pattern, std::regex_constants::icase | std::regex_constants::multiline);
-
-                    for (size_t i = 0; i < items.size(); ++i)
+                    try
                     {
-                        if (!items[i].lowercase_content.empty() && 
-                            std::regex_search(items[i].lowercase_content, rgx))
+                        std::regex rgx(regex_pattern, std::regex_constants::icase | std::regex_constants::multiline);
+
+                        for (size_t i = 0; i < items.size(); ++i)
                         {
-                            filteredItems.push_back(i);
+                            if (!items[i].lowercase_content.empty() && 
+                                std::regex_search(items[i].lowercase_content, rgx))
+                            {
+                                filteredItems.push_back(i);
+                            }
                         }
                     }
+                    catch (const std::exception& e)
+                    {
+                        writeLog(std::string(__FUNCTION__) + " Regex error: " + std::string(e.what()));
+                    }
                 }
-                catch (const std::regex_error& e)
+                else
                 {
-                    writeLog(std::string(__FUNCTION__) + std::string(e.what()));
+                    // Fallback: try to extract terms from common lookahead patterns
+                    std::vector<std::string> required, forbidden;
+                    if (extractLookaheadTerms(regex_pattern, required, forbidden))
+                    {
+                        for (size_t i = 0; i < items.size(); ++i)
+                        {
+                            if (items[i].lowercase_content.empty())
+                                continue;
+
+                            bool match = true;
+                            for (const auto& term : required)
+                            {
+                                if (items[i].lowercase_content.find(term) == std::string::npos)
+                                {
+                                    match = false;
+                                    break;
+                                }
+                            }
+                            if (match)
+                            {
+                                for (const auto& term : forbidden)
+                                {
+                                    if (items[i].lowercase_content.find(term) != std::string::npos)
+                                    {
+                                        match = false;
+                                        break;
+                                    }
+                                }
+                            }
+                            if (match)
+                                filteredItems.push_back(i);
+                        }
+                    }
+                    else
+                    {
+                        writeLog(std::string(__FUNCTION__) + " Regex pattern contains unsafe constructs");
+                    }
                 }
             }
         }
@@ -3235,23 +3344,29 @@ Comment=Autostart for )" << appLabel << R"(
             else
             {
                 // Slow path: regex search for wildcard patterns
-                try
+                std::string regex_str = wildcardToRegex(filterText);
+                if (!isRegexPatternSafe(regex_str))
                 {
-                    std::string regex_str = wildcardToRegex(filterText);
-                    std::regex rgx(regex_str, std::regex_constants::icase);
-                    
-                    for (size_t i = 0; i < items.size(); ++i)
+                    writeLog("Regex error: generated pattern contains unsafe constructs");
+                }
+                else
+                {
+                    try
                     {
-                        if (std::regex_search(items[i].content, rgx))
+                        std::regex rgx(regex_str, std::regex_constants::icase);
+                        
+                        for (size_t i = 0; i < items.size(); ++i)
                         {
-                            filteredItems.push_back(i);
+                            if (std::regex_search(items[i].content, rgx))
+                            {
+                                filteredItems.push_back(i);
+                            }
                         }
                     }
-                }
-                catch (const std::regex_error& e)
-                {
-                    // Handle invalid regex patterns gracefully
-                    writeLog("Regex error: " + std::string(e.what()));
+                    catch (const std::exception& e)
+                    {
+                        writeLog("Regex error: " + std::string(e.what()));
+                    }
                 }
             }
         }

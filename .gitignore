@@ -7,3 +7,4 @@ build/*
 /build-windows/*
 mmry_debug.log
 .aider*
+CMakeLists.txt
