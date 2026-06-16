@@ -22,6 +22,15 @@ std::string translateKey(void* eventPtr)
 
     XLookupString(keyEvent, buffer, sizeof(buffer), &keysym, nullptr);
 
+    if (keysym == XK_1) key_value = "1";
+    if (keysym == XK_2) key_value = "2";
+    if (keysym == XK_3) key_value = "3";
+    if (keysym == XK_4) key_value = "4";
+    if (keysym == XK_5) key_value = "5";
+    if (keysym == XK_6) key_value = "6";
+    if (keysym == XK_7) key_value = "7";
+    if (keysym == XK_8) key_value = "8";
+    if (keysym == XK_9) key_value = "9";
     if (keysym == XK_D && (keyEvent->state & ShiftMask)) key_value = "D";
     if (keysym == XK_G && (keyEvent->state & ShiftMask)) key_value = "G";
     if (keysym == XK_g) key_value = "g";
@@ -56,6 +65,15 @@ std::string translateKey(void* eventPtr)
     BYTE keyboardState[256] = {0};
     GetKeyboardState(keyboardState);
 
+    if (msg->wParam == '1') key_value = "1";
+    if (msg->wParam == '2') key_value = "2";
+    if (msg->wParam == '3') key_value = "3";
+    if (msg->wParam == '4') key_value = "4";
+    if (msg->wParam == '5') key_value = "5";
+    if (msg->wParam == '6') key_value = "6";
+    if (msg->wParam == '7') key_value = "7";
+    if (msg->wParam == '8') key_value = "8";
+    if (msg->wParam == '9') key_value = "9";
     if (msg->wParam == 'D' && (GetKeyState(VK_SHIFT) & 0x8000)) key_value = "D";
     if (msg->wParam == 'G')
     {

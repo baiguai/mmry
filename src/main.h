@@ -189,6 +189,7 @@ int ignore_x11_errors(Display* d, XErrorEvent* e)
     std::string filterText;
     std::vector<size_t> filteredItems;
     bool regexSubmitted { false };
+    int pendingRepeatCount { 0 };
     
     // Command mode
     bool commandMode { false };
