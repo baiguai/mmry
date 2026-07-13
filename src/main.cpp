@@ -427,6 +427,11 @@ public:
             //
             if (viewBookmarksShowingGroups)
             {
+                if (key_value == "CONTROL_DELETE")
+                {
+                    if (key_marks_groups_delete()) return;
+                }
+
                 if (filterBookmarksMode)
                 {
                     if (key_value == "RETURN")
@@ -505,11 +510,6 @@ public:
                 if (key_value == "G")
                 {
                     if (key_marks_groups_bottom()) return;
-                }
-
-                if (key_value == "D")
-                {
-                    if (key_marks_groups_delete()) return;
                 }
 
                 if (key_value == "RETURN")
@@ -731,6 +731,11 @@ public:
                 filterAddBookmarksText.clear();
                 drawConsole();
                 return;
+            }
+
+            if (key_value == "D")
+            {
+                if (key_marks_groups_delete()) return;
             }
 
             if (key_value == "RETURN")
@@ -1573,12 +1578,12 @@ public:
 
         bool key_marks_groups_delete()
         {
-            if (selectedViewBookmarkGroup < bookmarkGroups.size())
+            if (selectedAddBookmarkGroup < bookmarkGroups.size())
             {
-                std::string groupToDelete = bookmarkGroups[selectedViewBookmarkGroup];
+                std::string groupToDelete = bookmarkGroups[selectedAddBookmarkGroup];
                 
                 // Remove group from list
-                bookmarkGroups.erase(bookmarkGroups.begin() + selectedViewBookmarkGroup);
+                bookmarkGroups.erase(bookmarkGroups.begin() + selectedAddBookmarkGroup);
                 saveBookmarkGroups();
                 
                 // Delete bookmark file
@@ -1588,9 +1593,9 @@ public:
                 std::cout << "Deleted bookmark group and all clips: " << groupToDelete << "\n";
                 
                 // Adjust selection
-                if (selectedViewBookmarkGroup > 0 && selectedViewBookmarkGroup >= bookmarkGroups.size())
+                if (selectedAddBookmarkGroup > 0 && selectedAddBookmarkGroup >= bookmarkGroups.size())
                 {
-                    selectedViewBookmarkGroup = bookmarkGroups.size() - 1;
+                    selectedAddBookmarkGroup = bookmarkGroups.size() - 1;
                 }
                 
                 // Close dialog if no groups left

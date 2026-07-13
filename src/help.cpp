@@ -140,6 +140,10 @@ void drawAllHelpTopics(HDC hdc, int titleLeft, int topicLeft, int lineHeight, in
 
     for (const auto& topic : filtered)
     {
+        if (topic.isHeader)
+        {
+            y += gap;
+        }
         std::string displayText;
         if (topic.isHeader)
         {
@@ -152,10 +156,6 @@ void drawAllHelpTopics(HDC hdc, int titleLeft, int topicLeft, int lineHeight, in
             drawHelpTopic(hdc, topicLeft, y, contentTop, contentBottom, displayText);
         }
         y += lineHeight;
-        if (topic.isHeader)
-        {
-            y += gap;
-        }
     }
 
     y += lineHeight;
@@ -206,6 +206,7 @@ void buildHelpTopicsCache()
     helpTopicsCache.push_back({"Escape", "Exit dialog", false});
 
     helpTopicsCache.push_back({"Add Clip to Group Dialog:", "", true});
+    helpTopicsCache.push_back({"D", "Delete bookmark group", false});
     helpTopicsCache.push_back({"j/k", "Navigate group", false});
     helpTopicsCache.push_back({"g/G", "Top/bottom", false});
     helpTopicsCache.push_back({"/", "Begin filtering groups", false});
