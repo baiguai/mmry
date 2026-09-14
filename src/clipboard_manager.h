@@ -545,34 +545,103 @@ public:
 
         bool key_marks_groups_delete()
         {
-            if (selectedAddBookmarkGroup < bookmarkGroups.size())
+            // Determine which context is active: the "Add to bookmark" dialog
+            // tracks selection with selectedAddBookmarkGroup, while the
+            // view-bookmarks groups view uses selectedViewBookmarkGroup.
+            std::vector<std::string> displayedGroups;
+            size_t selectedIndex { 0 };
+
+            if (addToBookmarkDialogVisible)
             {
-                std::string groupToDelete = bookmarkGroups[selectedAddBookmarkGroup];
-                
-                // Remove group from list
-                bookmarkGroups.erase(bookmarkGroups.begin() + selectedAddBookmarkGroup);
-                saveBookmarkGroups();
-                
-                // Delete bookmark file
-                std::string bookmarkFile = config.bookmarksDir + "/bookmarks_" + groupToDelete + ".txt";
-                unlink(bookmarkFile.c_str());
-                
-                std::cout << "Deleted bookmark group and all clips: " << groupToDelete << "\n";
-                
-                // Adjust selection
-                if (selectedAddBookmarkGroup > 0 && selectedAddBookmarkGroup >= bookmarkGroups.size())
+                if (filterAddBookmarksMode)
                 {
-                    selectedAddBookmarkGroup = bookmarkGroups.size() - 1;
+                    std::string lowerFilter { stringToLower(filterAddBookmarksText) };
+                    for (const auto& group : bookmarkGroups)
+                    {
+                        if (stringToLower(group).find(lowerFilter) != std::string::npos)
+                        {
+                            displayedGroups.push_back(group);
+                        }
+                    }
                 }
-                
-                // Close dialog if no groups left
-                if (bookmarkGroups.empty())
+                else
+                {
+                    displayedGroups = bookmarkGroups;
+                }
+                selectedIndex = selectedAddBookmarkGroup;
+            }
+            else
+            {
+                if (filterBookmarksMode)
+                {
+                    std::string lowerFilter { stringToLower(filterBookmarksText) };
+                    for (const auto& group : bookmarkGroups)
+                    {
+                        if (stringToLower(group).find(lowerFilter) != std::string::npos)
+                        {
+                            displayedGroups.push_back(group);
+                        }
+                    }
+                }
+                else
+                {
+                    displayedGroups = bookmarkGroups;
+                }
+                selectedIndex = selectedViewBookmarkGroup;
+            }
+
+            if (displayedGroups.empty() || selectedIndex >= displayedGroups.size())
+            {
+                return true;
+            }
+
+            // Map the displayed selection back to the actual group entry
+            std::string groupToDelete { displayedGroups[selectedIndex] };
+            auto it = std::find(bookmarkGroups.begin(), bookmarkGroups.end(), groupToDelete);
+            if (it == bookmarkGroups.end())
+            {
+                return true;
+            }
+            size_t actualIndex { static_cast<size_t>(std::distance(bookmarkGroups.begin(), it)) };
+
+            // Remove group from list
+            bookmarkGroups.erase(bookmarkGroups.begin() + actualIndex);
+            saveBookmarkGroups();
+
+            // Delete bookmark file
+            std::string bookmarkFile { config.bookmarksDir + "/bookmarks_" + groupToDelete + ".txt" };
+            unlink(bookmarkFile.c_str());
+
+            std::cout << "Deleted bookmark group and all clips: " << groupToDelete << "\n";
+
+            // Adjust selection
+            if (selectedIndex > 0 && selectedIndex >= bookmarkGroups.size())
+            {
+                size_t lastIndex = bookmarkGroups.empty() ? 0 : bookmarkGroups.size() - 1;
+                if (addToBookmarkDialogVisible)
+                {
+                    selectedAddBookmarkGroup = lastIndex;
+                }
+                else
+                {
+                    selectedViewBookmarkGroup = lastIndex;
+                }
+            }
+
+            // Close dialog if no groups left
+            if (bookmarkGroups.empty())
+            {
+                if (addToBookmarkDialogVisible)
+                {
+                    addToBookmarkDialogVisible = false;
+                }
+                else
                 {
                     viewBookmarksDialogVisible = false;
                 }
-                
-                drawConsole();
             }
+
+            drawConsole();
             return true;
         }
 
@@ -1840,6 +1909,10 @@ public:
         config.loadConfig();
         config.loadTheme();
 #ifdef __linux__
+        // Window was created before config was loaded, so apply the saved position now
+        restoreWindowPosition();
+#endif
+#ifdef __linux__
         if (gc)
         {
             XSetForeground(display, gc, config.textColor);
@@ -2044,6 +2117,10 @@ Comment=Autostart for )" << appLabel << R"(
             }
         }
 
+        // Save window position on exit
+        updateWindowPosition();
+        config.saveConfig();
+
         // Unregister our grabs on exit
         ungrab_global_hotkey(display, root, XK_C);
 #endif
@@ -2087,7 +2164,7 @@ Comment=Autostart for )" << appLabel << R"(
                         "MMRY_Window_Class",
                         "MMRY Clipboard Window",
                         WS_OVERLAPPEDWINDOW,
-                        CW_USEDEFAULT, CW_USEDEFAULT,
+                        config.windowX, config.windowY,
                         800, 450,
                         NULL, NULL, GetModuleHandle(NULL), 
                         this); // Pass 'this' as lpParam
@@ -2095,6 +2172,9 @@ Comment=Autostart for )" << appLabel << R"(
                     if (hwnd)
                     {
                         AddClipboardFormatListener(hwnd);
+
+                        // Apply saved window position
+                        restoreWindowPosition();
 
                         // Create and select a font
                         font = CreateFontA(16, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE, 
@@ -2120,6 +2200,10 @@ Comment=Autostart for )" << appLabel << R"(
             TranslateMessage(&msg);
             DispatchMessage(&msg);
         }
+
+        // Save window position on exit
+        updateWindowPosition();
+        config.saveConfig();
 
         UnregisterHotKey(NULL, 1);
 #endif
@@ -2800,7 +2884,7 @@ Comment=Autostart for )" << appLabel << R"(
 #ifdef __linux__
         // Create window with theme colors
         window = XCreateSimpleWindow(display, root, 
-                                   WINDOW_X, WINDOW_Y, 
+                                   config.windowX, config.windowY, 
                                    windowWidth, windowHeight,
                                    2, config.borderColor, config.backgroundColor);
         
@@ -2964,12 +3048,14 @@ Comment=Autostart for )" << appLabel << R"(
         if (visible)
         {
 #ifdef __linux__
+            updateWindowPosition();
             XUnmapWindow(display, window);
 #endif
 #ifdef _WIN32
             if (hwnd)
             {
                 std::cout << "Calling ShowWindow(SW_HIDE)\n";
+                updateWindowPosition();
                 ShowWindow(hwnd, SW_HIDE);
             }
             else
@@ -2980,6 +3066,53 @@ Comment=Autostart for )" << appLabel << R"(
             visible = false;
             std::cout << "Window hidden\n";
         }
+    }
+
+    void updateWindowPosition()
+    {
+#ifdef __linux__
+        if (!display)
+        {
+            return;
+        }
+        Window child;
+        int x { 0 };
+        int y { 0 };
+        if (XTranslateCoordinates(display, window, root, 0, 0, &x, &y, &child))
+        {
+            config.windowX = x;
+            config.windowY = y;
+        }
+#endif
+#ifdef _WIN32
+        if (hwnd)
+        {
+            RECT rect;
+            if (GetWindowRect(hwnd, &rect))
+            {
+                config.windowX = rect.left;
+                config.windowY = rect.top;
+            }
+        }
+#endif
+    }
+
+    void restoreWindowPosition()
+    {
+#ifdef __linux__
+        if (!display)
+        {
+            return;
+        }
+        XMoveWindow(display, window, config.windowX, config.windowY);
+        XSync(display, False);
+#endif
+#ifdef _WIN32
+        if (hwnd)
+        {
+            SetWindowPos(hwnd, NULL, config.windowX, config.windowY, 0, 0, SWP_NOSIZE | SWP_NOZORDER);
+        }
+#endif
     }
     
     

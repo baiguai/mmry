@@ -22,6 +22,9 @@ public:
     bool verboseMode { false };
     bool m_debugging { true };
 
+    int windowX { 100 };
+    int windowY { 100 };
+
     unsigned long backgroundColor { 0 };
     unsigned long textColor { 0 };
     unsigned long selectionColor { 0 };

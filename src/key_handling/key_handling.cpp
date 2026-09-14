@@ -402,6 +402,11 @@
                     if (key_marks_groups_bottom()) return;
                 }
 
+                if (key_value == "D")
+                {
+                    if (key_marks_groups_delete()) return;
+                }
+
                 if (key_value == "RETURN")
                 {
                     if (key_marks_groups_clips()) return;
