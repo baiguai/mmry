@@ -21,7 +21,7 @@ if [ ! -d "build" ]; then
 fi
 
 echo "Building Windows EXE..."
-./build-windows.sh
+# ./build-windows.sh
 
 # Navigate to build directory
 cd build

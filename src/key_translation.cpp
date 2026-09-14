@@ -51,6 +51,7 @@ std::string translateKey(void* eventPtr)
     if (keysym == XK_Escape) key_value = "ESCAPE";
     if (keysym == XK_Return) key_value = "RETURN";
     if (keysym == XK_BackSpace) key_value = "BACKSPACE";
+    if (keysym == XK_Delete && (keyEvent->state & ControlMask)) key_value = "CONTROL_DELETE";
     if (keysym == XK_Delete) key_value = "DELETE";
     if (keysym == XK_space) key_value = "SPACE";
     if (keysym == XK_grave) key_value = "`";
@@ -100,6 +101,7 @@ std::string translateKey(void* eventPtr)
     if (msg->wParam == VK_ESCAPE) key_value = "ESCAPE";
     if (msg->wParam == VK_RETURN) key_value = "RETURN";
     if (msg->wParam == VK_BACK) key_value = "BACKSPACE";
+    if (msg->wParam == VK_DELETE && GetKeyState(VK_CONTROL) & 0x8000)) key_value = "CONTROL_DELETE";
     if (msg->wParam == VK_DELETE) key_value = "DELETE";
     if (msg->wParam == VK_SPACE) key_value = "SPACE";
     if (msg->wParam == VK_OEM_3) key_value = "`";

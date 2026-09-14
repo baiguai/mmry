@@ -464,7 +464,7 @@ void drawHelpDialog(
     const int titleLeft = dims.x + 20;
     const int topicLeft = dims.x + 30;
     const int lineHeight = 15;
-    const int gap = 10;
+    const int gap = 15;
 
     int inputY = dims.y + 20;
 
