@@ -13,6 +13,7 @@ SOURCES=(
     "src/ui_win32.cpp"
     "src/utils.cpp"
     "src/key_handling/key_handling.cpp"
+    "src/key_handling/key_escape.cpp"
 )
 
 HEADERS=(
