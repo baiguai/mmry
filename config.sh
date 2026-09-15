@@ -27,6 +27,7 @@ SOURCES=(
     "src/main_list/navigation.cpp"
     "src/main_list/manage.cpp"
     "src/main_list/edit.cpp"
+    "src/helpers/ui/general.cpp"
 )
 
 HEADERS=(
