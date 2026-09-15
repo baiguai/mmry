@@ -12,8 +12,12 @@ SOURCES=(
     "src/ui_linux.cpp"
     "src/ui_win32.cpp"
     "src/utils.cpp"
-    "src/key_handling/key_handling.cpp"
+    "src/key_handling/key_press_common.cpp"
     "src/key_handling/key_escape.cpp"
+    "src/key_handling/key_edit.cpp"
+    "src/key_handling/key_help.cpp"
+    "src/key_handling/key_groups.cpp"
+    "src/key_handling/key_marks.cpp"
 )
 
 HEADERS=(

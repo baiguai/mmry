@@ -113,3 +113,10 @@ bool ClipboardManager::key_global_escape()
 
     return true;
 }
+
+bool ClipboardManager::key_edit_escape()
+{
+    editDialogVisible = false;
+    drawConsole();
+    return true;
+}
