@@ -18,6 +18,15 @@ SOURCES=(
     "src/key_handling/key_help.cpp"
     "src/key_handling/key_groups.cpp"
     "src/key_handling/key_marks.cpp"
+    "src/key_handling/key_pinned.cpp"
+    "src/key_handling/key_group_marks.cpp"
+    "src/key_handling/key_filter.cpp"
+    "src/command/command_general.cpp"
+    "src/command/theme.cpp"
+    "src/command/config.cpp"
+    "src/main_list/navigation.cpp"
+    "src/main_list/manage.cpp"
+    "src/main_list/edit.cpp"
 )
 
 HEADERS=(
