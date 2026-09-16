@@ -27,6 +27,13 @@ SOURCES=(
     "src/main_list/navigation.cpp"
     "src/main_list/manage.cpp"
     "src/main_list/edit.cpp"
+    "src/helpers/ui/general.cpp"
+    "src/core/run.cpp"
+    "src/core/window.cpp"
+    "src/scrolling/scrolling.cpp"
+    "src/ui/ui.cpp"
+    "src/clipboard/clipboard.cpp"
+    "src/io/io.cpp"
 )
 
 HEADERS=(
