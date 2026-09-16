@@ -377,3 +377,25 @@ void ClipboardManager::stop()
     }
 #endif
 }
+
+#ifdef _WIN32
+    char ClipboardManager::getCharFromMsg(MSG* msg)
+    {
+        // Get the scan code from lParam
+        UINT scanCode = (msg->lParam >> 16) & 0xFF;
+
+        // Get current keyboard state
+        BYTE keyboardState[256];
+        GetKeyboardState(keyboardState);
+
+        // Convert virtual key to character
+        char charBuffer[2]; // Needs space for null terminator
+        int result = ToAscii(msg->wParam, scanCode, keyboardState, (LPWORD)charBuffer, 0);
+
+        if (result == 1)
+        {
+            return charBuffer[0];
+        }
+        return 0; // Return null character if conversion fails
+    }
+#endif

@@ -31,6 +31,9 @@ SOURCES=(
     "src/core/run.cpp"
     "src/core/window.cpp"
     "src/scrolling/scrolling.cpp"
+    "src/ui/ui.cpp"
+    "src/clipboard/clipboard.cpp"
+    "src/io/io.cpp"
 )
 
 HEADERS=(
