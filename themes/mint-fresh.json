@@ -5,6 +5,7 @@
     "background": "#f0fff0",
     "text": "#4b7d4b",
     "selection": "#e0ffe0",
+    "selection_text": "#000000",
     "border": "#90ee90"
   }
 }

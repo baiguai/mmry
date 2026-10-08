@@ -63,6 +63,7 @@ void ConfigManager::loadTheme()
     backgroundColor = 0x000000;
     textColor = 0xFFFFFF;
     selectionColor = 0x333333;
+    selectionTextColor = 0xFFFFFF;
     borderColor = 0x888888;
     std::string themePath { configDir + pathSep + "themes" + pathSep + theme + ".json" };
     std::ifstream file(themePath);
@@ -133,6 +134,15 @@ void ConfigManager::loadTheme()
                     selectionColor = hexToRgb(line.substr(start + 1, end - start - 1));
                 }
             }
+            else if (line.find("\"selection_text\"") != std::string::npos)
+            {
+                size_t start { line.find('"', line.find(':')) };
+                size_t end { line.find('"', start + 1) };
+                if (start != std::string::npos && end != std::string::npos)
+                {
+                    selectionTextColor = hexToRgb(line.substr(start + 1, end - start - 1));
+                }
+            }
             else if (line.find("\"border\"") != std::string::npos)
             {
                 size_t start { line.find('"', line.find(':')) };
@@ -171,6 +181,7 @@ void ConfigManager::createDefaultThemeFile()
         outFile << "    \"background\": \"#000000\",\n";
         outFile << "    \"text\": \"#FFFFFF\",\n";
         outFile << "    \"selection\": \"#333333\",\n";
+        outFile << "    \"selection_text\": \"#FFFFFF\",\n";
         outFile << "    \"border\": \"#444444\"\n";
         outFile << "  }\n";
         outFile << "}\n";

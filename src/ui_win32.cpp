@@ -536,14 +536,17 @@ void drawConsole(
                 HBRUSH hHighlightBrush = CreateSolidBrush(data.selColor);
                 FillRect(hdc, &highlightRect, hHighlightBrush);
                 DeleteObject(hHighlightBrush);
+                SetTextColor(hdc, data.selTextColor);
+            } else {
+                SetTextColor(hdc, data.textColor);
             }
 
-            SetTextColor(hdc, data.textColor);
             TextOut(hdc, 10, y, themeDisplay.c_str(), themeDisplay.length());
             y += data.lineHeight;
         }
 
         if (data.themeItems.size() > VISIBLE_THEMES) {
+            SetTextColor(hdc, data.textColor);
             std::string scrollInfo = "Showing " + std::to_string(startIdx + 1) + "-" + std::to_string(endIdx) + " of " + std::to_string(data.themeItems.size());
             TextOut(hdc, 10, y, scrollInfo.c_str(), scrollInfo.length());
             y += data.lineHeight;
@@ -554,7 +557,8 @@ void drawConsole(
         const int SWATCH_WIDTH = 40;
         const int SWATCH_HEIGHT = 12;
         const int LABEL_X = 60;
-        const int previewHeight = 3 * data.lineHeight;
+        const int PAIR_WIDTH = 170;
+        const int previewHeight = 5 * data.lineHeight;
         if (y + previewHeight <= data.windowHeight) {
             SetTextColor(hdc, data.textColor);
             std::string sample = "Preview: The quick brown fox jumps over the lazy dog 0123456789";
@@ -580,6 +584,30 @@ void drawConsole(
             std::string textLabel = "text " + rgbToHex(data.textColor);
             TextOut(hdc, LABEL_X, y, textLabel.c_str(), textLabel.length());
             y += data.lineHeight;
+
+            RECT selSwatch = {SWATCH_X, y - SWATCH_HEIGHT, SWATCH_X + SWATCH_WIDTH, y};
+            HBRUSH selBrush = CreateSolidBrush(data.selColor);
+            FillRect(hdc, &selSwatch, selBrush);
+            DeleteObject(selBrush);
+            RECT selOutline = {SWATCH_X - 1, y - SWATCH_HEIGHT - 1, SWATCH_X + SWATCH_WIDTH + 1, y + 1};
+            HBRUSH selOutlineBrush = CreateSolidBrush(data.textColor);
+            FrameRect(hdc, &selOutline, selOutlineBrush);
+            DeleteObject(selOutlineBrush);
+            std::string selLabel = "selection " + rgbToHex(data.selColor);
+            TextOut(hdc, LABEL_X, y, selLabel.c_str(), selLabel.length());
+            y += data.lineHeight;
+
+            RECT pairSwatch = {SWATCH_X, y - SWATCH_HEIGHT, SWATCH_X + PAIR_WIDTH, y};
+            HBRUSH pairBrush = CreateSolidBrush(data.selColor);
+            FillRect(hdc, &pairSwatch, pairBrush);
+            DeleteObject(pairBrush);
+            SetBkMode(hdc, OPAQUE);
+            SetBkColor(hdc, data.selColor);
+            SetTextColor(hdc, data.selTextColor);
+            std::string selTextLabel = "selection_text " + rgbToHex(data.selTextColor);
+            TextOut(hdc, SWATCH_X + 4, y - 3, selTextLabel.c_str(), selTextLabel.length());
+            SetBkMode(hdc, TRANSPARENT);
+            y += data.lineHeight;
         }
         return;
     }
@@ -601,14 +629,17 @@ void drawConsole(
                 HBRUSH hHighlightBrush = CreateSolidBrush(data.selColor);
                 FillRect(hdc, &highlightRect, hHighlightBrush);
                 DeleteObject(hHighlightBrush);
+                SetTextColor(hdc, data.selTextColor);
+            } else {
+                SetTextColor(hdc, data.textColor);
             }
 
-            SetTextColor(hdc, data.textColor);
             TextOut(hdc, 10, y, configDisplay.c_str(), configDisplay.length());
             y += data.lineHeight;
         }
 
         if (data.configItems.size() > VISIBLE_CONFIGS) {
+            SetTextColor(hdc, data.textColor);
             std::string scrollInfo = "Showing " + std::to_string(startIdx + 1) + "-" + std::to_string(endIdx) + " of " + std::to_string(data.configItems.size());
             TextOut(hdc, 10, y, scrollInfo.c_str(), scrollInfo.length());
         }
@@ -633,9 +664,11 @@ void drawConsole(
             HBRUSH hHighlightBrush = CreateSolidBrush(data.selColor);
             FillRect(hdc, &highlightRect, hHighlightBrush);
             DeleteObject(hHighlightBrush);
+            SetTextColor(hdc, data.selTextColor);
+        } else {
+            SetTextColor(hdc, data.textColor);
         }
 
-        SetTextColor(hdc, data.textColor);
         TextOut(hdc, 10, y, data.clipLines[i].c_str(), data.clipLines[i].length());
         y += data.lineHeight;
     }

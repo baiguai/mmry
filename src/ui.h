@@ -54,6 +54,7 @@ struct ConsoleDrawData
     unsigned long bgColor;
     unsigned long textColor;
     unsigned long selColor;
+    unsigned long selTextColor;
 };
 
 struct DialogDimensions
