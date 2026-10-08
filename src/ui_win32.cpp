@@ -546,6 +546,40 @@ void drawConsole(
         if (data.themeItems.size() > VISIBLE_THEMES) {
             std::string scrollInfo = "Showing " + std::to_string(startIdx + 1) + "-" + std::to_string(endIdx) + " of " + std::to_string(data.themeItems.size());
             TextOut(hdc, 10, y, scrollInfo.c_str(), scrollInfo.length());
+            y += data.lineHeight;
+        }
+
+        y += data.lineHeight;
+        const int SWATCH_X = 10;
+        const int SWATCH_WIDTH = 40;
+        const int SWATCH_HEIGHT = 12;
+        const int LABEL_X = 60;
+        const int previewHeight = 3 * data.lineHeight;
+        if (y + previewHeight <= data.windowHeight) {
+            SetTextColor(hdc, data.textColor);
+            std::string sample = "Preview: The quick brown fox jumps over the lazy dog 0123456789";
+            TextOut(hdc, 10, y, sample.c_str(), sample.length());
+            y += data.lineHeight;
+
+            RECT bgSwatch = {SWATCH_X, y - SWATCH_HEIGHT, SWATCH_X + SWATCH_WIDTH, y};
+            HBRUSH bgBrush = CreateSolidBrush(data.bgColor);
+            FillRect(hdc, &bgSwatch, bgBrush);
+            DeleteObject(bgBrush);
+            RECT bgOutline = {SWATCH_X - 1, y - SWATCH_HEIGHT - 1, SWATCH_X + SWATCH_WIDTH + 1, y + 1};
+            HBRUSH outlineBrush = CreateSolidBrush(data.textColor);
+            FrameRect(hdc, &bgOutline, outlineBrush);
+            DeleteObject(outlineBrush);
+            std::string bgLabel = "background " + rgbToHex(data.bgColor);
+            TextOut(hdc, LABEL_X, y, bgLabel.c_str(), bgLabel.length());
+            y += data.lineHeight;
+
+            RECT textSwatch = {SWATCH_X, y - SWATCH_HEIGHT, SWATCH_X + SWATCH_WIDTH, y};
+            HBRUSH textBrush = CreateSolidBrush(data.textColor);
+            FillRect(hdc, &textSwatch, textBrush);
+            DeleteObject(textBrush);
+            std::string textLabel = "text " + rgbToHex(data.textColor);
+            TextOut(hdc, LABEL_X, y, textLabel.c_str(), textLabel.length());
+            y += data.lineHeight;
         }
         return;
     }

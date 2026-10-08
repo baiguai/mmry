@@ -5,6 +5,23 @@
 #include <vector>
 #include <algorithm>
 #include <utility>
+#include <cstdio>
+
+inline std::string rgbToHex(unsigned long color)
+{
+#ifdef _WIN32
+    unsigned long r = color & 0xFF;
+    unsigned long g = (color >> 8) & 0xFF;
+    unsigned long b = (color >> 16) & 0xFF;
+#else
+    unsigned long r = (color >> 16) & 0xFF;
+    unsigned long g = (color >> 8) & 0xFF;
+    unsigned long b = color & 0xFF;
+#endif
+    char buf[8];
+    std::snprintf(buf, sizeof(buf), "#%02lx%02lx%02lx", r, g, b);
+    return std::string(buf);
+}
 
 struct ConsoleDrawData
 {
