@@ -1,0 +1,11 @@
+{
+  "name": "Blood",
+  "description": "Horror theme",
+  "colors": {
+    "background": "#000000",
+    "text": "#ee0000",
+    "selection": "#330000",
+    "selection_text": "#ff5555",
+    "border": "#ff0000"
+  }
+}

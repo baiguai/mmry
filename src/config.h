@@ -28,6 +28,7 @@ public:
     unsigned long backgroundColor { 0 };
     unsigned long textColor { 0 };
     unsigned long selectionColor { 0 };
+    unsigned long selectionTextColor { 0 };
     unsigned long borderColor { 0 };
 
     void setupConfigDir();

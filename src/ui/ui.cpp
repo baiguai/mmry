@@ -41,6 +41,7 @@
         data.bgColor = config.backgroundColor;
         data.textColor = config.textColor;
         data.selColor = config.selectionColor;
+        data.selTextColor = config.selectionTextColor;
         
         // Build clip display lines
         if (!cmd_themeSelectMode && !cmd_configSelectMode)
@@ -434,6 +435,7 @@
         data.bgColor = config.backgroundColor;
         data.textColor = config.textColor;
         data.selColor = config.selectionColor;
+        data.selTextColor = config.selectionTextColor;
         
         // Build clip display lines
         if (!cmd_themeSelectMode && !cmd_configSelectMode)
