@@ -558,7 +558,7 @@ void drawConsole(
         const int SWATCH_HEIGHT = 12;
         const int LABEL_X = 60;
         const int PAIR_WIDTH = 170;
-        const int previewHeight = 5 * data.lineHeight;
+        const int previewHeight = 6 * data.lineHeight;
         if (y + previewHeight <= data.windowHeight) {
             SetTextColor(hdc, data.textColor);
             std::string sample = "Preview: The quick brown fox jumps over the lazy dog 0123456789";
@@ -597,6 +597,18 @@ void drawConsole(
             TextOut(hdc, LABEL_X, y, selLabel.c_str(), selLabel.length());
             y += data.lineHeight;
 
+            RECT selTextSwatch = {SWATCH_X, y - SWATCH_HEIGHT, SWATCH_X + SWATCH_WIDTH, y};
+            HBRUSH selTextBrush = CreateSolidBrush(data.selTextColor);
+            FillRect(hdc, &selTextSwatch, selTextBrush);
+            DeleteObject(selTextBrush);
+            RECT selTextOutline = {SWATCH_X - 1, y - SWATCH_HEIGHT - 1, SWATCH_X + SWATCH_WIDTH + 1, y + 1};
+            HBRUSH selTextOutlineBrush = CreateSolidBrush(data.textColor);
+            FrameRect(hdc, &selTextOutline, selTextOutlineBrush);
+            DeleteObject(selTextOutlineBrush);
+            std::string selTextLabel = "selection_text " + rgbToHex(data.selTextColor);
+            TextOut(hdc, LABEL_X, y, selTextLabel.c_str(), selTextLabel.length());
+            y += data.lineHeight;
+
             RECT pairSwatch = {SWATCH_X, y - SWATCH_HEIGHT, SWATCH_X + PAIR_WIDTH, y};
             HBRUSH pairBrush = CreateSolidBrush(data.selColor);
             FillRect(hdc, &pairSwatch, pairBrush);
@@ -604,8 +616,8 @@ void drawConsole(
             SetBkMode(hdc, OPAQUE);
             SetBkColor(hdc, data.selColor);
             SetTextColor(hdc, data.selTextColor);
-            std::string selTextLabel = "selection_text " + rgbToHex(data.selTextColor);
-            TextOut(hdc, SWATCH_X + 4, y - 3, selTextLabel.c_str(), selTextLabel.length());
+            std::string pairLabel = rgbToHex(data.selTextColor) + " on selection";
+            TextOut(hdc, SWATCH_X + 4, y - 3, pairLabel.c_str(), pairLabel.length());
             SetBkMode(hdc, TRANSPARENT);
             y += data.lineHeight;
         }

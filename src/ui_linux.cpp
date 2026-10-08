@@ -381,7 +381,7 @@ void drawConsole(
         const int SWATCH_HEIGHT = 12;
         const int LABEL_X = 60;
         const int PAIR_WIDTH = 170;
-        const int previewHeight = 5 * data.lineHeight;
+        const int previewHeight = 6 * data.lineHeight;
         if (y + previewHeight <= data.windowHeight) {
             XSetForeground(display, gc, data.textColor);
             std::string sample = "Preview: The quick brown fox jumps over the lazy dog 0123456789";
@@ -410,11 +410,19 @@ void drawConsole(
             XDrawString(display, window, gc, LABEL_X, y, selLabel.c_str(), selLabel.length());
             y += data.lineHeight;
 
+            XSetForeground(display, gc, data.selTextColor);
+            XFillRectangle(display, window, gc, SWATCH_X, y - SWATCH_HEIGHT, SWATCH_WIDTH, SWATCH_HEIGHT);
+            XSetForeground(display, gc, data.textColor);
+            XDrawRectangle(display, window, gc, SWATCH_X, y - SWATCH_HEIGHT, SWATCH_WIDTH, SWATCH_HEIGHT);
+            std::string selTextLabel = "selection_text " + rgbToHex(data.selTextColor);
+            XDrawString(display, window, gc, LABEL_X, y, selTextLabel.c_str(), selTextLabel.length());
+            y += data.lineHeight;
+
             XSetForeground(display, gc, data.selColor);
             XFillRectangle(display, window, gc, SWATCH_X, y - SWATCH_HEIGHT, PAIR_WIDTH, SWATCH_HEIGHT);
             XSetForeground(display, gc, data.selTextColor);
-            std::string selTextLabel = "selection_text " + rgbToHex(data.selTextColor);
-            XDrawString(display, window, gc, SWATCH_X + 4, y - 3, selTextLabel.c_str(), selTextLabel.length());
+            std::string pairLabel = rgbToHex(data.selTextColor) + " on selection";
+            XDrawString(display, window, gc, SWATCH_X + 4, y - 3, pairLabel.c_str(), pairLabel.length());
             y += data.lineHeight;
         }
         return;
