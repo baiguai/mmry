@@ -25,7 +25,7 @@
 // For now - search for: !@!
 // to get all the places keys are hard coded
 static const std::vector<std::string> booleanKeys = {"verbose", "debugging", "encrypted", "autostart"};
-static const std::vector<std::string> numberKeys  = {"max_clips"};
+static const std::vector<std::string> numberKeys  = {"max_clips", "window_x", "window_y"};
 static const std::vector<std::string> stringKeys = {"encryption_key", "theme"};
 
 unsigned long ConfigManager::hexToRgb(const std::string& hex)
@@ -442,6 +442,28 @@ void ConfigManager::loadConfig()
                     maxClips = std::stoull(value);
                 }
             }
+            else if (line.find("\"window_x\"") != std::string::npos)
+            {
+                size_t colon { line.find(':') };
+                if (colon != std::string::npos)
+                {
+                    std::string value { line.substr(colon + 1) };
+                    value.erase(0, value.find_first_not_of(" \t"));
+                    value.erase(value.find_last_not_of(" \t,\"") + 1);
+                    windowX = std::stoi(value);
+                }
+            }
+            else if (line.find("\"window_y\"") != std::string::npos)
+            {
+                size_t colon { line.find(':') };
+                if (colon != std::string::npos)
+                {
+                    std::string value { line.substr(colon + 1) };
+                    value.erase(0, value.find_first_not_of(" \t"));
+                    value.erase(value.find_last_not_of(" \t,\"") + 1);
+                    windowY = std::stoi(value);
+                }
+            }
             else if (line.find("\"encrypted\"") != std::string::npos)
             {
                 encrypted = line.find("true") != std::string::npos;
@@ -512,6 +534,8 @@ void ConfigManager::saveConfig()
     configValues["encryption_key"] = encryptionKey;
     configValues["autostart"] = autoStart ? "true" : "false";
     configValues["theme"] = theme;
+    configValues["window_x"] = std::to_string(windowX);
+    configValues["window_y"] = std::to_string(windowY);
     
     std::cout << "DEBUG: About to write max_clips = " << configValues["max_clips"] << "\n";
     
@@ -561,7 +585,9 @@ void ConfigManager::createDefaultConfig()
     outFile << "    \"encrypted\": true,\n";
     outFile << "    \"encryption_key\": \"mmry_default_key_2026\",\n";
     outFile << "    \"autostart\": false,\n";
-    outFile << "    \"theme\": \"console\"\n";
+    outFile << "    \"theme\": \"console\",\n";
+    outFile << "    \"window_x\": 100,\n";
+    outFile << "    \"window_y\": 100\n";
     outFile << "}\n";
     outFile.close();
     
@@ -579,6 +605,8 @@ std::string ConfigManager::getConfigValue(const std::string& configKey)
     if (configKey == "encryption_key") return encryptionKey;
     if (configKey == "autostart") return autoStart ? "true" : "false";
     if (configKey == "theme") return theme;
+    if (configKey == "window_x") return std::to_string(windowX);
+    if (configKey == "window_y") return std::to_string(windowY);
     return "";
 }
 
@@ -601,6 +629,17 @@ bool ConfigManager::updateConfigValue(const std::string& configKey, const std::s
     try
     {
         std::string currentValue { getConfigValue(configKey) };
+        
+        if (configKey == "window_x")
+        {
+            windowX = std::stoi(newValue);
+            return true;
+        }
+        if (configKey == "window_y")
+        {
+            windowY = std::stoi(newValue);
+            return true;
+        }
         
         if (currentValue == "true" || currentValue == "false")
         {

@@ -101,7 +101,7 @@ std::string translateKey(void* eventPtr)
     if (msg->wParam == VK_ESCAPE) key_value = "ESCAPE";
     if (msg->wParam == VK_RETURN) key_value = "RETURN";
     if (msg->wParam == VK_BACK) key_value = "BACKSPACE";
-    if (msg->wParam == VK_DELETE && GetKeyState(VK_CONTROL) & 0x8000)) key_value = "CONTROL_DELETE";
+    if (msg->wParam == VK_DELETE && (GetKeyState(VK_CONTROL) & 0x8000)) key_value = "CONTROL_DELETE";
     if (msg->wParam == VK_DELETE) key_value = "DELETE";
     if (msg->wParam == VK_SPACE) key_value = "SPACE";
     if (msg->wParam == VK_OEM_3) key_value = "`";

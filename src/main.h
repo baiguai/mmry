@@ -141,7 +141,7 @@ std::string stringToLower(const std::string& str);
 
 // Temporary error handler to swallow BadAccess errors
 #ifdef __linux__
-int ignore_x11_errors(Display* d, XErrorEvent* e)
+inline int ignore_x11_errors(Display* d, XErrorEvent* e)
 {
     (void)d; // Suppress unused parameter warning
     // 10 = BadAccess
@@ -158,11 +158,11 @@ int ignore_x11_errors(Display* d, XErrorEvent* e)
 #endif
 
 
-    std::atomic<bool> running;
-    std::atomic<bool> visible;
+    inline std::atomic<bool> running;
+    inline std::atomic<bool> visible;
     // Window properties
-    int windowWidth { 800 };
-    int windowHeight { 600 };
+    inline int windowWidth { 800 };
+    inline int windowHeight { 600 };
     const int WINDOW_X { 100 };
     const int WINDOW_Y { 100 };
     const int LINE_HEIGHT { 25 };
@@ -176,87 +176,87 @@ int ignore_x11_errors(Display* d, XErrorEvent* e)
     const int MIN_WINDOW_HEIGHT { 525 };
     
     // Dynamic width adjustment for clip list
-    int clipListWidth { 780 }; // Default width (windowWidth - 20 for margins)
+    inline int clipListWidth { 780 }; // Default width (windowWidth - 20 for margins)
     
     // Clipboard data
-    std::vector<ClipboardItem> items;
-    std::string lastClipboardContent;
+    inline std::vector<ClipboardItem> items;
+    inline std::string lastClipboardContent;
     
     // Navigation
-    size_t selectedItem { 0 };
-    size_t consoleScrollOffset { 0 }; // For scrolling main clips list
-    bool filterMode { false };
-    std::string filterText;
-    std::vector<size_t> filteredItems;
-    bool regexSubmitted { false };
-    int pendingRepeatCount { 0 };
+    inline size_t selectedItem { 0 };
+    inline size_t consoleScrollOffset { 0 }; // For scrolling main clips list
+    inline bool filterMode { false };
+    inline std::string filterText;
+    inline std::vector<size_t> filteredItems;
+    inline bool regexSubmitted { false };
+    inline int pendingRepeatCount { 0 };
     
     // Command mode
-    bool commandMode { false };
-    std::string commandText;
+    inline bool commandMode { false };
+    inline std::string commandText;
     
     // Theme selection mode
-    bool cmd_themeSelectMode { false };
-    std::vector<std::string> availableThemes;
-    size_t selectedTheme { 0 };
-    size_t themeSelectScrollOffset { 0 };
+    inline bool cmd_themeSelectMode { false };
+    inline std::vector<std::string> availableThemes;
+    inline size_t selectedTheme { 0 };
+    inline size_t themeSelectScrollOffset { 0 };
 
     // Config selection mode
-    bool cmd_configSelectMode { false };
-    std::vector<std::string> availableConfigs;
-    size_t selectedConfig { 0 };
-    size_t configSelectScrollOffset { 0 };
+    inline bool cmd_configSelectMode { false };
+    inline std::vector<std::string> availableConfigs;
+    inline size_t selectedConfig { 0 };
+    inline size_t configSelectScrollOffset { 0 };
     
 
     
     // Bookmark dialog
-    bool bookmarkDialogVisible { false };
-    std::string bookmarkDialogInput;
-    std::vector<std::string> bookmarkGroups;
-    size_t selectedBookmarkGroup { 0 };
-    size_t bookmarkMgmtScrollOffset { 0 }; // For scrolling long lists
+    inline bool bookmarkDialogVisible { false };
+    inline std::string bookmarkDialogInput;
+    inline std::vector<std::string> bookmarkGroups;
+    inline size_t selectedBookmarkGroup { 0 };
+    inline size_t bookmarkMgmtScrollOffset { 0 }; // For scrolling long lists
 
     // Pinned dialog
-    bool pinnedDialogVisible { false };
-    size_t selectedViewPinnedItem { 0 };
-    size_t viewPinnedScrollOffset { 0 }; // For scrolling long lists
-    int m_maxVisiblePinnedItems { 1 }; // Stores the number of currently visible pinned items
+    inline bool pinnedDialogVisible { false };
+    inline size_t selectedViewPinnedItem { 0 };
+    inline size_t viewPinnedScrollOffset { 0 }; // For scrolling long lists
+    inline int m_maxVisiblePinnedItems { 1 }; // Stores the number of currently visible pinned items
     
     // Add to bookmark dialog state
-    bool addToBookmarkDialogVisible { false };
-    size_t selectedAddBookmarkGroup { 0 };
-    size_t addBookmarkScrollOffset { 0 }; // For scrolling long lists
+    inline bool addToBookmarkDialogVisible { false };
+    inline size_t selectedAddBookmarkGroup { 0 };
+    inline size_t addBookmarkScrollOffset { 0 }; // For scrolling long lists
     
     // Help dialog state
-    bool helpDialogVisible { false };
-    size_t helpDialogScrollOffset { 0 };
-    bool helpFilterMode { false };
-    size_t helpFilterScrollOffset { 0 };
+    inline bool helpDialogVisible { false };
+    inline size_t helpDialogScrollOffset { 0 };
+    inline bool helpFilterMode { false };
+    inline size_t helpFilterScrollOffset { 0 };
 
     // Edit dialog state
-    bool editDialogVisible { false };
-    std::string editDialogInput;
-    int editDialogScrollOffset { 0 };
-    size_t editDialogCursorPos { 0 };
-    size_t editDialogCursorLine { 0 };
+    inline bool editDialogVisible { false };
+    inline std::string editDialogInput;
+    inline int editDialogScrollOffset { 0 };
+    inline size_t editDialogCursorPos { 0 };
+    inline size_t editDialogCursorLine { 0 };
     
     // View bookmarks dialog state
-    bool viewBookmarksDialogVisible { false };
-    bool viewBookmarksShowingGroups { true }; // true = groups, false = clips
-    size_t selectedViewBookmarkGroup { 0 };
-    size_t selectedViewBookmarkItem { 0 };
-    size_t viewBookmarksScrollOffset { 0 }; // For scrolling long lists
+    inline bool viewBookmarksDialogVisible { false };
+    inline bool viewBookmarksShowingGroups { true }; // true = groups, false = clips
+    inline size_t selectedViewBookmarkGroup { 0 };
+    inline size_t selectedViewBookmarkItem { 0 };
+    inline size_t viewBookmarksScrollOffset { 0 }; // For scrolling long lists
 
     // Bookmark dialog filtering
-    bool filterBookmarksMode { false };
-    std::string filterBookmarksText;
+    inline bool filterBookmarksMode { false };
+    inline std::string filterBookmarksText;
 
-    bool filterAddBookmarksMode { false };
-    std::string filterAddBookmarksText;
+    inline bool filterAddBookmarksMode { false };
+    inline std::string filterAddBookmarksText;
 
     // Bookmark clips filtering
-    bool filterBookmarkClipsMode { false };
-    std::string filterBookmarkClipsText;
-    std::vector<std::string> filteredBookmarkClips;
+    inline bool filterBookmarkClipsMode { false };
+    inline std::string filterBookmarkClipsText;
+    inline std::vector<std::string> filteredBookmarkClips;
 
 #endif // End main_h
