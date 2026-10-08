@@ -141,6 +141,7 @@ public:
         bool key_command_detect();
 
         // Theme Command
+        void previewSelectedTheme();
         bool key_theme_cancel();
         bool key_theme_apply();
         bool key_theme_down();

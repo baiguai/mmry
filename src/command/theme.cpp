@@ -1,5 +1,13 @@
 #include "../clipboard_manager.h"
 
+void ClipboardManager::previewSelectedTheme()
+{
+    if (selectedTheme < availableThemes.size())
+    {
+        config.switchTheme(availableThemes[selectedTheme]);
+    }
+}
+
 bool ClipboardManager::key_theme_cancel()
 {
     if (!config.originalTheme.empty())
@@ -37,10 +45,7 @@ bool ClipboardManager::key_theme_down()
         selectedTheme++;
         updateThemeSelectScrollOffset();
         // Apply live preview
-        if (selectedTheme < availableThemes.size())
-        {
-            config.switchTheme(availableThemes[selectedTheme]);
-        }
+        previewSelectedTheme();
         drawConsole();
     }
     return true;
@@ -53,10 +58,7 @@ bool ClipboardManager::key_theme_up()
         selectedTheme--;
         updateThemeSelectScrollOffset();
         // Apply live preview
-        if (selectedTheme < availableThemes.size())
-        {
-            config.switchTheme(availableThemes[selectedTheme]);
-        }
+        previewSelectedTheme();
         drawConsole();
     }
     return true;
@@ -66,6 +68,7 @@ bool ClipboardManager::key_theme_top()
 {
     selectedTheme = 0;
     themeSelectScrollOffset = 0;
+    previewSelectedTheme();
     drawConsole();
 
     return true;
@@ -77,6 +80,7 @@ bool ClipboardManager::key_theme_bottom()
     {
         selectedTheme = availableThemes.size() - 1;
         updateThemeSelectScrollOffset();
+        previewSelectedTheme();
         drawConsole();
     }
     return true;

@@ -344,6 +344,7 @@ void drawConsole(
     }
 
     if (data.themeSelectMode) {
+        XSetForeground(display, gc, data.textColor);
         std::string header = "Select theme (" + std::to_string(data.themeItems.size()) + " total):";
         XDrawString(display, window, gc, 10, y, header.c_str(), header.length());
         y += data.lineHeight;
@@ -353,6 +354,12 @@ void drawConsole(
         size_t endIdx = std::min(startIdx + VISIBLE_THEMES, data.themeItems.size());
 
         for (size_t i = startIdx; i < endIdx; ++i) {
+            if (i == data.selectedTheme) {
+                XSetForeground(display, gc, data.selColor);
+                XFillRectangle(display, window, gc, 5, y - 12, data.clipListWidth, 15);
+                XSetForeground(display, gc, data.textColor);
+            }
+
             std::string themeDisplay = (i == data.selectedTheme ? "> " : "  ") + data.themeItems[i];
             XDrawString(display, window, gc, 10, y, themeDisplay.c_str(), themeDisplay.length());
             y += data.lineHeight;
@@ -361,6 +368,33 @@ void drawConsole(
         if (data.themeItems.size() > VISIBLE_THEMES) {
             std::string scrollInfo = "Showing " + std::to_string(startIdx + 1) + "-" + std::to_string(endIdx) + " of " + std::to_string(data.themeItems.size());
             XDrawString(display, window, gc, 10, y, scrollInfo.c_str(), scrollInfo.length());
+            y += data.lineHeight;
+        }
+
+        y += data.lineHeight;
+        const int SWATCH_X = 10;
+        const int SWATCH_WIDTH = 40;
+        const int SWATCH_HEIGHT = 12;
+        const int LABEL_X = 60;
+        const int previewHeight = 3 * data.lineHeight;
+        if (y + previewHeight <= data.windowHeight) {
+            std::string sample = "Preview: The quick brown fox jumps over the lazy dog 0123456789";
+            XDrawString(display, window, gc, 10, y, sample.c_str(), sample.length());
+            y += data.lineHeight;
+
+            XSetForeground(display, gc, data.bgColor);
+            XFillRectangle(display, window, gc, SWATCH_X, y - SWATCH_HEIGHT, SWATCH_WIDTH, SWATCH_HEIGHT);
+            XSetForeground(display, gc, data.textColor);
+            XDrawRectangle(display, window, gc, SWATCH_X, y - SWATCH_HEIGHT, SWATCH_WIDTH, SWATCH_HEIGHT);
+            std::string bgLabel = "background " + rgbToHex(data.bgColor);
+            XDrawString(display, window, gc, LABEL_X, y, bgLabel.c_str(), bgLabel.length());
+            y += data.lineHeight;
+
+            XSetForeground(display, gc, data.textColor);
+            XFillRectangle(display, window, gc, SWATCH_X, y - SWATCH_HEIGHT, SWATCH_WIDTH, SWATCH_HEIGHT);
+            std::string textLabel = "text " + rgbToHex(data.textColor);
+            XDrawString(display, window, gc, LABEL_X, y, textLabel.c_str(), textLabel.length());
+            y += data.lineHeight;
         }
         return;
     }
