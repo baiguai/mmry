@@ -173,7 +173,7 @@ void buildHelpTopicsCache()
     helpTopicsCache.push_back({"g/G", "Top/bottom", false});
     helpTopicsCache.push_back({"/", "Filter mode (! for REGEX; ?! for examples)", false});
     helpTopicsCache.push_back({"Shift+m", "Manage bookmark groups", false});
-    helpTopicsCache.push_back({"m", "Add clip to group", false});
+    helpTopicsCache.push_back({"m", "Add clip to bookmark group", false});
     helpTopicsCache.push_back({"`", "View bookmarks", false});
     helpTopicsCache.push_back({"p", "Pin clip", false});
     helpTopicsCache.push_back({"'", "View pinned clips", false});
