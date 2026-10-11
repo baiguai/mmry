@@ -229,7 +229,7 @@ inline int ignore_x11_errors(Display* d, XErrorEvent* e)
     
     // Help dialog state
     inline bool helpDialogVisible { false };
-    inline size_t helpDialogScrollOffset { 0 };
+    inline int helpDialogScrollOffset { 0 };
     inline bool helpFilterMode { false };
     inline size_t helpFilterScrollOffset { 0 };
 

@@ -306,8 +306,8 @@ void drawHelpDialog(
     XSetForeground(display, gc, textColor);
     const int titleLeft = dims.x + 20;
     const int topicLeft = dims.x + 30;
-    const int lineHeight = 15;
-    const int gap = 15;
+    const int lineHeight = HELP_LINE_HEIGHT;
+    const int gap = HELP_GAP;
 
     int inputY = dims.y + 20;
 
@@ -318,11 +318,11 @@ void drawHelpDialog(
     XSetForeground(display, gc, textColor);
     XDrawString(display, window, gc, dims.x + 25, inputY + 14, filterDisplay.c_str(), filterDisplay.length());
 
-    int y = dims.y + 20 + 25 + gap;
+    int y = dims.y + HELP_CONTENT_TOP_OFFSET;
     const int contentTop = y;
     const int contentBottom = dims.y + dims.height;
 
-    y = y + scrollOffset;
+    y = y - scrollOffset;
 
     drawAllHelpTopics(nullptr, titleLeft, topicLeft, lineHeight, gap, y, contentTop, contentBottom);
 }

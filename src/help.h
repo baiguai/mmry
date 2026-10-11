@@ -16,9 +16,21 @@ struct HelpTopic
     std::string description;
     bool isHeader;
 };
+
+struct HelpDrawLine
+{
+    bool atTitleLeft;
+    int leadGap;
+    std::string text;
+};
+
+constexpr int HELP_LINE_HEIGHT = 15;
+constexpr int HELP_GAP = 15;
+constexpr int HELP_CONTENT_TOP_OFFSET = 20 + 25 + HELP_GAP;
+
 extern std::vector<HelpTopic> helpTopicsCache;
 extern std::string helpFilterText;
-void buildHelpTopicsCache();                      // defined in main.cpp
+void buildHelpTopicsCache();
 std::string stringToLower(const std::string& str); // declared in main.h too
 
 
@@ -36,6 +48,7 @@ void drawHelpTopic(HDC hdc, int x, int y, int contentTop, int contentBottom, con
 
 void drawAllHelpTopics(HDC hdc, int titleLeft, int topicLeft, int lineHeight, int gap, int y, int contentTop, int contentBottom);
 
-void buildHelpTopicsCache();
+std::vector<HelpDrawLine> buildHelpDrawLines(int lineHeight, int gap);
+int measureHelpContentHeight(int lineHeight, int gap);
 
 #endif
