@@ -75,13 +75,15 @@
                 }
                 if (key_value == "DOWN")
                 {
-                    helpDialogScrollOffset++;
+                    helpFilterMode = false;
+                    updateHelpDialogScrollOffset(1);
                     drawConsole();
                     return;
                 }
                 if (key_value == "UP")
                 {
-                    if (helpDialogScrollOffset > 0) helpDialogScrollOffset--;
+                    helpFilterMode = false;
+                    updateHelpDialogScrollOffset(-1);
                     drawConsole();
                     return;
                 }
@@ -94,6 +96,7 @@
                 if (typedChar != 0)
                 {
                     helpFilterText += typedChar;
+                    helpDialogScrollOffset = 0;
                     drawConsole();
                 }
 #else
@@ -102,6 +105,7 @@
                 if (count > 0)
                 {
                     helpFilterText += std::string(buffer, count);
+                    helpDialogScrollOffset = 0;
                     drawConsole();
                 }
 #endif

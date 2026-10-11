@@ -222,14 +222,24 @@ void ClipboardManager::updateConfigSelectScrollOffset()
     }
 }
 
-void ClipboardManager::updateHelpDialogScrollOffset(int adjustment)
+void ClipboardManager::updateHelpDialogScrollOffset(int direction)
 {
-    const int STEP = 10;
-   
-    helpDialogScrollOffset = helpDialogScrollOffset + (adjustment * STEP);
+    const int STEP = 15;
 
-    if (static_cast<int>(helpDialogScrollOffset) > -1)
+    // Positive direction scrolls down (reveals content below).
+    helpDialogScrollOffset += direction * STEP;
+
+    DialogDimensions dims = calculateDialogDimensions(windowWidth, windowHeight, 600, 500);
+    const int visibleHeight = dims.height - HELP_CONTENT_TOP_OFFSET;
+    const int contentHeight = measureHelpContentHeight(HELP_LINE_HEIGHT, HELP_GAP);
+    const int maxScroll = std::max(0, contentHeight - visibleHeight);
+
+    if (helpDialogScrollOffset < 0)
     {
         helpDialogScrollOffset = 0;
+    }
+    else if (helpDialogScrollOffset > maxScroll)
+    {
+        helpDialogScrollOffset = maxScroll;
     }
 }

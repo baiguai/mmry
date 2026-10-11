@@ -9,18 +9,15 @@ bool ClipboardManager::key_help_hide()
 
 bool ClipboardManager::key_help_scroll_down()
 {
-    updateHelpDialogScrollOffset(-1);
+    updateHelpDialogScrollOffset(1);
     drawConsole();
     return true;
 }
 
 bool ClipboardManager::key_help_scroll_up()
 {
-    if (helpDialogScrollOffset > 0)
-    {
-        updateHelpDialogScrollOffset(1);
-        drawConsole();
-    }
+    updateHelpDialogScrollOffset(-1);
+    drawConsole();
     return true;
 }
 
