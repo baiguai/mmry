@@ -220,7 +220,7 @@ public:
     void updateAddBookmarkScrollOffset();
     void updateThemeSelectScrollOffset();
     void updateConfigSelectScrollOffset();
-    void updateHelpDialogScrollOffset(int adjustment);
+    void updateHelpDialogScrollOffset(int direction);
 
     
     int getClipListWidth() const

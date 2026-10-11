@@ -48,13 +48,14 @@ void drawHelpTopic(HDC hdc, int x, int y, int contentTop, int contentBottom, con
         // (If we eventually implement macOS)
 #endif
 
-void drawAllHelpTopics(HDC hdc, int titleLeft, int topicLeft, int lineHeight, int gap, int y, int contentTop, int contentBottom)
+std::vector<HelpDrawLine> buildHelpDrawLines(int lineHeight, int gap)
 {
     if (helpTopicsCache.empty())
     {
         buildHelpTopicsCache();
     }
 
+    std::vector<HelpDrawLine> lines;
     std::string filterQuery = helpFilterText;
 
     // Show REGEX examples when filter starts with '!'
@@ -87,19 +88,20 @@ void drawAllHelpTopics(HDC hdc, int titleLeft, int topicLeft, int lineHeight, in
         for (size_t i = 0; i < regexExamples.size(); ++i)
         {
             const auto& [text, desc] = regexExamples[i];
-            if (i <= 1)
-            {
-                drawHelpTopic(hdc, titleLeft, y, contentTop, contentBottom, text);
-                y += lineHeight;
-                y += gap;
-            }
-            else
-            {
-                drawHelpTopic(hdc, topicLeft, y, contentTop, contentBottom, text + "  -  " + desc);
-                y += lineHeight;
-            }
+            HelpDrawLine line;
+            line.atTitleLeft = (i <= 1);
+            line.leadGap = 0;
+            line.text = (i <= 1) ? text : (text + "  -  " + desc);
+            lines.push_back(line);
         }
-        return;
+
+        // The original layout inserted a gap after each of the first two lines.
+        for (size_t i = 0; i <= 1 && i + 1 < lines.size(); ++i)
+        {
+            lines[i + 1].leadGap += gap;
+        }
+
+        return lines;
     }
 
     bool keysOnly = false;
@@ -140,28 +142,41 @@ void drawAllHelpTopics(HDC hdc, int titleLeft, int topicLeft, int lineHeight, in
 
     for (const auto& topic : filtered)
     {
-        if (topic.isHeader)
-        {
-            y += gap;
-        }
-        std::string displayText;
-        if (topic.isHeader)
-        {
-            displayText = topic.key;
-            drawHelpTopic(hdc, titleLeft, y, contentTop, contentBottom, displayText);
-        }
-        else
-        {
-            displayText = topic.key + "  -  " + topic.description;
-            drawHelpTopic(hdc, topicLeft, y, contentTop, contentBottom, displayText);
-        }
-        y += lineHeight;
+        HelpDrawLine line;
+        line.atTitleLeft = topic.isHeader;
+        line.leadGap = topic.isHeader ? gap : 0;
+        line.text = topic.isHeader ? topic.key : (topic.key + "  -  " + topic.description);
+        lines.push_back(line);
     }
 
-    y += lineHeight;
-    drawHelpTopic(hdc, titleLeft, y, contentTop, contentBottom, "Global Hotkey:");
-    y += lineHeight;
-    drawHelpTopic(hdc, topicLeft, y, contentTop, contentBottom, "Ctrl+Alt+C     - Show/hide window");
+    lines.push_back({true, lineHeight, "Global Hotkey:"});
+    lines.push_back({false, 0, "Ctrl+Alt+C     - Show/hide window"});
+
+    return lines;
+}
+
+void drawAllHelpTopics(HDC hdc, int titleLeft, int topicLeft, int lineHeight, int gap, int y, int contentTop, int contentBottom)
+{
+    std::vector<HelpDrawLine> lines = buildHelpDrawLines(lineHeight, gap);
+
+    for (const auto& line : lines)
+    {
+        y += line.leadGap;
+        drawHelpTopic(hdc, line.atTitleLeft ? titleLeft : topicLeft, y, contentTop, contentBottom, line.text);
+        y += lineHeight;
+    }
+}
+
+int measureHelpContentHeight(int lineHeight, int gap)
+{
+    std::vector<HelpDrawLine> lines = buildHelpDrawLines(lineHeight, gap);
+
+    int height = 0;
+    for (const auto& line : lines)
+    {
+        height += line.leadGap + lineHeight;
+    }
+    return height;
 }
 
 void buildHelpTopicsCache()
