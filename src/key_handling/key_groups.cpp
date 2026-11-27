@@ -23,12 +23,12 @@ bool ClipboardManager::key_addgroup_add()
             saveBookmarkGroups();
             
             // Add current clip to bookmark
-            if (!items.empty() && selectedItem < getDisplayItemCount())
-            {
-                size_t actualIndex = getActualItemIndex(selectedItem);
-                addClipToBookmarkGroup(bookmarkDialogInput, items[actualIndex].content);
-                std::cout << "Added clip to bookmark group: " << bookmarkDialogInput << "\n";
-            }
+            // if (!items.empty() && selectedItem < getDisplayItemCount())
+            // {
+            //     size_t actualIndex = getActualItemIndex(selectedItem);
+            //     addClipToBookmarkGroup(bookmarkDialogInput, items[actualIndex].content);
+            //     std::cout << "Added clip to bookmark group: " << bookmarkDialogInput << "\n";
+            // }
         }
         else
         {
