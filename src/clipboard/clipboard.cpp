@@ -1,12 +1,32 @@
 #include "../clipboard_manager.h"
 
+/*[./Introduction to Clipboard.cpp]
+    The clipboard.cpp handles the system clipboard work.
+*/
+//!
+
 #ifdef __linux__
+    /*!
+        Linux Specific Methods
+    */
+
+    /*!
+        Request Clipboard Content
+
+        !_method
+    */
     void ClipboardManager::requestClipboardContent()
     {
         // Request clipboard content as UTF8_STRING
         XConvertSelection(display, clipboardAtom, utf8Atom, clipboardAtom, window, CurrentTime);
     }
+    //!
 
+    /*!
+        Handle Selection Notify
+
+        !_method
+    */
     void ClipboardManager::handleSelectionNotify(XEvent* event)
     {
         if (event->xselection.property == None)
@@ -38,8 +58,15 @@
             processClipboardContent(content);
         }
     }
+    //!
+    //!
 #endif
 
+/*!
+    Process Clipboard Content
+
+    !_method
+*/
 void ClipboardManager::processClipboardContent(const std::string& content)
 {
     // Trim trailing newlines
@@ -125,10 +152,20 @@ void ClipboardManager::processClipboardContent(const std::string& content)
         drawConsole();
     }
 }
+//!
 
+/*!
+    Copy To Clipboard
+
+    !_method
+*/
 void ClipboardManager::copyToClipboard(const std::string& content)
 {
 #ifdef __linux__
+    /*!
+        Linux Copy To
+    */
+    //>>
     // Use xclip to copy to clipboard
     FILE* pipe = popen("xclip -selection clipboard", "w");
     if (pipe)
@@ -136,9 +173,15 @@ void ClipboardManager::copyToClipboard(const std::string& content)
         fwrite(content.c_str(), 1, content.length(), pipe);
         pclose(pipe);
     }
+    //<<
+    //!
 #endif
 
 #ifdef _WIN32
+    /*!
+        Windows Copy To
+    */
+    //>>
     // Windows clipboard
     if (OpenClipboard(nullptr))
     {
@@ -152,9 +195,15 @@ void ClipboardManager::copyToClipboard(const std::string& content)
         }
         CloseClipboard();
     }
+    //<<
+    //!
 #endif
 
+    /*!
+        Apple Copy
+    */
 #ifdef __APPLE__
+    //>>
     // macOS clipboard using pbcopy
     FILE* pipe = popen("pbcopy", "w");
     if (pipe)
@@ -162,5 +211,8 @@ void ClipboardManager::copyToClipboard(const std::string& content)
         fwrite(content.c_str(), 1, content.length(), pipe);
         pclose(pipe);
     }
+    //<<
+    //!
 #endif
 }
+//!

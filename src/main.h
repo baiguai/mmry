@@ -1,6 +1,11 @@
 #ifndef MAIN_H
 #define MAIN_H
 
+/*!
+    Main Header Includes
+
+*/
+//>>
 #include <iostream>
 #include <string>
 #include <cstdio>
@@ -49,7 +54,14 @@
 #if defined(__linux__) || defined(__APPLE__)
 typedef void* HDC;
 #endif
+//<<
+//!
 
+
+/*!
+    Clipboard Item Struct
+*/
+//>>
 struct ClipboardItem
 {
     std::string content;
@@ -64,83 +76,176 @@ struct ClipboardItem
                        [](unsigned char c){ return std::tolower(c); });
     }
 };
+//<<
+//!
 
 
 
+/*!
+    Single Instance Class
+*/
 class SingleInstance
 {
-private:
-#ifdef _WIN32
-    HANDLE mutex;
-#else
-    int lockFile;
-    std::string lockPath;
-#endif
 
-public:
-    SingleInstance(const std::string& appName)
-    {
+    /*!
+        Private Members
+    */
+    private:
 #ifdef _WIN32
-        // Windows: Use a named mutex
-        std::string mutexName = "Global\\" + appName + "_SingleInstance";
-        mutex = CreateMutexA(NULL, FALSE, mutexName.c_str());
-        
-        if (GetLastError() == ERROR_ALREADY_EXISTS)
-        {
-            CloseHandle(mutex);
-            mutex = NULL;
-        }
+            /*!
+                Windows
+            */
+            //>>
+        HANDLE mutex;
+            //<<
+            //!
 #else
-        // Unix/Linux/macOS: Use a lock file
-        lockPath = "/tmp/" + appName + ".lock";
-        lockFile = open(lockPath.c_str(), O_CREAT | O_RDWR, 0666);
-        
-        if (lockFile == -1)
-        {
-            lockFile = -1;
-            return;
-        }
-        
-        // Try to acquire exclusive lock
-        if (flock(lockFile, LOCK_EX | LOCK_NB) == -1)
-        {
-            close(lockFile);
-            lockFile = -1;
-        }
+            /*!
+                Linux
+            */
+            //>>
+        int lockFile;
+        std::string lockPath;
+            //<<
+            //!
 #endif
-    }
+        //!
 
-    ~SingleInstance()
-    {
-#ifdef _WIN32
-        if (mutex)
-        {
-            CloseHandle(mutex);
-        }
-#else
-        if (lockFile != -1)
-        {
-            flock(lockFile, LOCK_UN);
-            close(lockFile);
-            unlink(lockPath.c_str());
-        }
-#endif
-    }
+        /*!
+            Public Members
+        */
+    public:
 
-    bool isAnotherInstanceRunning() const
-    {
+        /*!
+            Single Instance
+
+            !_method
+        */
+        SingleInstance(const std::string& appName)
+        {
+
+            /*!
+                Windows Single Instance
+            */
 #ifdef _WIN32
-        return (mutex == NULL);
+            //>>
+            // Windows: Use a named mutex
+            std::string mutexName = "Global\\" + appName + "_SingleInstance";
+            mutex = CreateMutexA(NULL, FALSE, mutexName.c_str());
+            
+            if (GetLastError() == ERROR_ALREADY_EXISTS)
+            {
+                CloseHandle(mutex);
+                mutex = NULL;
+            }
+            //<<
+            //!
 #else
-        return (lockFile == -1);
+            /*!
+                Linux Single Instance
+            */
+            //>>
+            // Unix/Linux/macOS: Use a lock file
+            lockPath = "/tmp/" + appName + ".lock";
+            lockFile = open(lockPath.c_str(), O_CREAT | O_RDWR, 0666);
+            
+            if (lockFile == -1)
+            {
+                lockFile = -1;
+                return;
+            }
+            
+            // Try to acquire exclusive lock
+            if (flock(lockFile, LOCK_EX | LOCK_NB) == -1)
+            {
+                close(lockFile);
+                lockFile = -1;
+            }
+            //<<
+            //!
 #endif
-    }
+        }
+        //!
+
+        /*!
+            Single Instance Destructor
+        */
+        ~SingleInstance()
+        {
+#ifdef _WIN32
+            /*!
+                Windows Destructor
+            */
+            //>>
+            if (mutex)
+            {
+                CloseHandle(mutex);
+            }
+            //<<
+            //!
+#else
+            /*!
+                Linux Destructor
+            */
+            //>>
+            if (lockFile != -1)
+            {
+                flock(lockFile, LOCK_UN);
+                close(lockFile);
+                unlink(lockPath.c_str());
+            }
+            //<<
+            //!
+#endif
+        }
+        //!
+
+        /*!
+            Another Instance Check
+
+            !_method
+        */
+        bool isAnotherInstanceRunning() const
+        {
+#ifdef _WIN32
+            /*!
+                Window Instance Check
+            */
+            //>>
+            return (mutex == NULL);
+            //<<
+            //!
+#else
+            /*!
+                Linux Instance Check
+            */
+            //>>
+            return (lockFile == -1);
+            //<<
+            //!
+#endif
+        }
+        //!
 };
+        //!
 
+/*!
+    String to Lower Helper
+*/
+//>>
 std::string stringToLower(const std::string& str);
+//<<
+//!
 
-// Temporary error handler to swallow BadAccess errors
+
+/*!
+    Ignore Bad Access Errors
+*/
 #ifdef __linux__
+    /*!
+        Linux Access Errors
+    */
+    //>>
 inline int ignore_x11_errors(Display* d, XErrorEvent* e)
 {
     (void)d; // Suppress unused parameter warning
@@ -151,13 +256,25 @@ inline int ignore_x11_errors(Display* d, XErrorEvent* e)
     }
     return 0; // ignore all other errors too
 }
+    //<<
+    //!
 #endif
 
 #ifdef _WIN32
+    /*!
+        Windows Access Errors
+    */
+    //>>
     LRESULT CALLBACK MMRYWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam);
+    //<<
+    //!
 #endif
+//!
 
-
+/*!
+    Global Variables
+*/
+    //>>
     inline std::atomic<bool> running;
     inline std::atomic<bool> visible;
     // Window properties
@@ -170,18 +287,18 @@ inline int ignore_x11_errors(Display* d, XErrorEvent* e)
     const int WIN_SEL_RECT_OFFSET_Y { 4 };
     const int FONT_SIZE { 16 };
     const std::string FONT_NAME { "Consolas" };
-    
+
     // Minimum window size constraints
     const int MIN_WINDOW_WIDTH { 425 };
     const int MIN_WINDOW_HEIGHT { 525 };
-    
+
     // Dynamic width adjustment for clip list
     inline int clipListWidth { 780 }; // Default width (windowWidth - 20 for margins)
-    
+
     // Clipboard data
     inline std::vector<ClipboardItem> items;
     inline std::string lastClipboardContent;
-    
+
     // Navigation
     inline size_t selectedItem { 0 };
     inline size_t consoleScrollOffset { 0 }; // For scrolling main clips list
@@ -190,11 +307,11 @@ inline int ignore_x11_errors(Display* d, XErrorEvent* e)
     inline std::vector<size_t> filteredItems;
     inline bool regexSubmitted { false };
     inline int pendingRepeatCount { 0 };
-    
+
     // Command mode
     inline bool commandMode { false };
     inline std::string commandText;
-    
+
     // Theme selection mode
     inline bool cmd_themeSelectMode { false };
     inline std::vector<std::string> availableThemes;
@@ -206,9 +323,9 @@ inline int ignore_x11_errors(Display* d, XErrorEvent* e)
     inline std::vector<std::string> availableConfigs;
     inline size_t selectedConfig { 0 };
     inline size_t configSelectScrollOffset { 0 };
-    
 
-    
+
+
     // Bookmark dialog
     inline bool bookmarkDialogVisible { false };
     inline std::string bookmarkDialogInput;
@@ -221,12 +338,12 @@ inline int ignore_x11_errors(Display* d, XErrorEvent* e)
     inline size_t selectedViewPinnedItem { 0 };
     inline size_t viewPinnedScrollOffset { 0 }; // For scrolling long lists
     inline int m_maxVisiblePinnedItems { 1 }; // Stores the number of currently visible pinned items
-    
+
     // Add to bookmark dialog state
     inline bool addToBookmarkDialogVisible { false };
     inline size_t selectedAddBookmarkGroup { 0 };
     inline size_t addBookmarkScrollOffset { 0 }; // For scrolling long lists
-    
+
     // Help dialog state
     inline bool helpDialogVisible { false };
     inline int helpDialogScrollOffset { 0 };
@@ -239,7 +356,7 @@ inline int ignore_x11_errors(Display* d, XErrorEvent* e)
     inline int editDialogScrollOffset { 0 };
     inline size_t editDialogCursorPos { 0 };
     inline size_t editDialogCursorLine { 0 };
-    
+
     // View bookmarks dialog state
     inline bool viewBookmarksDialogVisible { false };
     inline bool viewBookmarksShowingGroups { true }; // true = groups, false = clips
@@ -258,5 +375,7 @@ inline int ignore_x11_errors(Display* d, XErrorEvent* e)
     inline bool filterBookmarkClipsMode { false };
     inline std::string filterBookmarkClipsText;
     inline std::vector<std::string> filteredBookmarkClips;
+    //<<
+//!
 
-#endif // End main_h
+#endif

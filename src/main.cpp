@@ -6,49 +6,23 @@
 #include "utils.h"
 #include "clipboard_manager.h"
 
-/*
-
-    ============================================================================
-    MMRY
-    Clipboard Manager
-    ============================================================================
 
 
-    -- SOURCE CODE -------------------------------------------------------------
-
-    https://github.com/baiguai/mmry
-
-
-    -- PROJECT STRUCTURE -------------------------------------------------------
-
-    key_translations
-        This file handles translating key codes from different platforms into
-        one common set of key values.
-
-    help
-        This file handles the drawing of the help dialog as well as defining
-        all of the help entries themselves.
-
-    ui
-        For the UI the code is broken out into each platform's logic.
-        This file handles the drawing of all the various dialogs, including
-        the main window.
-
-    config
-        This file handles all of the configuration logic, including handling
-        themes and ensuring the required configuration files are present.
-
-    utils
-        This file contains various helper methods that are used throughout
-        the project.
-
+/*[/Introduction]
+    Mmry is a keyboard-driven clipboard manager...
+    For those who love Vim.
 */
 
+//!_coderoot=/Source Code
+
+//!_structure=/Project Structure
 
 
+/*!
+    Move Cursor Word Left
 
-
-
+    !_method
+*/
 void ClipboardManager::moveCursorWordLeft()
 {
     std::string currentLine = "";
@@ -72,7 +46,13 @@ void ClipboardManager::moveCursorWordLeft()
         editDialogCursorPos = pos;
     }
 }
+//!
 
+/*!
+    Move Cursor Word Right
+
+    !_method
+*/
 void ClipboardManager::moveCursorWordRight()
 {
     std::string currentLine = "";
@@ -96,7 +76,18 @@ void ClipboardManager::moveCursorWordRight()
         editDialogCursorPos = pos;
     }
 }
+//!
 
+/*!
+    Update Filtered Bookmark Clips
+
+    !_method
+
+    ----
+
+    This method gets a filtered list of the stored clips, if a Bookmark Group is selected
+    the filtered list is drawn from within that group.
+*/
 void ClipboardManager::updateFilteredBookmarkClips()
 {
     filteredBookmarkClips.clear();
@@ -166,7 +157,13 @@ void ClipboardManager::updateFilteredBookmarkClips()
         selectedViewBookmarkItem = filteredBookmarkClips.size() - 1;
     }
 }
+//!
 
+/*!
+    Get Bookmark Item Count
+
+    !_method
+*/
 size_t ClipboardManager::getBookmarkItemCount()
 {
     if (selectedViewBookmarkGroup >= bookmarkGroups.size())
@@ -199,7 +196,13 @@ size_t ClipboardManager::getBookmarkItemCount()
 
     return itemCount;
 }
+//!
 
+/*!
+    String to Lower
+
+    !_method
+*/
 std::string stringToLower(const std::string& str)
 {
     std::string lower_str;
@@ -211,8 +214,14 @@ std::string stringToLower(const std::string& str)
 
     return lower_str;
 }
+//!
 
-// Global pointer for signal handling
+/*!
+    Global Pointer for Signal Handling
+
+    ----
+*/
+//>>
 ClipboardManager* g_manager = nullptr;
 
 #include <signal.h>
@@ -228,11 +237,17 @@ void signal_handler(int signal)
     }
     exit(0);
 }
+//<<
+//!
 
 
 
+/*!
+    Windows - Window Proc Handler
 
-
+    ----
+*/
+//>>
 #ifdef _WIN32
 LRESULT CALLBACK MMRYWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 {
@@ -327,11 +342,18 @@ LRESULT CALLBACK MMRYWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
             return DefWindowProc(hwnd, msg, wParam, lParam);
     }
 }
-
 #endif
+//<<
+//!
 
 
 
+
+/*!
+    Linux Main
+
+    !_method
+*/
 int main_linux()
 {
 #ifdef __linux__
@@ -358,7 +380,13 @@ int main_linux()
 
     return 0;
 }
+//!
 
+/*!
+    Windows Main
+
+    !_method
+*/
 int main_windows()
 {
 #ifdef _WIN32
@@ -394,9 +422,14 @@ int main_windows()
 
     return 0;
 }
+//!
 
 
+/*!
+    Main
 
+    !_method
+*/
 int main()
 {
     if (main_linux())
@@ -411,3 +444,10 @@ int main()
 
     return 0;
 }
+//!
+
+
+
+/*[/About]
+    Mmry was created by Baiguai.
+*/
